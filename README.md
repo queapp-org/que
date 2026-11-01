@@ -71,7 +71,7 @@ where things are, not scrolling back through terminals to find out.
 que is in early preview (0.x): used every day by its author, changing fast.
 
 Download the latest `que-<version>-arm64.dmg` from
-[Releases](https://github.com/que-agents/que/releases) and drag que to
+[Releases](https://github.com/queapp-org/que/releases) and drag que to
 Applications. It needs macOS on Apple Silicon. Prereleases (`-beta.N`) appear on
 the same page for anyone who wants the newest build early; the app only offers
 you stable releases.

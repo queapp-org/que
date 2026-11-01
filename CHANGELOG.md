@@ -8,7 +8,7 @@ All notable changes to que are recorded here. The format follows
 
 ### Changed
 
-- que moved to [github.com/que-agents/que](https://github.com/que-agents/que). The old `rquellh/que` addresses redirect, so 0.2.0 keeps finding updates.
+- que moved to [github.com/queapp-org/que](https://github.com/queapp-org/que). The old `rquellh/que` and `que-agents/que` addresses redirect, so 0.2.0 keeps finding updates.
 
 ## [0.2.0] - 2026-10-28
 
@@ -150,6 +150,6 @@ Built and used locally; never published.
   node-pty outside the asar, an "Install 'que' command in PATH" menu item, and
   a daily check for a newer release.
 
-[Unreleased]: https://github.com/que-agents/que/compare/v0.2.0...HEAD
-[0.1.0]: https://github.com/que-agents/que/tree/afc5c9f345c965a15703283dc36e1fd7256ff010
-[0.2.0]: https://github.com/que-agents/que/compare/afc5c9f345c965a15703283dc36e1fd7256ff010...v0.2.0
+[Unreleased]: https://github.com/queapp-org/que/compare/v0.2.0...HEAD
+[0.1.0]: https://github.com/queapp-org/que/tree/afc5c9f345c965a15703283dc36e1fd7256ff010
+[0.2.0]: https://github.com/queapp-org/que/compare/afc5c9f345c965a15703283dc36e1fd7256ff010...v0.2.0
