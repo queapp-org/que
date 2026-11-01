@@ -7,7 +7,7 @@ Thanks for helping. que is small on purpose; a good change keeps it that way.
 You need macOS on Apple Silicon, Node 24, and git. Then:
 
 ```sh
-git clone https://github.com/que-agents/que.git
+git clone https://github.com/queapp-org/que.git
 cd que
 npm ci          # also rebuilds node-pty for Electron (postinstall)
 npm run dev     # the app with hot reload, using ~/.que

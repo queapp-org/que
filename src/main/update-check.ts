@@ -14,7 +14,7 @@ import {
 
 export type { UpdateCheckState, UpdateInfo }
 
-export const LATEST_RELEASE_URL = 'https://api.github.com/repos/que-agents/que/releases/latest'
+export const LATEST_RELEASE_URL = 'https://api.github.com/repos/queapp-org/que/releases/latest'
 export const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 type Semver = { core: [number, number, number]; pre: string[] }

@@ -8,11 +8,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/que-agents/que.git"
+    "url": "git+https://github.com/queapp-org/que.git"
   },
-  "homepage": "https://github.com/que-agents/que#readme",
+  "homepage": "https://github.com/queapp-org/que#readme",
   "bugs": {
-    "url": "https://github.com/que-agents/que/issues"
+    "url": "https://github.com/queapp-org/que/issues"
   },
   "keywords": [
     "claude-code",

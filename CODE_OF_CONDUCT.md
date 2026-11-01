@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement by opening an
-issue at [github.com/que-agents/que/issues](https://github.com/que-agents/que/issues)
+issue at [github.com/queapp-org/que/issues](https://github.com/queapp-org/que/issues)
 (ask for a private contact there if the report should not be public).
 All complaints will be reviewed and investigated promptly and fairly.
 
