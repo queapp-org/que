@@ -1,7 +1,7 @@
-// The README's quiet-mode GIF (`npm run demo:gif`, #229): not a test but a recording. It drives
-// the built app and a real daemon with fake claude sessions (QUE_FAKE_CLAUDE_STREAM keeps a turn
-// working until a signal ends it or makes it ask), and saves keyframes with their hold times
-// to test-results/demo/; scripts/demo-gif.mjs encodes them. Playwright screenshots have no
+// The website overview's quiet-mode GIF (`npm run demo:gif`, #229): not a test but a recording.
+// It drives the built app and a real daemon with fake claude sessions (QUE_FAKE_CLAUDE_STREAM
+// keeps a turn working until a signal ends it or makes it ask), and saves keyframes with their
+// hold times to test-results/demo/; scripts/demo-gif.mjs encodes them. Playwright screenshots have no
 // pointer, so an overlay cursor (demo only, never in the app) glides to each control first.
 // Everything on screen is generic: a temp HOME so paths read `~/…`, and a bare zsh prompt.
 import { execFileSync } from 'node:child_process'
@@ -119,7 +119,7 @@ async function glideAndClick(page: Page, window: Frame['window'], target: Locato
   await target.click()
 }
 
-test('records quiet mode for the README', async () => {
+test('records quiet mode for the website overview', async () => {
   test.setTimeout(240_000)
   fs.rmSync(OUT, { recursive: true, force: true })
   fs.mkdirSync(FRAMES, { recursive: true })

@@ -9,6 +9,7 @@ All notable changes to que are recorded here. The format follows
 ### Changed
 
 - que moved to [github.com/queapp-org/que](https://github.com/queapp-org/que). The old `rquellh/que` and `que-agents/que` addresses redirect, so 0.2.0 keeps finding updates.
+- The README is now a short landing page that points to [queapp.org](https://queapp.org) for download, the guides and the CLI and configuration references; the notes on running que from source moved to `DEVELOPING.md`.
 
 ## [0.2.0] - 2026-10-28
 

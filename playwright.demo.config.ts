@@ -1,4 +1,4 @@
-// The README demo recording (`npm run demo:gif`), apart from the e2e suite: its own directory
+// The quiet-mode demo recording (`npm run demo:gif`), apart from the e2e suite: its own directory
 // and file pattern, so `npm run e2e` and CI never run it.
 import { defineConfig } from '@playwright/test'
 

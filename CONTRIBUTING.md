@@ -52,7 +52,7 @@ on a condition; inject the clock into anything time-dependent.
 `npm run test:flaky -- 10` runs the Vitest suites ten times when you suspect a
 flaky test.
 
-When the UI changes, re-record the README's quiet-mode GIF with `npm run demo:gif`: it drives the built app with fake sessions (`tests/demo/`, outside the e2e suite) and writes `docs/images/quiet-mode.gif`; look at it before you commit it.
+When the UI changes, re-record the quiet-mode GIF that the website's overview shows with `npm run demo:gif`: it drives the built app with fake sessions (`tests/demo/`, outside the e2e suite) and writes `docs/images/quiet-mode.gif`; look at it before you commit it.
 
 `npm run test:coverage` runs the Vitest suites with coverage and writes the
 report to `coverage/index.html`. Every pull request's "Unit tests" step summary
