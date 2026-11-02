@@ -1,13 +1,10 @@
-<h1>
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/que-wordmark-dark.svg">
     <img src="docs/images/que-wordmark-light.svg" alt="que" width="120">
   </picture>
-</h1>
+<h2 align="center">Go ahead and log off</h2>
   <p align="center">
-    <b>Go ahead and log off</b>
-    <br />
     que is a macOS app for running coding agents in parallel, with a distraction-free view that lets you unplug and focus while they work.
     <br />
     <a href="#about">About</a>
@@ -20,7 +17,7 @@
     ·
     <a href="DEVELOPING.md">Developing</a>
   </p>
-</p>
+  </p>
 
 <p align="center"><img src="docs/images/day.gif" alt="A day with que: sessions run in their own worktrees while you work, que goes quiet for a meeting and again at night, a timed unlock is logged, and the morning report sums up the night." width="888"></p>
 

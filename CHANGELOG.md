@@ -20,6 +20,7 @@ All notable changes to que are recorded here. The format follows
 - An app newer than its background service no longer opens to a blank window. It reads the previous build's workspaces with defaults for the fields that build does not send, so every row, card and pull request draws and Restart shows. If a part of the window still cannot be drawn, that part shows an error line in its place while the rest stays up, Restart included, and it draws again once the service restarts, without relaunching the app.
 
 - When the home path is too long for a unix socket, the socket moved to `/tmp/que-<uid>/daemon.sock` for every such home, so two daemons with different long homes shared one socket. Each home now gets its own, `/tmp/que-<uid>/<hash of the home>.sock`, and `que daemon status` and `que doctor` say when the socket has moved.
+- `git add` and `git commit` in a workspace fail far less often with `index.lock: File exists` while que shows that workspace, because the background service's `git status` no longer takes the lock.
 
 ## [0.2.0] - 2026-10-28
 

@@ -271,30 +271,43 @@ describe('background tasks', () => {
   }, 45_000)
 
   it("a subagent's hooks keep a waiting session from going stuck while they arrive", async () => {
-    const { d, ws } = await idleWorkspace({ config: 'stall_timeout_minutes = 0.005\n' })
+    // Well above a slow step on a busy machine, which must not pass for a session gone quiet.
+    const stallMs = 3_000
+
+    const { d, ws } = await idleWorkspace({
+      config: `stall_timeout_minutes = ${stallMs / 60_000}\n`
+    })
+
     const { term: id } = await runClaude(d, ws.id)
     const get = () => d.client.request('workspace.get', { id: ws.id })
+    const activityAt = async () => Date.parse((await get()).lastActivityAt as string)
 
     await d.client.request('term.write', { id, data: '/background subagent\r' })
     await expect
       .poll(async () => (await get()).backgroundTasks.map((t) => t.kind), { timeout: 15_000 })
       .toEqual(['subagent'])
     const agentId = (await get()).backgroundTasks[0].id
+    const stoppedAt = await activityAt()
 
-    // Each round waits for a tick to fold the hook in, so the run outlasts the 300 ms stall timeout.
-    for (let i = 0; i < 15; i++) {
-      const before = (await get()).lastActivityAt
+    // The Stop is the session's own last activity. Send until a hook lands a full stall timeout
+    // after it: the tick that takes that hook in would find the session stalled without the hooks.
+    await expect
+      .poll(
+        async () => {
+          await d.client.request('hook.event', {
+            workspaceId: ws.id,
+            payload: makeHookEvent('PreToolUse', {
+              cwd: ws.path,
+              agent_id: agentId,
+              tool_name: 'Read'
+            })
+          })
 
-      await d.client.request('hook.event', {
-        workspaceId: ws.id,
-        payload: makeHookEvent('PreToolUse', {
-          cwd: ws.path,
-          agent_id: agentId,
-          tool_name: 'Read'
-        })
-      })
-      await expect.poll(async () => (await get()).lastActivityAt).not.toBe(before)
-    }
+          return (await activityAt()) - stoppedAt
+        },
+        { timeout: 10_000 }
+      )
+      .toBeGreaterThan(stallMs)
 
     expect(await get()).toMatchObject({ status: 'working', statusReason: null })
 
@@ -324,7 +337,9 @@ describe('status engine wiring', () => {
       workspaceId: ws.id,
       payload: makeHookEvent('PostToolUse', { cwd: ws.path, tool_name: 'Bash' })
     })
-    expect((await d.client.request('workspace.get', { id: ws.id })).status).toBe('working')
+
+    // From the recorded changes: with a timeout this short, a slow read could find it stuck again.
+    expect(statusesOf(statuses, ws.id).slice(3, 5)).toEqual(['stuck', 'working'])
   }, 30_000)
 
   it('announces a hook-driven change as one workspace.updated carrying the whole row', async () => {
