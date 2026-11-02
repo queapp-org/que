@@ -25,7 +25,7 @@ const RESTART_TITLE =
   'que was updated. The background service still runs the previous build. Restart it on this build; every terminal keeps running.'
 
 /** A newer release, as the main process's daily check reports it. */
-const RELEASE = { version: '0.3.0', url: 'https://github.com/que-agents/que/releases/tag/v0.3.0' }
+const RELEASE = { version: '0.3.0', url: 'https://github.com/queapp-org/que/releases/tag/v0.3.0' }
 
 /** A daemon still running the build before this app's. */
 const STALE = { buildId: '8c41e07d92aa', expectedBuildId: '3f9a2c71b0de', stale: true }

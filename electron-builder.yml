@@ -63,7 +63,7 @@ extraResources:
 # itself (the package scripts pass --publish never), the release workflow does.
 publish:
   provider: github
-  owner: que-agents
+  owner: queapp-org
   repo: que
 
 # Restores the execute bit on node-pty's spawn-helper (and the CLI launcher).
