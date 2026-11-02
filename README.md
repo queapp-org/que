@@ -1,10 +1,9 @@
 <h1>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/que-mark-dark.svg">
-    <img src="docs/images/que-mark-light.svg" alt="que" width="96">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/que-wordmark-dark.svg">
+    <img src="docs/images/que-wordmark-light.svg" alt="que" width="120">
   </picture>
-  <br>que
 </h1>
   <p align="center">
     <b>Go ahead and log off</b>
@@ -22,6 +21,8 @@
     <a href="DEVELOPING.md">Developing</a>
   </p>
 </p>
+
+<p align="center"><img src="docs/images/day.gif" alt="A day with que: sessions run in their own worktrees while you work, que goes quiet for a meeting and again at night, a timed unlock is logged, and the morning report sums up the night." width="888"></p>
 
 ## About
 
@@ -61,8 +62,11 @@ vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Roadmap and status
 
-que is in early preview (0.x): used every day by its author, changing fast. What comes next is in
-[ROADMAP.md](ROADMAP.md).
+que is in early preview (0.x): used every day by its author, changing fast. The roadmap lives in
+the [issues](https://github.com/queapp-org/que/issues), with planned features under
+[enhancement](https://github.com/queapp-org/que/issues?q=is%3Aissue%20is%3Aopen%20label%3Aenhancement).
+Want something que doesn't do? [Open an issue](https://github.com/queapp-org/que/issues/new) and
+say what you'd like and why.
 
 ## License
 

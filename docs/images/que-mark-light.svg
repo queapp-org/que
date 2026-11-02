@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="287 290 514 514">
-  <!-- que's mark on light: the ring, its stem and the accent dot. -->
-  <g fill="none" stroke="#17181c" stroke-width="64" stroke-linecap="round">
-    <circle cx="482" cy="472" r="150" />
-    <path d="M632 472V772" />
-  </g>
-  <circle cx="742" cy="742" r="46" fill="#0f7d6b" />
-</svg>
