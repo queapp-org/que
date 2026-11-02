@@ -4,6 +4,7 @@ import {
   checkRunsOf,
   commentCounts,
   currentPullRequest,
+  keepsStoredChecks,
   parsePullRequest,
   pullRequestList,
   samePullRequest,
@@ -545,5 +546,107 @@ describe('samePullRequests', () => {
     expect(samePullRequests([open, merged], [{ ...open, state: 'closed' }, merged])).toBe(false)
     expect(samePullRequests([merged], [open, merged])).toBe(false)
     expect(samePullRequests([open, merged], [merged, open])).toBe(false)
+  })
+})
+
+// A `gh pr list` item numbered `number` as the project listing prints it: without the rollup.
+const listed = (number: number, extra: Record<string, unknown>) => {
+  const raw = decodePullRequest({
+    ...extra,
+    number,
+    url: `https://github.com/rquellh/que/pull/${number}`
+  })
+
+  if (!raw) throw new Error('fixture did not decode')
+
+  return raw
+}
+
+const failing = [{ name: 'unit tests', status: 'COMPLETED', conclusion: 'FAILURE' }]
+const passing = [{ name: 'unit tests', status: 'COMPLETED', conclusion: 'SUCCESS' }]
+const running = [{ name: 'unit tests', status: 'IN_PROGRESS' }]
+
+describe('a pull request listed without its rollup', () => {
+  describe('parsePullRequest', () => {
+    it('keeps the checks of its stored copy and takes the rest fresh', () => {
+      const stored = pr(41, {
+        state: 'MERGED',
+        title: 'Add retry logic',
+        statusCheckRollup: failing
+      })
+
+      expect(
+        parsePullRequest(listed(41, { state: 'MERGED', title: 'Retry the uploader' }), AT, [stored])
+      ).toMatchObject({
+        title: 'Retry the uploader',
+        checks: 'failing',
+        checkRuns: stored.checkRuns
+      })
+    })
+
+    it('has no checks when nothing stored has its number', () => {
+      const other = pr(40, { state: 'MERGED', statusCheckRollup: failing })
+
+      expect(parsePullRequest(listed(41, { state: 'MERGED' }), AT, [other])).toMatchObject({
+        checks: 'none',
+        checkRuns: []
+      })
+    })
+
+    it('takes a printed rollup over the stored checks, even an empty one', () => {
+      const stored = pr(41, { state: 'OPEN', statusCheckRollup: failing })
+
+      expect(
+        parsePullRequest(listed(41, { state: 'OPEN', statusCheckRollup: [] }), AT, [stored])
+      ).toMatchObject({ checks: 'none', checkRuns: [] })
+    })
+  })
+
+  describe('keepsStoredChecks', () => {
+    it.each([
+      { name: 'merged, stored merged', now: 'MERGED', before: passing, due: false, keeps: true },
+      {
+        name: 'closed, stored closed, on a fifth tick',
+        now: 'CLOSED',
+        before: failing,
+        due: true,
+        keeps: true
+      },
+      {
+        name: 'merged, stored merged while its checks ran',
+        now: 'MERGED',
+        before: running,
+        due: false,
+        keeps: true
+      },
+      {
+        name: 'merged, stored merged while its checks ran, on a fifth tick',
+        now: 'MERGED',
+        before: running,
+        due: true,
+        keeps: false
+      }
+    ])('keeps the checks of one $name: $keeps', ({ now, before, due, keeps }) => {
+      const stored = pr(41, { state: now, statusCheckRollup: before })
+
+      expect(keepsStoredChecks(listed(41, { state: now }), [stored], due)).toBe(keeps)
+    })
+
+    it.each([
+      ['open', { state: 'OPEN' }, { state: 'OPEN' }],
+      ['a draft', { state: 'OPEN', isDraft: true }, { state: 'OPEN', isDraft: true }],
+      ['merged since it was stored open', { state: 'MERGED' }, { state: 'OPEN' }],
+      ['reopened', { state: 'OPEN' }, { state: 'CLOSED' }]
+    ])('asks for the checks of one %s', (_name, now, before) => {
+      const stored = pr(41, { ...before, statusCheckRollup: passing })
+
+      expect(keepsStoredChecks(listed(41, now), [stored], false)).toBe(false)
+    })
+
+    it('asks for the checks of one it has not stored', () => {
+      const other = pr(40, { state: 'MERGED', statusCheckRollup: passing })
+
+      expect(keepsStoredChecks(listed(41, { state: 'MERGED' }), [other], false)).toBe(false)
+    })
   })
 })

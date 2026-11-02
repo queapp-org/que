@@ -279,6 +279,9 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   a small mono badge. A tab's tooltip is its folder, the title its program set, and the
   first four characters of its id, one to a line. The workspace's name lives in the
   sidebar's selected row alone, its status in the row's dot, and the error line sits above the row.
+  A region of the window that cannot be drawn (the sidebar's lists, the main area, the review
+  pane) shows the error line in its place, saying which part and why, and the rest of the
+  window stays up.
 
 ## Sidebar
 

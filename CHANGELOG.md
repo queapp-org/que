@@ -10,11 +10,16 @@ All notable changes to que are recorded here. The format follows
 
 - que moved to [github.com/queapp-org/que](https://github.com/queapp-org/que). The old `rquellh/que` and `que-agents/que` addresses redirect, so 0.2.0 keeps finding updates.
 - The banner saying a newer release is available is gone. The control at the right end of the Quiet row now has two states: Update when a newer release is published, which opens its download page, and Restart (formerly Update) when the background service runs an older build than the app. Restart shows while both hold. Builds made by `npm run package` or `npm run install:local`, and runs from source, never check for releases.
+- The README is now a short landing page that points to [queapp.org](https://queapp.org) for download, the guides and the CLI and configuration references; the notes on running que from source moved to `DEVELOPING.md`.
 
 ### Fixed
 
+- Pull request checks lag less on busy repositories. The poll's listing of a repository's recent pull requests no longer asks for their checks, which made it time out; checks are asked only for the open and draft pull requests your workspaces hold. When that listing fails anyway, each workspace is still checked in the same poll instead of waiting for the next one.
 - A Claude session started in a loose terminal (the sidebar's Sessions) now comes back after a restart or a crash, as workspace sessions do: a new loose terminal opens in the folder where the session started, even if you changed directory after opening the terminal, and picks the session up with `claude --resume`. While quiet hours are locked it waits for the unlock, and a session whose folder has since been deleted is skipped. This covers loose terminals opened after the update; loose sessions still show no status.
 - A daemon started from inside a que terminal no longer passes that terminal's workspace, socket, instructions file, permission mode or claude wrapper state on to the terminals it opens, so its sessions get only their own repo's instructions and permission mode.
+- An app newer than its background service no longer opens to a blank window. It reads the previous build's workspaces with defaults for the fields that build does not send, so every row, card and pull request draws and Restart shows. If a part of the window still cannot be drawn, that part shows an error line in its place while the rest stays up, Restart included, and it draws again once the service restarts, without relaunching the app.
+
+- When the home path is too long for a unix socket, the socket moved to `/tmp/que-<uid>/daemon.sock` for every such home, so two daemons with different long homes shared one socket. Each home now gets its own, `/tmp/que-<uid>/<hash of the home>.sock`, and `que daemon status` and `que doctor` say when the socket has moved.
 
 ## [0.2.0] - 2026-10-28
 

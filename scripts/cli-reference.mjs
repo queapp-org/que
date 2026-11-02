@@ -110,28 +110,19 @@ for (const cmd of all) {
   md += `\n### que ${cmd.path.join(' ')}\n\n\`\`\`text\n${cmd.text.trim()}\n\`\`\`\n`
 }
 
-// The same table in the README, between its generated markers.
-const readmePath = join(root, 'README.md')
-const readme = readFileSync(readmePath, 'utf8')
-const re = /(<!-- generated:cli-table -->\n)[\s\S]*?(<!-- \/generated -->)/
-
-if (!re.test(readme)) throw new Error('README.md has no generated:cli-table block')
-
 // Written and checked through the same formatting, so a check never drifts from a write.
 const nextMd = formatMarkdown(root, md)
-const nextReadme = formatMarkdown(root, readme.replace(re, `$1${table}$2`))
 
 if (process.argv.includes('--check')) {
   const current = existsSync(target) ? readFileSync(target, 'utf8') : ''
 
-  if (current !== nextMd || readme !== nextReadme) {
-    console.error('docs/cli.md or the README CLI table is stale; run npm run docs')
+  if (current !== nextMd) {
+    console.error('docs/cli.md is stale; run npm run docs')
     process.exit(1)
   }
 
-  console.log('docs/cli.md and the README CLI table are up to date')
+  console.log('docs/cli.md is up to date')
 } else {
   writeFileSync(target, nextMd)
-  writeFileSync(readmePath, nextReadme)
   console.log(`wrote ${target} (${all.filter((c) => !c.hasSubs).length} commands)`)
 }

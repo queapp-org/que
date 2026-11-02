@@ -138,6 +138,11 @@ if (cmd === 'auth' && sub === 'status') {
     process.exit(1)
   }
   const head = flag('--head')
+  // A listing of the whole repository fails as GitHub fails it under load, with this message.
+  if (head === undefined && process.env.QUE_FAKE_GH_REPO_LIST_FAIL) {
+    process.stderr.write(`${process.env.QUE_FAKE_GH_REPO_LIST_FAIL}\n`)
+    process.exit(1)
+  }
   const prs = readPrs()
   const entries = head === undefined ? allPrs(prs) : allPrs({ [head]: prs[head] ?? [] })
   const limit = Number(flag('--limit') ?? 30)

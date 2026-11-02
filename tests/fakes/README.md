@@ -27,7 +27,7 @@ the hook JSON on stdin (`hook_event_name`, `session_id`, `cwd`, `transcript_path
 UserPromptSubmit, a fake `Read` (Pre/PostToolUse), a reply, and Stop.
 `/needs-input` fires UserPromptSubmit, then the permission Notification, and waits for `y`; `/exit` fires
 SessionEnd and exits 0. The banner shows the cwd with `$HOME` as `~`.
-With `QUE_FAKE_CLAUDE_STREAM=<ms>` (the README demo uses it) a prompt's turn keeps working instead:
+With `QUE_FAKE_CLAUDE_STREAM=<ms>` a prompt's turn keeps working instead:
 every `<ms>` it prints a tool step (`● Edit(src/upload.ts)`) and fires Pre/PostToolUse, ignoring
 further lines, until `SIGUSR1` ends the turn with a reply and Stop, or `SIGUSR2` fires the
 permission Notification and waits for `y` as `/needs-input` does.
@@ -80,7 +80,10 @@ the list. `gh pr list --head
 requests, newest first by number, with only the requested fields (`additions`,
 `deletions`, `baseRefName` and `headRefName` among them when the entry has them), or `[]`; without `--head` it prints every
 branch's, up to `--limit` (default 30). With `$QUE_FAKE_GH_FAIL` set, `pr list` exits 1
-printing `gh: failed (fake)` on stderr. Tests edit the file with `setFakePullRequest()`
+printing `gh: failed (fake)` on stderr. With `$QUE_FAKE_GH_REPO_LIST_FAIL` set, only the listing
+without `--head` fails, as GitHub fails it under load: it exits 1 printing the variable's value
+on stderr (`HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)`, say), and
+`--head` listings still answer. Tests edit the file with `setFakePullRequest()`
 (merges into the branch's pull request with the patch's `number`, else the newest,
 creating one when the branch has none) and `addFakePullRequest()` (adds another to the branch, numbered one past
 the highest in the file unless told), and read it with `readFakePullRequests()`, all from

@@ -1412,6 +1412,13 @@ body.resizing {
   flex: 1;
 }
 
+/* A sidebar list that could not be drawn (components/Region.tsx): the error line in its
+ * place, on the rows' inset, breaking a long message anywhere. */
+.sidebar .error {
+  padding: 5px 8px;
+  overflow-wrap: anywhere;
+}
+
 /* The line above the panes while the window reconnects to the background service. */
 .reconnecting {
   display: flex;

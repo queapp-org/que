@@ -63,6 +63,7 @@ import {
 } from './persisted.decode'
 import { newestAt } from './pr-list'
 import type { DiffComments, Reveals } from './diff-rows'
+import { type SentWorkspace, withDefaults } from './workspace-defaults'
 
 const DEFAULT_COLS = 80
 const DEFAULT_ROWS = 24
@@ -316,6 +317,8 @@ export interface QueState extends ResourceTables {
   reconnecting: boolean
   /** Bumped on every reconnect, so the panes attach their terminals again. */
   connection: number
+  /** Bumped each time a load lands (the first, and one per reconnect), so a region that could not be drawn tries again. */
+  loads: number
   /** The daemon's build as the main process last saw it; null until asked. */
   daemon: DaemonState | null
   error: string | null
@@ -437,6 +440,7 @@ export class QueStore {
     connected: true,
     reconnecting: false,
     connection: 0,
+    loads: 0,
     daemon: null,
     error: null,
     projects: [],
@@ -655,13 +659,14 @@ export class QueStore {
    * store holds, and a tab whose terminal the daemon no longer has is marked exited.
    * Usage and tickets are optional: the previous build may not know their methods
    * (the app is updated before the daemon), and the board must still list every
-   * workspace so the update can be offered.
+   * workspace so the update can be offered. For the same reason every workspace is
+   * read with the defaults for the fields that build may not send (withDefaults).
    */
   private async load(again = false): Promise<void> {
     const { tickets: held, ticketsSync } = this.state
 
     try {
-      const [projects, workspaces, terms, quiet, usage, config, tickets] = await Promise.all([
+      const [projects, sent, terms, quiet, usage, config, tickets] = await Promise.all([
         this.api.project.list(),
         this.api.workspace.list(),
         this.api.term.list(),
@@ -671,6 +676,7 @@ export class QueStore {
         optional(this.api.tickets.list(), { tickets: held, sync: ticketsSync })
       ])
 
+      const workspaces = byId(sent.map(withDefaults))
       const live = terms.filter((t) => t.alive)
       const liveTabs = live.map((t) => toTab(t, true))
 
@@ -678,13 +684,14 @@ export class QueStore {
         const alive = new Set(live.map((t) => t.id))
         this.setWith((s) => ({
           loaded: true,
+          loads: s.loads + 1,
           quiet,
           usage,
           config,
           tickets: tickets.tickets,
           ticketsSync: tickets.sync,
           projects,
-          workspaces: byId(workspaces),
+          workspaces,
           terminals: mergeById(
             liveTabs,
             s.terminals.map((t) => (alive.has(t.id) ? t : { ...t, alive: false }))
@@ -693,13 +700,14 @@ export class QueStore {
       } else {
         this.setWith((s) => ({
           loaded: true,
+          loads: s.loads + 1,
           quiet: s.quiet ?? quiet,
           usage: s.usage ?? usage,
           config: s.config ?? config,
           tickets: tickets.tickets,
           ticketsSync: tickets.sync,
           projects: mergeById(projects, s.projects),
-          workspaces: { ...byId(workspaces), ...s.workspaces },
+          workspaces: { ...workspaces, ...s.workspaces },
           terminals: mergeById(liveTabs, s.terminals)
         }))
         this.hydrateLayouts()
@@ -790,7 +798,9 @@ export class QueStore {
     if (kind) chime(kind)
   }
 
-  private upsertWorkspace(ws: Workspace): void {
+  /** Keeps a workspace the daemon sent (an event or a method's answer), read with withDefaults. */
+  private upsertWorkspace(sent: SentWorkspace): void {
+    const ws = withDefaults(sent)
     const before = this.state.workspaces[ws.id]?.prs ?? []
     this.setWith((s) => ({ workspaces: { ...s.workspaces, [ws.id]: ws } }))
     // A pull request that changed upstream: what is on screen of it (its conversation and

@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 /** Unix socket paths are limited (~104 bytes on macOS); stay safely below. */
 const MAX_SOCKET_PATH = 100
@@ -41,7 +42,9 @@ export function quePaths(): QuePaths {
   if (socket.length > MAX_SOCKET_PATH) {
     // oxlint-disable-next-line anti-slop/no-runtime-typeof -- platform capability: process.getuid is absent on Windows
     const uid = typeof process.getuid === 'function' ? process.getuid() : 0
-    socket = join('/tmp', `que-${uid}`, 'daemon.sock')
+    // One socket per home: homes that are all too long must not share a path.
+    const key = createHash('sha256').update(resolve(home)).digest('hex').slice(0, 16)
+    socket = join('/tmp', `que-${uid}`, `${key}.sock`)
     socketFallback = true
   }
 
@@ -59,6 +62,11 @@ export function quePaths(): QuePaths {
     shellDir: join(home, 'shell'),
     socketFallback
   }
+}
+
+/** The socket path for display, with a note when it moved out of the home. */
+export function describeSocket(p: Pick<QuePaths, 'socket' | 'socketFallback'>): string {
+  return p.socketFallback ? `${p.socket} (moved to /tmp: the home path is too long)` : p.socket
 }
 
 /** Creates the home, logs and socket directories (owner-only) if missing. */

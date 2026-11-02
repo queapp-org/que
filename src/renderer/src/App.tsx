@@ -16,6 +16,8 @@ import SidebarResizer, { useSidebarWidth } from './components/SidebarResizer'
 import Panes from './components/Panes'
 import ReviewPane, { ReviewRail } from './components/ReviewPane'
 import ReviewResizer from './components/ReviewResizer'
+import Region from './components/Region'
+import { keyOf } from './keys'
 import {
   isWorkspace,
   QueStore,
@@ -23,7 +25,8 @@ import {
   StoreContext,
   useQue,
   useQueSelector,
-  useStore
+  useStore,
+  type View
 } from './store'
 import { setReviewSource } from './testHook'
 
@@ -63,6 +66,14 @@ function Dialogs(): React.JSX.Element | null {
   }
 }
 
+/** What the main area's error line calls each view it may fail to draw. */
+const VIEW_NAMES: Record<View['kind'], string> = {
+  terminals: 'The panes',
+  report: 'The report',
+  tickets: 'The tickets',
+  settings: 'Settings'
+}
+
 /** What the (hidden) main window shows while a quiet window is locked: no detail at all. */
 function Locked(): React.JSX.Element {
   const { quiet } = useQue()
@@ -86,6 +97,9 @@ function Shell(): React.JSX.Element {
   const reconnecting = useQueSelector((s) => s.reconnecting)
   const quiet = useQueSelector((s) => s.quiet)
   const review = useQueSelector((s) => s.review)
+  // A region that could not be drawn tries again with each load (a Restart reconnects and
+  // loads), and when it is asked to show another view or workspace.
+  const loads = useQueSelector((s) => s.loads)
   const [sidebarWidth, setSidebarWidth] = useSidebarWidth()
   const locked = quiet?.locked ?? false
   const termKey = view.kind === 'terminals' && !locked ? view.key : null
@@ -201,27 +215,37 @@ function Shell(): React.JSX.Element {
             </div>
           )
         )}
-        {locked ? (
-          <Locked />
-        ) : termKey !== null ? (
-          <Panes termKey={termKey} />
-        ) : view.kind === 'settings' ? (
-          <SettingsView />
-        ) : view.kind === 'tickets' ? (
-          <TicketsView />
-        ) : (
-          <ReportView />
-        )}
+        <Region
+          what={VIEW_NAMES[view.kind]}
+          testId="main-failed"
+          reset={keyOf(loads, view.kind, termKey ?? '')}
+        >
+          {locked ? (
+            <Locked />
+          ) : termKey !== null ? (
+            <Panes termKey={termKey} />
+          ) : view.kind === 'settings' ? (
+            <SettingsView />
+          ) : view.kind === 'tickets' ? (
+            <TicketsView />
+          ) : (
+            <ReportView />
+          )}
+        </Region>
       </main>
-      {termKey !== null &&
-        (review.open ? (
-          <>
-            <ReviewResizer width={review.width} onChange={(w) => store.setReviewWidth(w)} />
-            <ReviewPane termKey={termKey} />
-          </>
-        ) : (
-          workspace && <ReviewRail termKey={termKey} />
-        ))}
+      {termKey !== null && review.open && (
+        <ReviewResizer width={review.width} onChange={(w) => store.setReviewWidth(w)} />
+      )}
+      {termKey !== null && (review.open || workspace) && (
+        <Region
+          what="The review pane"
+          testId="review-failed"
+          reset={keyOf(loads, termKey, review.open ? 'open' : 'rail')}
+          className="review"
+        >
+          {review.open ? <ReviewPane termKey={termKey} /> : <ReviewRail termKey={termKey} />}
+        </Region>
+      )}
       <Dialogs />
     </div>
   )
