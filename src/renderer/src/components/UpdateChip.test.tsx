@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fakeBridge } from '@renderer/testing/fake-bridge'
+import { type BuildField, fakeBridge } from '@renderer/testing/fake-bridge'
 import {
+  makeBackgroundTask,
   makeProject,
+  makePullRequest,
   makeQuietState,
   makeTermInfo,
   makeWorkspace
@@ -36,6 +38,32 @@ const USAGE = {
   sevenDay: { pct: 17.6, resetsAt: Date.UTC(2026, 10, 2, 14, 0) },
   at: Date.UTC(2026, 9, 27, 18, 8)
 }
+
+/**
+ * What the build before background tasks (#145) did not send yet: a workspace's background
+ * tasks, its branches and the pull requests it created, and each pull request's base, head
+ * and comment count.
+ */
+const BEFORE_BACKGROUND_TASKS: BuildField[] = [
+  'backgroundTasks',
+  'branches',
+  'prUrls',
+  'pr.base',
+  'pr.head',
+  'pr.comments',
+  'pr.commentedAt'
+]
+
+/** The session's open pull request. */
+const retryPr = makePullRequest({
+  url: 'https://github.com/rquellh/uploader/pull/88',
+  number: 88,
+  title: 'Retry failed uploads with backoff',
+  state: 'open',
+  head: retry.branch,
+  additions: 120,
+  deletions: 14
+})
 
 /** As the main process words a failed hand-off (src/shared/upgrade.ts). */
 const REFUSED =
@@ -165,6 +193,54 @@ describe('UpdateChip', () => {
         expect(screen.getByTestId('sidebar-usage')).not.toHaveClass('no-reading')
       })
       expect(screen.getByTestId(`sidebar-workspace-${retry.id}`)).toBeInTheDocument()
+    })
+  })
+
+  describe('a previous build without the newest fields', () => {
+    it('draws every row, idle ones and their card included, and the review pane, offers Restart, and reads the new fields once restarted', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(project)
+      fakeBridge.seedWorkspace({ ...retry, pr: retryPr, prs: [retryPr] })
+      fakeBridge.seedWorkspace({
+        ...docs,
+        backgroundTasks: [makeBackgroundTask({ kind: 'shell' })]
+      })
+      fakeBridge.seedTerminal(claude)
+      fakeBridge.setDaemon(STALE)
+      fakeBridge.withoutFields(...BEFORE_BACKGROUND_TASKS)
+      render(<App />)
+
+      expect(await screen.findByTestId(`sidebar-workspace-${retry.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`sidebar-workspace-${docs.id}`)).toBeInTheDocument()
+      // The previous build sends no background tasks, so its idle row reads plain idle.
+      expect(
+        screen.queryByTestId(`sidebar-workspace-${docs.id}-background`)
+      ).not.toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: 'Restart' })).toBeInTheDocument()
+
+      // The idle workspace's card, with its pull request.
+      expect(await openWorkspace(user, retry.id)).toBe(claude.id)
+      await user.keyboard('{Meta>}i{/Meta}')
+      const card = await screen.findByTestId(`sidebar-workspace-${retry.id}-popout`)
+      expect(
+        within(card).getByTestId(`sidebar-workspace-${retry.id}-popout-pr-88`)
+      ).toBeInTheDocument()
+
+      // The review pane lists the same pull request.
+      await user.click(
+        within(screen.getByTestId('review-rail')).getByRole('button', { name: 'Pull requests' })
+      )
+      expect(await screen.findByTestId('pr-row-88')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Restart' }))
+
+      // This build's service sends every field: the idle row's shell shows.
+      expect(
+        await screen.findByTestId(`sidebar-workspace-${docs.id}-background`)
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId('sidebar-daemon-update')).not.toBeInTheDocument()
+      expect(screen.getByTestId(`sidebar-workspace-${retry.id}`)).toBeInTheDocument()
+      expect(screen.getByTestId('pr-row-88')).toBeInTheDocument()
     })
   })
 

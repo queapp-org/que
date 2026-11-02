@@ -14,6 +14,7 @@ All notable changes to que are recorded here. The format follows
 ### Fixed
 
 - A daemon started from inside a que terminal no longer passes that terminal's workspace, socket, instructions file, permission mode or claude wrapper state on to the terminals it opens, so its sessions get only their own repo's instructions and permission mode.
+- An app newer than its background service no longer opens to a blank window. It reads the previous build's workspaces with defaults for the fields that build does not send, so every row, card and pull request draws and Restart shows. If a part of the window still cannot be drawn, that part shows an error line in its place while the rest stays up, Restart included, and it draws again once the service restarts, without relaunching the app.
 
 ## [0.2.0] - 2026-10-28
 

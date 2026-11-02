@@ -56,6 +56,17 @@ old daemon still serves, the error line says why, and the control stays for
 another try. The app never ends a terminal to change builds; only `que daemon
 restart` does. Both are always the user's click, never automatic.
 
+Until that click a newer window talks to the previous build, so it reads that
+build's answers with defaults: every workspace enters the renderer's store
+through `withDefaults` (`src/renderer/src/workspace-defaults.ts`), which fills
+the lists and nullable fields of a workspace and its pull requests that an
+older build does not send, and the first load treats the methods it may not
+know as optional. A region that still cannot be drawn (the sidebar's lists, the
+main area, the review pane) shows the error line in its place
+(`components/Region.tsx`) and leaves the rest of the window up, Restart
+included; it draws again on the next load, so the reconnect after Restart
+brings it back without a relaunch.
+
 When the connection drops, the window says it is reconnecting and asks the
 main process for the daemon's state, which reconnects or starts a daemon (after
 the old one has exited). Once it is back (`daemon.reconnected`), the store
