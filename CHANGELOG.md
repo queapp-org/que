@@ -15,6 +15,8 @@ All notable changes to que are recorded here. The format follows
 
 - A daemon started from inside a que terminal no longer passes that terminal's workspace, socket, instructions file, permission mode or claude wrapper state on to the terminals it opens, so its sessions get only their own repo's instructions and permission mode.
 
+- When the home path is too long for a unix socket, the socket moved to `/tmp/que-<uid>/daemon.sock` for every such home, so two daemons with different long homes shared one socket. Each home now gets its own, `/tmp/que-<uid>/<hash of the home>.sock`, and `que daemon status` and `que doctor` say when the socket has moved.
+
 ## [0.2.0] - 2026-10-28
 
 The first published release of que: Claude Code sessions in git worktrees, terminals that outlive the app, and quiet hours that keep you out of them when you need focus. Builds are unsigned for now; the README has the first-launch steps. 0.1.0 was only built locally, so everything since it is listed here.

@@ -6,7 +6,7 @@ import { buildIdOf, daemonIsStale, staleDaemonHint } from '../shared/build-id'
 import { DaemonClient, resolveDaemonScript } from '../shared/client'
 import { configPath, describeQuietHours, formatConfigErrors, loadConfig } from '../shared/config'
 import { firstLine, run as exec } from '../shared/exec'
-import { quePaths } from '../shared/paths'
+import { describeSocket, quePaths } from '../shared/paths'
 
 interface Check {
   name: string
@@ -59,7 +59,7 @@ export async function runDoctor(): Promise<number> {
         name: 'daemon',
         ok: true,
         required: true,
-        detail: `running pid ${ping.pid}, version ${ping.version} (${paths.socket})`
+        detail: `running pid ${ping.pid}, version ${ping.version} (${describeSocket(paths)})`
       })
     } finally {
       client.close()
@@ -69,7 +69,7 @@ export async function runDoctor(): Promise<number> {
       name: 'daemon',
       ok: false,
       required: true,
-      detail: `not reachable at ${paths.socket} (start it with \`que daemon start\`)`
+      detail: `not reachable at ${describeSocket(paths)} (start it with \`que daemon start\`)`
     })
   }
 
