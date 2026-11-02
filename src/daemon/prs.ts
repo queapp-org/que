@@ -3,7 +3,9 @@
 // plus each one the session created with its own `gh pr create` (seen in a
 // hook), looked up by number (`gh pr view <n>`) when it is not
 // on those branches. One already stored is kept when its branch moves on. Stores
-// what changed and emits workspace.updated.
+// what changed and emits workspace.updated. Each tick lists a project's newest
+// pull requests without their checks, then asks for checks only on the heads that
+// hold an open or draft one (or one that just settled), branch by branch.
 // Also answers workspace.prThread: each pull request's conversation is fetched
 // on demand and cached until the tracker sees its updatedAt move. After a check,
 // the open and draft pull requests whose conversation is not cached for their
@@ -20,6 +22,7 @@ import {
   commentCounts,
   currentPullRequest,
   isSettled,
+  keepsStoredChecks,
   parsePullRequest,
   PR_LIST_CAP,
   pullRequestList,
@@ -29,7 +32,8 @@ import {
   decodePullRequest,
   decodePullRequests,
   FIELDS,
-  type GhPullRequest
+  type GhPullRequest,
+  LIST_FIELDS
 } from './pr-state.decode'
 import { Poller } from './poller'
 import {
@@ -83,7 +87,10 @@ async function ghJson(
   }
 }
 
-/** The newest PR_LIST_CAP pull requests for `branch`, or with no branch the repository's newest LIST_LIMIT. */
+/**
+ * The newest PR_LIST_CAP pull requests for `branch`, checks included, or with no branch the
+ * repository's newest LIST_LIMIT without their checks (LIST_FIELDS).
+ */
 async function ghPrList(
   branch: string | null,
   cwd: string,
@@ -98,7 +105,7 @@ async function ghPrList(
     '--limit',
     String(branch ? PR_LIST_CAP : LIST_LIMIT),
     '--json',
-    FIELDS
+    branch ? FIELDS : LIST_FIELDS
   ]
 
   const parsed = await ghJson(args, cwd, signal)
@@ -155,6 +162,8 @@ export class PrService {
   private tickCount = 0
   /** Workspaces whose last check failed (and were logged), until one succeeds. */
   private failing = new Set<string>()
+  /** Projects whose last listing failed (and were logged), until one succeeds. */
+  private failingListings = new Set<string>()
   /** Each pull request's last fetched conversation, valid while its updatedAt holds. */
   private threads: ByWorkspace<CachedThread> = new Map()
   private threadFetches: ByWorkspace<Promise<PrThread>> = new Map()
@@ -188,7 +197,10 @@ export class PrService {
     return this.poller.stopped
   }
 
-  /** One pass over the workspaces: each branch re-read, then one `gh pr list` per project. */
+  /**
+   * One pass over the workspaces: each branch re-read, then one `gh pr list` per project, and one
+   * per head whose checks it cannot give.
+   */
   async tick(): Promise<void> {
     if (this.polling) return
     this.polling = true
@@ -407,29 +419,42 @@ export class PrService {
   }
 
   /**
-   * Checks one project's workspaces with one listing, grouped by head branch. A
-   * branch missing from a full page (LIST_LIMIT) may hold an older pull
-   * request, so it is asked about on its own. A workspace with no branch to ask
-   * about still has the pull requests it created looked up. `due`: a settled
-   * pull request is re-checked on this tick.
+   * Checks one project's workspaces with one listing, grouped by head branch, which carries no
+   * checks. A workspace with no branch to ask about still has the pull requests it created looked
+   * up. `due`: a settled pull request is re-checked on this tick.
    */
   private async checkProject(list: Workspace[], due: boolean): Promise<void> {
     const listing = await this.listProject(list)
 
-    if (!listing) return
-    const { byBranch, full } = listing
-
     for (const ws of list) {
       if (this.stopped) return
-      await this.checkHeads(ws, due, (head) =>
-        byBranch.has(head) || !full ? { prs: byBranch.get(head) ?? [] } : this.list(ws, head)
-      )
+      await this.checkHeads(ws, due, (head) => this.fromListing(ws, head, listing, due))
     }
   }
 
   /**
+   * A head's pull requests as the project's listing has them. The head is asked about on its
+   * own, checks included, when the listing cannot answer: it failed, a full page (LIST_LIMIT)
+   * misses the head (which may hold an older pull request), or the head holds a pull request
+   * whose checks are not kept from before (keepsStoredChecks).
+   */
+  private fromListing(
+    ws: Workspace,
+    head: string,
+    listing: ProjectListing | null,
+    due: boolean
+  ): Listing | Promise<Listing | null> {
+    if (!listing) return this.list(ws, head)
+    const prs = listing.byBranch.get(head)
+
+    if (!prs) return listing.full ? this.list(ws, head) : { prs: [] }
+
+    return prs.every((pr) => keepsStoredChecks(pr, ws.prs, due)) ? { prs } : this.list(ws, head)
+  }
+
+  /**
    * The project's newest pull requests by head branch, listed from a workspace with a branch to
-   * ask about (none listed when none has one); null when gh failed (logged for each workspace).
+   * ask about (none listed when none has one); null when gh failed (logged for the project).
    */
   private async listProject(list: Workspace[]): Promise<ProjectListing | null> {
     const asking = list.find((ws) => this.heads(ws).length > 0)
@@ -441,9 +466,13 @@ export class PrService {
     try {
       items = await ghPrList(null, asking.path, this.poller.signal)
     } catch (err) {
-      for (const ws of list) this.failed(ws, errorMessage(err))
+      this.listingFailed(asking.projectId, errorMessage(err))
 
       return null
+    }
+
+    if (this.failingListings.delete(asking.projectId)) {
+      this.opts.log?.(`pr listing recovered for project ${asking.projectId}`)
     }
 
     for (const item of items) {
@@ -493,6 +522,13 @@ export class PrService {
 
       return { error }
     }
+  }
+
+  /** Logs a project's first failed listing (until one succeeds). */
+  private listingFailed(projectId: string, message: string): void {
+    if (this.stopped || this.failingListings.has(projectId)) return
+    this.failingListings.add(projectId)
+    this.opts.log?.(`pr listing failed for project ${projectId}: ${message}; asking each branch`)
   }
 
   /** Logs a workspace's first failed check (until one succeeds). */
@@ -556,7 +592,8 @@ export class PrService {
    */
   private async settle(ws: Workspace, raw: GhPullRequest[], due: boolean): Promise<string | null> {
     const checkedAt = new Date().toISOString()
-    const onBranch = raw.map((r) => parsePullRequest(r, checkedAt))
+    // A settled one listed without its checks keeps those stored (see fromListing).
+    const onBranch = raw.map((r) => parsePullRequest(r, checkedAt, ws.prs))
     const extra = await this.linked(ws, onBranch, due, checkedAt)
 
     if (this.stopped) return null

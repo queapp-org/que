@@ -80,7 +80,10 @@ the list. `gh pr list --head
 requests, newest first by number, with only the requested fields (`additions`,
 `deletions`, `baseRefName` and `headRefName` among them when the entry has them), or `[]`; without `--head` it prints every
 branch's, up to `--limit` (default 30). With `$QUE_FAKE_GH_FAIL` set, `pr list` exits 1
-printing `gh: failed (fake)` on stderr. Tests edit the file with `setFakePullRequest()`
+printing `gh: failed (fake)` on stderr. With `$QUE_FAKE_GH_REPO_LIST_FAIL` set, only the listing
+without `--head` fails, as GitHub fails it under load: it exits 1 printing the variable's value
+on stderr (`HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)`, say), and
+`--head` listings still answer. Tests edit the file with `setFakePullRequest()`
 (merges into the branch's pull request with the patch's `number`, else the newest,
 creating one when the branch has none) and `addFakePullRequest()` (adds another to the branch, numbered one past
 the highest in the file unless told), and read it with `readFakePullRequests()`, all from
