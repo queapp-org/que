@@ -56,17 +56,43 @@ describe('cleanSpawnEnv', () => {
     expect(Object.keys(env).sort()).toEqual(['COLORTERM', 'LANG', 'QUE_TERMINAL', 'TERM'])
   })
 
-  it("drops app internals and the launching terminal's id, and skips unset values", () => {
+  it('drops app internals and skips unset values', () => {
     const env = cleanSpawnEnv({
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_RENDERER_URL: 'http://localhost:5173',
       ELECTRON_ENABLE_LOGGING: '1',
-      QUE_TERMINAL_ID: '5f0c2a7e-4b1d-4c9e-9a3f-2d8e6b1c7a40',
       SHELL: '/bin/zsh',
       UNSET: undefined
     })
 
     expect(env).toEqual({ SHELL: '/bin/zsh', QUE_TERMINAL: '1' })
+  })
+
+  it('drops what the que terminal it was started from set for itself, and keeps the home and config', () => {
+    const env = cleanSpawnEnv({
+      QUE_TERMINAL: '1',
+      QUE_TERMINAL_ID: '5f0c2a7e-4b1d-4c9e-9a3f-2d8e6b1c7a40',
+      QUE_WORKSPACE_ID: 'ws_a2b3c4d5e6f7',
+      QUE_WORKSPACE_PATH: '/Users/dev/.que/worktrees/app/brave-otter',
+      QUE_SOCKET: '/Users/dev/.que/daemon.sock',
+      QUE_INSTRUCTIONS: '/Users/dev/.que/instructions.md',
+      QUE_PERMISSION_MODE: 'acceptEdits',
+      QUE_REAL_CLAUDE: '/Users/dev/.local/bin/claude',
+      QUE_USER_ZDOTDIR: '/Users/dev/.zsh',
+      QUE_CLAUDE_DEPTH: '1',
+      QUE_CLAUDE_PID: '23471',
+      QUE_CLAUDE_TRIED: '/Users/dev/.local/bin/claude',
+      QUE_HOME: '/Users/dev/.que',
+      QUE_CONFIG: '/Users/dev/.config/que/config.toml',
+      SHELL: '/bin/zsh'
+    })
+
+    expect(env).toEqual({
+      QUE_HOME: '/Users/dev/.que',
+      QUE_CONFIG: '/Users/dev/.config/que/config.toml',
+      SHELL: '/bin/zsh',
+      QUE_TERMINAL: '1'
+    })
   })
 
   it('marks the result as a que terminal and leaves the input untouched', () => {
