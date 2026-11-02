@@ -23,7 +23,6 @@
     "electron.vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
-    "playwright.demo.config.ts",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
