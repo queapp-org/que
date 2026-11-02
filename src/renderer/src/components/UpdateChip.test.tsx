@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type BuildField, fakeBridge } from '@renderer/testing/fake-bridge'
+import { fakeBridge, type UnsentFields } from '@renderer/testing/fake-bridge'
 import {
   makeBackgroundTask,
   makeProject,
@@ -44,15 +44,10 @@ const USAGE = {
  * tasks, its branches and the pull requests it created, and each pull request's base, head
  * and comment count.
  */
-const BEFORE_BACKGROUND_TASKS: BuildField[] = [
-  'backgroundTasks',
-  'branches',
-  'prUrls',
-  'pr.base',
-  'pr.head',
-  'pr.comments',
-  'pr.commentedAt'
-]
+const BEFORE_BACKGROUND_TASKS: UnsentFields = {
+  workspace: ['backgroundTasks', 'branches', 'prUrls'],
+  pr: ['base', 'head', 'comments', 'commentedAt']
+}
 
 /** The session's open pull request. */
 const retryPr = makePullRequest({
@@ -207,7 +202,7 @@ describe('UpdateChip', () => {
       })
       fakeBridge.seedTerminal(claude)
       fakeBridge.setDaemon(STALE)
-      fakeBridge.withoutFields(...BEFORE_BACKGROUND_TASKS)
+      fakeBridge.withoutFields(BEFORE_BACKGROUND_TASKS)
       render(<App />)
 
       expect(await screen.findByTestId(`sidebar-workspace-${retry.id}`)).toBeInTheDocument()

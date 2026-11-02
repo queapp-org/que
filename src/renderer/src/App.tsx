@@ -233,31 +233,19 @@ function Shell(): React.JSX.Element {
           )}
         </Region>
       </main>
-      {termKey !== null &&
-        (review.open ? (
-          <>
-            <ReviewResizer width={review.width} onChange={(w) => store.setReviewWidth(w)} />
-            <Region
-              what="The review pane"
-              testId="review-failed"
-              reset={keyOf(loads, termKey)}
-              className="review"
-            >
-              <ReviewPane termKey={termKey} />
-            </Region>
-          </>
-        ) : (
-          workspace && (
-            <Region
-              what="The review pane"
-              testId="review-failed"
-              reset={keyOf(loads, termKey)}
-              className="review"
-            >
-              <ReviewRail termKey={termKey} />
-            </Region>
-          )
-        ))}
+      {termKey !== null && review.open && (
+        <ReviewResizer width={review.width} onChange={(w) => store.setReviewWidth(w)} />
+      )}
+      {termKey !== null && (review.open || workspace) && (
+        <Region
+          what="The review pane"
+          testId="review-failed"
+          reset={keyOf(loads, termKey, review.open ? 'open' : 'rail')}
+          className="review"
+        >
+          {review.open ? <ReviewPane termKey={termKey} /> : <ReviewRail termKey={termKey} />}
+        </Region>
+      )}
       <Dialogs />
     </div>
   )

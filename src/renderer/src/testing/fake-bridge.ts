@@ -138,14 +138,17 @@ function fakeId(prefix: 'prj_' | 'ws_'): string {
   return `${prefix}fake${idCounter.toString(36).padStart(8, '0')}`
 }
 
-/** A field a previous build may not send: a workspace's, or (`pr.` and its name) its pull requests'. */
-export type BuildField = keyof Workspace | `pr.${keyof PullRequest}`
+/** The fields a previous build may not send: a workspace's own, and each of its pull requests'. */
+export interface UnsentFields {
+  workspace?: ReadonlyArray<keyof Workspace>
+  pr?: ReadonlyArray<keyof PullRequest>
+}
 
 /**
  * A copy of `value` without `fields`, as a build from before them sends it. The type stays
  * this build's, as the bridge's own types do whatever build answers.
  */
-function stripped<T extends Workspace | PullRequest>(value: T, fields: readonly string[]): T {
+function stripped<T extends object>(value: T, fields: ReadonlyArray<keyof T>): T {
   const sent = { ...value }
 
   for (const f of fields) Reflect.deleteProperty(sent, f)
@@ -191,7 +194,7 @@ class FakeBridge {
   /** Methods the daemon's build does not have yet (see withoutMethods). */
   private unknownMethods = new Set<string>()
   /** Fields the daemon's build does not send yet (see withoutFields). */
-  private unsentFields = new Set<BuildField>()
+  private unsent: UnsentFields = {}
   private unlocks: QuietUnlock[] = []
   private unlockRequests: Array<{ minutes?: number; why?: string }> = []
   private configBook: ConfigGetResult = defaultConfigBook()
@@ -416,7 +419,7 @@ class FakeBridge {
             stale: false
           }
           this.unknownMethods.clear()
-          this.unsentFields.clear()
+          this.unsent = {}
           this.reconnect()
 
           return { ...this.daemonBook }
@@ -932,15 +935,10 @@ class FakeBridge {
 
   /** A workspace as the daemon's build sends it (every list, event and result): without the fields withoutFields named. */
   private sent(w: Workspace): Workspace {
-    const fields = [...this.unsentFields]
-    const own = fields.filter((f) => !f.startsWith('pr.'))
-    const ofPrs = fields.flatMap((f) => (f.startsWith('pr.') ? [f.slice('pr.'.length)] : []))
+    const { workspace = [], pr = [] } = this.unsent
+    const prs = { ...w, pr: w.pr && stripped(w.pr, pr), prs: w.prs.map((p) => stripped(p, pr)) }
 
-    if (ofPrs.length === 0) return stripped(w, own)
-
-    const pr = w.pr && stripped(w.pr, ofPrs)
-
-    return stripped({ ...w, pr, prs: w.prs.map((p) => stripped(p, ofPrs)) }, own)
+    return stripped(prs, workspace)
   }
 
   /** Replaces the session's pull requests (the current one first), as a daemon refresh would. */
@@ -1094,11 +1092,11 @@ class FakeBridge {
   /**
    * The daemon runs a build from before these fields: every workspace it sends (workspace.list,
    * get, its events, every result that carries one) leaves them out, as the previous build
-   * does, until daemon.upgrade. `pr.<field>` leaves a field out of each of its pull requests.
+   * does, until daemon.upgrade; `pr` names the fields left out of each of its pull requests.
    * The book keeps them; only what is sent changes. Call before render() to seed.
    */
-  withoutFields(...fields: BuildField[]): void {
-    for (const f of fields) this.unsentFields.add(f)
+  withoutFields(fields: UnsentFields): void {
+    this.unsent = fields
   }
 
   private refuseIfUnknown(method: string): void {
@@ -1380,7 +1378,7 @@ class FakeBridge {
     this.quiet = makeQuietState()
     this.usageBook = null
     this.unknownMethods.clear()
-    this.unsentFields.clear()
+    this.unsent = {}
     this.unlocks = []
     this.unlockRequests = []
     this.configBook = defaultConfigBook()
