@@ -1875,6 +1875,30 @@ body.resizing {
   gap: 10px;
 }
 
+/* The Updates section: the version and the last answer, the buttons at the row's right end. */
+.settings .updates-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.settings .updates-version {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+
+.settings .updates-news {
+  margin: 0;
+  color: var(--fg);
+}
+
+.settings .updates-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .settings table.days th {
   text-align: left;
   font-weight: 400;

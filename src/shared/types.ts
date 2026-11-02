@@ -330,7 +330,6 @@ export interface UserConfig {
   startPrompt: string
 }
 
-/** A newer que release, found by the app's daily update check. */
 /**
  * The daemon the app is connected to, as the main process last saw it: its
  * version and build id, the build id of the bundle this app would start, and
@@ -343,11 +342,26 @@ export interface DaemonState {
   stale: boolean
 }
 
+/** A newer que release, found by the app's update check. */
 export interface UpdateInfo {
   /** The newer version, without a leading v. */
   version: string
   /** Its release page. */
   url: string
+}
+
+/** The update check as the app reports it. */
+export interface UpdateStatus {
+  /** The running app's version. */
+  version: string
+  /** Only a release build asks for newer releases; see isReleaseBuild. */
+  releaseBuild: boolean
+  /** A newer release, when the check knows of one. */
+  update: UpdateInfo | null
+  /** Epoch ms of the last attempt; null before the first. */
+  checkedAt: number | null
+  /** The last attempt got no usable answer. */
+  failed: boolean
 }
 
 /** What the daemon says about quiet hours (quiet.state and the quiet.changed event). */

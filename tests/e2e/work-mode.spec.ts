@@ -3,10 +3,11 @@
 // in it finishing a turn with one chime (recorded, never played, under e2e) and
 // reaching needs input on the sidebar's dot (and in `que status` and the tray title), a turn finishing
 // while another row is selected reading as unseen until the workspace is selected, Open
-// in editor (in the review pane's Changes) launching the editor on the worktree, and the project removed from
-// its context menu with the workspace and its worktree.
+// in editor (in the review pane's Changes) launching the editor on the worktree, the project removed from
+// its context menu with the workspace and its worktree, and Settings naming the running build.
 import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { version } from '../../package.json'
 import type { StatusJson } from '../../src/cli/workspaces'
 import type { TermInfo } from '../../src/shared/protocol'
 import type { Project, Workspace } from '../../src/shared/types'
@@ -14,6 +15,7 @@ import { makeTempRepo } from '../../src/testing/temp-repo'
 import { AppShellPage } from './pages/AppShellPage'
 import { ChangesPage } from './pages/ChangesPage'
 import { ReviewPage } from './pages/ReviewPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { SidebarPage } from './pages/SidebarPage'
 import { TerminalPage } from './pages/TerminalPage'
 import { type LaunchedApp, launchApp, newQueHome, tempDir } from './utils/app'
@@ -191,5 +193,12 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     await expect(sidebar.emptyState).toBeVisible()
     expect(queJson<Project[]>(queHome, 'project', 'list', '--json')).toEqual([])
     await expect.poll(() => fs.existsSync(workspace.path)).toBe(false)
+  })
+
+  await test.step('Settings names the running version, and that a test build never checks for releases', async () => {
+    const settings = new SettingsPage(launched.window)
+    await sidebar.settingsButton.click()
+    await expect(settings.updatesVersion).toHaveText(`que ${version}`)
+    await expect(settings.updatesAnswer).toHaveText("Local build: que doesn't check for releases.")
   })
 })

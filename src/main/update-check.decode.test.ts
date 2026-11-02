@@ -43,18 +43,30 @@ describe('decodeUpdateCheckState', () => {
 
   it('reads back what the check wrote', () => {
     expect(
-      decodeUpdateCheckState(JSON.parse(JSON.stringify({ checkedAt: T0, latest: info })))
-    ).toEqual({ checkedAt: T0, latest: info })
+      decodeUpdateCheckState(
+        JSON.parse(JSON.stringify({ checkedAt: T0, latest: info, failed: false }))
+      )
+    ).toEqual({ checkedAt: T0, latest: info, failed: false })
+    expect(decodeUpdateCheckState({ checkedAt: T0, latest: info, failed: true })).toEqual({
+      checkedAt: T0,
+      latest: info,
+      failed: true
+    })
+  })
+
+  it('reads a file from a build before failed as not failed', () => {
     expect(decodeUpdateCheckState({ checkedAt: T0, latest: null })).toEqual({
       checkedAt: T0,
-      latest: null
+      latest: null,
+      failed: false
     })
   })
 
   it('reads a malformed latest release as none', () => {
     expect(decodeUpdateCheckState({ checkedAt: T0, latest: { version: 2 } })).toEqual({
       checkedAt: T0,
-      latest: null
+      latest: null,
+      failed: false
     })
   })
 

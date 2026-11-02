@@ -17,7 +17,7 @@ import type {
   TermInfo,
   Ticket,
   TicketsSyncState,
-  UpdateInfo,
+  UpdateStatus,
   Usage,
   Workspace,
   WorkspaceDiff,
@@ -321,6 +321,8 @@ export interface QueState extends ResourceTables {
   loads: number
   /** The daemon's build as the main process last saw it; null until asked. */
   daemon: DaemonState | null
+  /** The update check as the main process last reported it; null until asked. */
+  updateStatus: UpdateStatus | null
   error: string | null
   projects: Project[]
   /** Unarchived workspaces by id. */
@@ -442,6 +444,7 @@ export class QueStore {
     connection: 0,
     loads: 0,
     daemon: null,
+    updateStatus: null,
     error: null,
     projects: [],
     workspaces: {},
@@ -521,10 +524,8 @@ export class QueStore {
 
   // ---- app update ----------------------------------------------------------
 
-  /** A newer release, if the main process's daily check found one. */
-  fetchUpdate = (): Promise<UpdateInfo | null> => this.api.app.update()
-
-  onUpdate = (cb: (info: UpdateInfo) => void): (() => void) => this.api.app.onUpdate(cb)
+  /** Asks for newer releases now. The status arrives as the event a background check sends, so the UI has one path. */
+  checkForUpdate = (): Promise<UpdateStatus> => this.api.app.checkForUpdate()
 
   /** Opens the newer release's page in the browser. */
   openUpdate = (): void => {
@@ -644,6 +645,10 @@ export class QueStore {
 
     if (!this.boot) {
       this.boot = this.load()
+      this.api.app.updateStatus().then(
+        (updateStatus) => this.set({ updateStatus }),
+        () => {}
+      )
 
       if (!this.options.board) this.refreshDaemon()
     }
@@ -755,6 +760,7 @@ export class QueStore {
         this.reconnect()
       }),
       this.api.daemon.onReconnected((daemon) => void this.recover(daemon)),
+      this.api.app.onUpdateStatus((updateStatus) => this.set({ updateStatus })),
       workspace.on('workspace.created', (ws) => this.upsertWorkspace(ws)),
       workspace.on('workspace.updated', (ws) => {
         const prev = this.state.workspaces[ws.id]?.status
