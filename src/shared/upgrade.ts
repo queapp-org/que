@@ -1,6 +1,6 @@
 // Updating the daemon in place: the running daemon hands every live terminal
 // to a successor started from the given bundle (daemon.handoff), which then
-// serves the socket. Both `que daemon upgrade` and the app's Update control go
+// serves the socket. Both `que daemon upgrade` and the app's Restart control go
 // through here. A failure is an answer, not a throw, and handOffFailedText
 // puts what it means into words for both.
 import { DaemonClient, DaemonError, resolveDaemonScript, resolveRuntime } from './client'

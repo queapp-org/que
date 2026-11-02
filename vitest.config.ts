@@ -50,6 +50,7 @@ export default defineConfig({
             'tests/integration/**/*.test.ts',
             'tests/contract/**/*.test.ts'
           ],
+          setupFiles: ['src/testing/setup.ts'],
           testTimeout: 20_000,
           hookTimeout: 20_000
         }

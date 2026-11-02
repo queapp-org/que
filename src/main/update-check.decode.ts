@@ -1,5 +1,6 @@
-// Decodes the two payloads the update check reads: GitHub's latest-release
-// JSON, and the check state que persisted on an earlier launch.
+// Decodes the payloads the update check reads: GitHub's latest-release JSON,
+// the check state que persisted on an earlier launch, and the app's bundled
+// package.json.
 import type { UpdateInfo } from '../shared/types'
 import { isObj } from '../shared/json.decode'
 
@@ -35,4 +36,20 @@ export function decodeUpdateCheckState(v: unknown): UpdateCheckState | null {
       : null
 
   return { checkedAt: v.checkedAt, latest }
+}
+
+/**
+ * The local-build mark in the app's bundled package.json (`queLocalBuild`, the git short
+ * sha `npm run package` built from); null without one. electron-builder's command
+ * line reads an all-digit sha as a number, so a number is a mark too.
+ */
+export function decodeLocalBuild(v: unknown): string | null {
+  if (!isObj(v)) return null
+  const mark = v.queLocalBuild
+
+  if (typeof mark === 'string' && mark !== '') return mark
+
+  if (typeof mark === 'number') return String(mark)
+
+  return null
 }

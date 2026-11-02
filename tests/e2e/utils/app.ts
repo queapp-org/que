@@ -9,6 +9,7 @@ import {
   expect,
   type Page
 } from '@playwright/test'
+import { QUE_TERMINAL_MARKERS } from '../../../src/shared/env'
 import { pidAlive } from '../../../src/shared/process'
 import { readFakeLog, REPO_ROOT } from '../../../src/testing/fakes'
 import { fakeEnv, QUIET_OFF, writeGitconfig } from '../../fakes/env.cjs'
@@ -38,6 +39,9 @@ export function testEnv(
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL
+
+  // A spec run from a que terminal is not in that terminal (#140); fakeEnv sets QUE_HOME.
+  for (const name of [...QUE_TERMINAL_MARKERS, 'QUE_TERMINAL']) delete env[name]
 
   return {
     ...env,

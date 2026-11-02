@@ -21,7 +21,7 @@ import { createBoardWindow } from './board'
 import { decodeAbsolutePath } from './ipc.decode'
 import { installMenu } from './menu'
 import { createTray, type QueTray, quietTitle } from './tray'
-import { checkForUpdate } from './update-check'
+import { checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
 import { errorCode, errorMessage } from '../shared/errors.decode'
 
 // The daemon owns every terminal and workspace. This process only proxies the
@@ -316,9 +316,14 @@ function showWindow(): void {
   if (!e2e) app.focus({ steal: true })
 }
 
-/** Once per launch (and at most once a day, see update-check.ts): is there a newer release? */
+/**
+ * Once per launch (and at most once a day, see update-check.ts): is there a newer release?
+ * Only a release build asks; one run from source or built by `npm run package` (and so install:local) never does.
+ */
 function startUpdateCheck(): void {
   if (e2e || process.env.QUE_UPDATE_CHECK === '0') return
+
+  if (!isReleaseBuild(app.isPackaged, readLocalBuild(app.getAppPath()))) return
   void checkForUpdate({
     currentVersion: app.getVersion(),
     statePath: join(queHome(), 'state', 'update-check.json')

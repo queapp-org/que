@@ -1,7 +1,9 @@
 // Local install (`npm run install:local`): builds que.app from this checkout
 // (`npm run package`), replaces /Applications/que.app with it, links the `que`
 // command, and reopens the app, so the installed app follows `main` with one
-// command. The background service is never touched: no terminal ends.
+// command. The background service is never touched: no terminal ends. Like
+// every bundle `npm run package` makes, it carries `queLocalBuild` (the
+// checkout's short sha) in its package.json, so it never checks for releases.
 //
 //   --no-build        install the newest release/mac*/que.app as it is
 //   --from <que.app>  install this bundle instead of the one in release/
@@ -163,7 +165,7 @@ export async function main(argv) {
   if (opts.launch) execFileSync('open', [opts.dest])
 
   console.log(
-    'The background service was not touched, so every terminal keeps running; the app will say when it needs an update.'
+    'The background service was not touched, so every terminal keeps running; the app shows Restart while the service runs the previous build.'
   )
 }
 

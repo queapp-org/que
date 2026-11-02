@@ -39,6 +39,29 @@ export const TERMINAL_IDENTITY: readonly string[] = [
   'WINDOWID'
 ]
 
+/**
+ * What que sets in its own terminals, and in a repo's setup and teardown
+ * commands, to describe where they run: the terminal's id, the workspace and
+ * its path, the daemon's socket, the session's instructions and permission
+ * mode, the claude the wrapper runs, and the wrapper's bookkeeping. A process
+ * started from inside one of them (a daemon, a dev build, a test run) is not
+ * there, so none of them carry over. QUE_HOME stays: it names the home, not
+ * the terminal.
+ */
+export const QUE_TERMINAL_MARKERS: readonly string[] = [
+  'QUE_TERMINAL_ID',
+  'QUE_WORKSPACE_ID',
+  'QUE_WORKSPACE_PATH',
+  'QUE_SOCKET',
+  'QUE_INSTRUCTIONS',
+  'QUE_PERMISSION_MODE',
+  'QUE_REAL_CLAUDE',
+  'QUE_USER_ZDOTDIR',
+  'QUE_CLAUDE_DEPTH',
+  'QUE_CLAUDE_PID',
+  'QUE_CLAUDE_TRIED'
+]
+
 /** Emulator-specific variables, by the prefix each emulator uses. */
 const TERMINAL_IDENTITY_PREFIX = /^(ITERM|KITTY|GHOSTTY|WEZTERM|ALACRITTY|VSCODE|KONSOLE|WT|TABBY)_/
 
@@ -51,8 +74,9 @@ const APP_INTERNAL: readonly string[] = [
 
 /**
  * A copy of `base` fit for a process que starts: no agent session markers, no
- * other emulator's identity, no app internals, and `QUE_TERMINAL=1` so shells
- * and scripts can tell they run inside que.
+ * markers of the que terminal it was started from, no other emulator's
+ * identity, no app internals, and `QUE_TERMINAL=1` so shells and scripts can
+ * tell they run inside que.
  */
 export function cleanSpawnEnv(base: NodeJS.ProcessEnv | Record<string, string> = process.env) {
   const env: Record<string, string> = {}
@@ -60,14 +84,11 @@ export function cleanSpawnEnv(base: NodeJS.ProcessEnv | Record<string, string> =
   for (const [k, v] of Object.entries(base)) {
     if (v === undefined) continue
 
-    if (AGENT_SESSION_MARKERS.includes(k)) continue
+    if (AGENT_SESSION_MARKERS.includes(k) || QUE_TERMINAL_MARKERS.includes(k)) continue
 
     if (TERMINAL_IDENTITY.includes(k) || TERMINAL_IDENTITY_PREFIX.test(k)) continue
 
     if (APP_INTERNAL.includes(k)) continue
-
-    // The terminal que was started from is not the terminal of what it starts.
-    if (k === 'QUE_TERMINAL_ID') continue
     env[k] = v
   }
 

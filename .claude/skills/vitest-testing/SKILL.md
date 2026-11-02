@@ -51,6 +51,7 @@ For deciding **what** to test at which layer, use the `test-planning` skill. For
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Test runner           | Vitest, `vitest.config.ts` at the repo root, two projects: `node` and `renderer`                                               |
 | `node` project        | Environment `node`: `src/daemon/`, `src/cli/`, `src/shared/`, `src/testing/` logic tests, and `tests/integration/**/*.test.ts` |
+| `node` setup file     | `src/testing/setup.ts`: drops the variables of the que terminal a run was started from                                         |
 | `renderer` project    | Environment `jsdom`: `src/renderer/src/**/*.test.tsx`, setup file `src/renderer/src/testing/setup.ts`                          |
 | Component testing     | React Testing Library (`@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`)                   |
 | Subprocess fakes      | `tests/fakes/bin/claude`, `tests/fakes/bin/gh`, `tests/fakes/bin/code` (Node scripts, executable, put first on `PATH`)         |

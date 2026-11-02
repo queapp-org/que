@@ -6,7 +6,9 @@ import {
   CHECK_INTERVAL_MS,
   checkForUpdate,
   isNewer,
+  isReleaseBuild,
   LATEST_RELEASE_URL,
+  readLocalBuild,
   readState,
   shouldCheck
 } from './update-check'
@@ -65,6 +67,45 @@ describe('shouldCheck', () => {
 
   it('checks when the record is from the future (the clock was moved back)', () => {
     expect(shouldCheck({ checkedAt: T0 + HOUR, latest: null }, T0)).toBe(true)
+  })
+})
+
+describe('isReleaseBuild', () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(join(os.tmpdir(), 'que-app-'))
+  })
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  /** The app's folder with `pkg` as its package.json, as the bundle carries it. */
+  function appWith(pkg: Record<string, unknown>): string {
+    fs.writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg))
+
+    return dir
+  }
+
+  const pkg = { name: 'que', version: '0.2.0', main: './out/main/index.js' }
+
+  it('checks from a packaged build without the local-build mark', () => {
+    expect(isReleaseBuild(true, readLocalBuild(appWith(pkg)))).toBe(true)
+  })
+
+  it('never checks from a build that is not packaged', () => {
+    expect(isReleaseBuild(false, readLocalBuild(appWith(pkg)))).toBe(false)
+  })
+
+  it('never checks from a packaged build marked queLocalBuild, even an all-digit sha', () => {
+    expect(
+      isReleaseBuild(true, readLocalBuild(appWith({ ...pkg, queLocalBuild: 'ab2d083' })))
+    ).toBe(false)
+    // electron-builder's command line turns -c.extraMetadata.queLocalBuild=3205441 into a number.
+    expect(isReleaseBuild(true, readLocalBuild(appWith({ ...pkg, queLocalBuild: 3205441 })))).toBe(
+      false
+    )
   })
 })
 
