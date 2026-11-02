@@ -8,7 +8,7 @@ import { filterSidebar, matches, sortProjects, sortWorkspaces } from '../sidebar
 import { hoverWord, type RowTone, rowTone } from '../sidebar-row'
 import { NOW_SECONDS_INTERVAL_MS, useNow } from '../useNow'
 import { useUnlockCountdown } from '../useUnlockCountdown'
-import DaemonUpdate from './DaemonUpdate'
+import UpdateChip from './UpdateChip'
 import {
   ChevronIcon,
   FolderIcon,
@@ -581,12 +581,12 @@ export default function Sidebar(): React.JSX.Element {
         })}
       </nav>
       <div className="sidebar-bottom" data-testid="sidebar-bottom">
-        {/* The Quiet row (or, while one runs, the unlock row), with Update at its right end.
-            Empty during a quiet window with nothing to update, and then not drawn. */}
+        {/* The Quiet row (or, while one runs, the unlock row), with Restart or Update at its
+            right end. Empty during a quiet window with neither, and then not drawn. */}
         <div className="foot-row" data-testid="sidebar-foot-row">
           <UnlockRow />
           <QuietRow />
-          <DaemonUpdate />
+          <UpdateChip />
         </div>
         <div className="foot-strip" data-testid="sidebar-strip">
           {FOOT_VIEWS.map(({ kind, name, Icon, show }) => (

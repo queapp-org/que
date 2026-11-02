@@ -278,7 +278,7 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   terminal keeps its last program, read in `--fg-faint`, with no badge; `reattached` is
   a small mono badge. A tab's tooltip is its folder, the title its program set, and the
   first four characters of its id, one to a line. The workspace's name lives in the
-  sidebar's selected row alone, its status in the row's dot, and the error and update banners sit above the row.
+  sidebar's selected row alone, its status in the row's dot, and the error line sits above the row.
 
 ## Sidebar
 
@@ -373,16 +373,21 @@ only under the pointer.
   `--fg-muted` as the default and the other two in `--fg-faint`, each `--fg` under the
   pointer. The four are a `role="group"` of buttons, as wide as they are, so the group
   takes `--bg-hover` as a whole and the word brightens with it; it is absent while a quiet
-  window is in progress. While the background service runs an older build than the app, a
-  20px control sits at the Quiet row's right end, so it never pushes the icons around: the
-  5px status dot in `--accent` and the word Update in 11px `--fg-muted`, hairline-bordered,
-  `--fg` under the pointer, its tooltip saying why it is there. It reads Updating… at 0.4
-  opacity while the update runs, and is absent otherwise; a failed update goes to the error
-  line above the tab strip. During an unlock the unlock row takes the Quiet row's place: the
-  open lock at 12px and `m:ss left` in mono 11px `--accent`, and `lock now` in mono 11px
-  `--fg-faint` at its right end (`--fg-muted` under the pointer), always visible: locking
-  again is the behaviour we want. The row is a `role="status"` region, and Update, when one
-  is waiting, sits after `lock now`. The strip holds three `button.ghost.icon`s: Report (a
+  window is in progress. A 20px control sits at the Quiet row's right end, so it never
+  pushes the icons around: the 5px status dot in `--accent` and one word in 11px
+  `--fg-muted`, hairline-bordered, `--fg` under the pointer, its tooltip saying why it is
+  there. It has two states and shows one at a time. Restart, while the background service
+  runs an older build than the app: it hands every terminal to this build, reads
+  Restarting… at 0.4 opacity while that runs, and a failed restart goes to the error line
+  above the tab strip. Update, while the service runs this build and a newer release is
+  published: it opens the release's download page, since an unsigned build cannot install
+  itself, and stays until the update is taken; there is no dismiss. When both hold, Restart
+  shows, because it can be done now, and Update follows once the service is current. With
+  neither, the control is absent. During an unlock the unlock row takes the Quiet row's
+  place: the open lock at 12px and `m:ss left` in mono 11px `--accent`, and `lock now` in
+  mono 11px `--fg-faint` at its right end (`--fg-muted` under the pointer), always visible:
+  locking again is the behaviour we want. The row is a `role="status"` region, and Restart
+  or Update, when one is waiting, sits after `lock now`. The strip holds three `button.ghost.icon`s: Report (a
   page with lines), Tickets (a ticket outline, the open tickets counted beside it in mono
   11px `--fg-faint`) and Settings (a gear), in `--fg-faint`, `--fg` under the pointer. Each
   icon's name is its tooltip and accessible name. The view open in the main area reads

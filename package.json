@@ -51,7 +51,7 @@
     "verify": "node scripts/verify.mjs",
     "test:flaky": "node scripts/flake-hunt.mjs",
     "install:local": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/install-local.mjs",
-    "package": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=${CSC_IDENTITY_AUTO_DISCOVERY:-false} electron-builder --mac --dir --publish never",
+    "package": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=${CSC_IDENTITY_AUTO_DISCOVERY:-false} electron-builder --mac --dir --publish never -c.extraMetadata.queLocalBuild=$(git rev-parse --short HEAD 2>/dev/null || echo local)",
     "dist": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=${CSC_IDENTITY_AUTO_DISCOVERY:-false} electron-builder --mac dmg zip --publish never",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "release": "release-it",

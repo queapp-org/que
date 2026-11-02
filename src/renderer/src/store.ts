@@ -539,7 +539,7 @@ export class QueStore {
   //   `connection` count remounts the panes), the rest are marked exited, the shown
   //   workspace is watched again (watches are per connection), a visited workspace
   //   opens a fresh shell again (autoOpened is cleared), and `daemon` is refreshed
-  //   so the stale-build banner clears.
+  //   so the Restart control clears.
 
   /** Asks the main process which build the daemon runs; failures leave it unknown. */
   private refreshDaemon(): void {
@@ -580,7 +580,7 @@ export class QueStore {
   /**
    * Updates the daemon in place to this app's build; every terminal keeps running
    * with its id, so the reconnect re-attaches them all. A failed hand-off goes to
-   * the error line, and the Update control stays for another try.
+   * the error line, and the Restart control stays for another try.
    */
   upgradeDaemon(): Promise<void> {
     return this.guard(async () => this.recover(await this.api.daemon.upgrade()))

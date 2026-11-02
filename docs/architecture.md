@@ -48,14 +48,13 @@ each side names the build it has. The daemon hashes its own bundle at start
 would start. Only the daemon bundle counts, so a change to the window never
 asks for a restart, and an unknown id on either side never does either.
 `que daemon status` and `que doctor` show both ids and recommend `que daemon
-upgrade`, with `que daemon restart` as the fallback. The app shows an Update
-control beside Settings in the sidebar, which hands the terminals to the new
+upgrade`, with `que daemon restart` as the fallback. The app shows Restart at
+the right end of the sidebar's Quiet row, which hands the terminals to the new
 build in place (see below) and keeps every one running. If that fails (the
 running daemon is too old to hand off, or the successor did not start), the
 old daemon still serves, the error line says why, and the control stays for
-another try. The app never restarts the daemon, since that ends every
-terminal; only `que daemon restart` does. Both are always the user's click,
-never automatic.
+another try. The app never ends a terminal to change builds; only `que daemon
+restart` does. Both are always the user's click, never automatic.
 
 When the connection drops, the window says it is reconnecting and asks the
 main process for the daemon's state, which reconnects or starts a daemon (after
@@ -104,7 +103,7 @@ in any terminal, and plain Enter to a shell or anything else that reads lines.
 ## Upgrading the daemon without ending terminals
 
 A PTY is a file descriptor, so a terminal can change owners without the shell
-noticing. `que daemon upgrade`, and the sidebar's Update through the app's main
+noticing. `que daemon upgrade`, and the sidebar's Restart through the app's main
 process, ask the running daemon for `daemon.handoff` (the renderer cannot call
 it directly), naming the daemon bundle and runtime of the que that asks,
 normally the newly installed app's. Both go through `src/shared/upgrade.ts`,
@@ -142,7 +141,7 @@ with the error; after it has let go of the socket, it also kills the successor
 then answers. Either way no terminal ends; the error reaches the app's error
 line or the CLI's stderr, and the fallback is `que daemon restart`.
 
-After an Update the app reconnects as after any drop (the reconnect contract
+After a Restart the app reconnects as after any drop (the reconnect contract
 above): the old connection closes as that daemon exits, the next one reaches
 the successor, and `daemon.reconnected` fires. The terminal ids are the same,
 so every pane attaches its terminal again and none is marked exited.
@@ -435,6 +434,10 @@ quiet hours end leaves the night to the morning summary.
 
 The main process proxies an allow-list of methods and forwards events to the
 renderer, keeps the menu-bar title (`● 3 ▸ 1 ✕ 0`), shows the quiet board window
-while locked, and checks once a day for a newer release. The renderer only
+while locked, and checks once a day for a newer release, which the sidebar's
+Quiet row offers as Update while the daemon runs this build. Only a release
+build checks: one run from source is not packaged, and `npm run package` (which
+`npm run install:local` runs) marks its bundle's package.json with
+`queLocalBuild`; releases build with `npm run dist`. The renderer only
 ever talks to `window.que`, which is why its component tests can run against
 an in-memory fake of that bridge.

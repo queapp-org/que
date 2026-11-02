@@ -751,8 +751,8 @@ h2 {
   visibility: hidden;
 }
 
-/* The foot's first row: Quiet (or, during an unlock, its countdown), and Update at the right
- * end. With nothing in it (a quiet window, no update waiting) it is not drawn. */
+/* The foot's first row: Quiet (or, during an unlock, its countdown), and Restart or Update at
+ * the right end. With nothing in it (a quiet window, neither waiting) it is not drawn. */
 .foot-row {
   display: flex;
   align-items: center;
@@ -1412,19 +1412,15 @@ body.resizing {
   flex: 1;
 }
 
-.update-banner {
+/* The line above the panes while the window reconnects to the background service. */
+.reconnecting {
   display: flex;
   align-items: center;
-  gap: 8px;
   padding: 5px 12px;
   background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
   color: var(--fg-muted);
   flex: none;
-}
-
-.update-banner span {
-  flex: 1;
 }
 
 .empty {

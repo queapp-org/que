@@ -9,6 +9,7 @@ All notable changes to que are recorded here. The format follows
 ### Changed
 
 - que moved to [github.com/queapp-org/que](https://github.com/queapp-org/que). The old `rquellh/que` and `que-agents/que` addresses redirect, so 0.2.0 keeps finding updates.
+- The banner saying a newer release is available is gone. The control at the right end of the Quiet row now has two states: Update when a newer release is published, which opens its download page, and Restart (formerly Update) when the background service runs an older build than the app. Restart shows while both hold. Builds made by `npm run package` or `npm run install:local`, and runs from source, never check for releases.
 
 ## [0.2.0] - 2026-10-28
 

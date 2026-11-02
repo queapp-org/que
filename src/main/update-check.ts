@@ -3,9 +3,10 @@
 // that varies (clock, network, state file) is injected; failures of any kind
 // (offline, 403/404 while the repository is private, bad JSON) are silent.
 import fs from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { UpdateInfo } from '../shared/types'
 import {
+  decodeLocalBuild,
   decodeRelease,
   decodeUpdateCheckState,
   type GhRelease,
@@ -61,6 +62,24 @@ export function isNewer(latest: string, current: string): boolean {
   const b = parseVersion(current)
 
   return a !== null && b !== null && compare(a, b) > 0
+}
+
+/**
+ * Only a release asks for newer releases: a packaged build whose package.json carries no
+ * local-build mark. `npm run dev` is not packaged, and `npm run package` (which install:local runs) marks its bundle;
+ * releases build with `npm run dist`.
+ */
+export function isReleaseBuild(isPackaged: boolean, localBuild: string | null): boolean {
+  return isPackaged && localBuild === null
+}
+
+/** The local-build mark in the package.json at `appPath`; null without one or when unreadable. */
+export function readLocalBuild(appPath: string): string | null {
+  try {
+    return decodeLocalBuild(JSON.parse(fs.readFileSync(join(appPath, 'package.json'), 'utf8')))
+  } catch {
+    return null
+  }
 }
 
 /** The once-a-day gate: no state, or the last attempt is a day old (or in the future). */

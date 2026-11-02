@@ -280,10 +280,11 @@ Builds que.app from your checkout, replaces `/Applications/que.app` with it, lin
 command (`/usr/local/bin/que` when that is writable, else `~/.local/bin/que`), and reopens the
 app. It never touches the background service, so every terminal keeps running. To upgrade, pull
 `main` and run it again. `--no-build` installs the app `npm run package` already made, `--dest`
-installs somewhere else, `--no-link` and `--no-launch` skip those steps.
+installs somewhere else, `--no-link` and `--no-launch` skip those steps. The app it builds
+never checks for newer releases, and neither does one run from source; you follow `main`.
 
 A change to the background service itself reaches the running one only through an update in
-place: the Update control beside Settings, or `que daemon upgrade` (see below).
+place: Restart at the right end of the sidebar's Quiet row, or `que daemon upgrade` (see below).
 
 | Path                                         | What lives there                                                      |
 | -------------------------------------------- | --------------------------------------------------------------------- |
@@ -295,11 +296,13 @@ place: the Update control beside Settings, or `que daemon upgrade` (see below).
 | `scripts/`                                   | build, smoke, packaged smoke, flake hunt, docs                        |
 
 The terminals live in the background service (the daemon), which keeps running the build it
-started with. When a rebuild or an update changes it, an Update control appears beside Settings
-in the sidebar; it hands every terminal to the new build without ending any, and `que daemon
+started with. When a rebuild or an update changes it, Restart appears at the right end of the
+sidebar's Quiet row; it hands every terminal to the new build without ending any, and `que daemon
 upgrade` does the same from the CLI. If the handoff is refused, the running service keeps
-serving as it was and the error line says why. The app never restarts the service, since that
-ends every terminal; `que daemon restart` does, when you want the new build regardless.
+serving as it was and the error line says why. The app never ends a terminal to do this; `que
+daemon restart` does, stopping the service and starting the new build, when you want it
+regardless. When a newer que release is published, the same place reads Update, which opens the
+release's download page.
 
 How the pieces fit: [docs/architecture.md](docs/architecture.md). How it looks and why:
 [docs/design.md](docs/design.md). Tests follow the
