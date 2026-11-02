@@ -1,9 +1,13 @@
 // Removing a workspace through the real app and daemon, in a repo whose teardown takes
 // a few seconds: the dialog closes at once, the row stays with the neutral working mark and
-// `running teardown` with its clock while the daemon works, then goes, and `que ws list`
-// no longer has it.
+// `running teardown` with its clock while the daemon works, then goes, `que ws list` no longer
+// has it, and its folder leaves the trash. The worktree holds a real asar archive (#280), which
+// only this layer can catch: Vitest's plain Node sees an ordinary file.
+import { copyFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import type { Project, Workspace } from '../../src/shared/types'
+import { REPO_ROOT } from '../../src/testing/fakes'
 import { makeTempRepo } from '../../src/testing/temp-repo'
 import { SidebarPage } from './pages/SidebarPage'
 import { type LaunchedApp, launchApp, newQueHome, tempDir } from './utils/app'
@@ -38,6 +42,16 @@ test('a workspace removed from its row menu shows its steps on the row while the
     )
   })
 
+  await test.step('Put a real asar archive in its worktree', async () => {
+    copyFileSync(
+      join(
+        REPO_ROOT,
+        'node_modules/electron/dist/Electron.app/Contents/Resources/default_app.asar'
+      ),
+      join(workspace.path, 'default_app.asar')
+    )
+  })
+
   await test.step('Launch the app; the workspace is in the sidebar', async () => {
     launched = await launchApp({ queHome })
     sidebar = new SidebarPage(launched.window)
@@ -69,5 +83,10 @@ test('a workspace removed from its row menu shows its steps on the row while the
     expect(
       queJson<Workspace[]>(queHome, 'ws', 'list', '--json').some((w) => w.id === workspace.id)
     ).toBe(false)
+  })
+
+  await test.step('Its folder is gone from the trash too, the archive in it included', async () => {
+    const trash = join(queHome, 'worktrees', '.trash')
+    await expect.poll(() => readdirSync(trash), { timeout: 20_000 }).toEqual([])
   })
 })
