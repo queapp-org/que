@@ -23,6 +23,7 @@ import {
 } from './icons'
 import BackgroundMark from './BackgroundMark'
 import Menu, { type MenuItem, type Point } from './Menu'
+import Region from './Region'
 import UsageFoot from './UsageFoot'
 import WorkingMark from './WorkingMark'
 import WorkspacePopout, { usePopout } from './WorkspacePopout'
@@ -141,18 +142,74 @@ const FOOT_VIEWS = [
   { kind: 'settings', name: 'Settings', Icon: GearIcon, show: (s: QueStore) => s.showSettings() }
 ] as const
 
-export default function Sidebar(): React.JSX.Element {
+/** The loose sessions, under the Sessions head. */
+function SessionList(): React.JSX.Element {
   const store = usePanes(SCRATCH)
+  const view = useQueSelector((s) => s.view)
+  const filter = useQueSelector((s) => s.filter)
+  const selected = view.kind === 'terminals' ? view.key : null
+  const allSessions = store.tabs(SCRATCH)
+  const sessions = allSessions.filter((t) => matches(filter, tabLabel(t), t.name, t.cwd))
+  const activeSession = selected === SCRATCH ? store.activeTab(SCRATCH) : null
+
+  return (
+    <>
+      {allSessions.length > 0 && sessions.length === 0 ? (
+        <p className="empty-note" data-testid="sidebar-sessions-nomatch">
+          Nothing matches
+        </p>
+      ) : sessions.length === 0 ? (
+        <p className="empty-note" data-testid="sidebar-sessions-empty">
+          No sessions. Press + to open a terminal.
+        </p>
+      ) : (
+        <ul>
+          {sessions.map((t) => (
+            <li
+              key={t.id}
+              className={`session row${t.alive ? '' : ' exited weight-faint'}`}
+              data-testid={`sidebar-session-${t.id}`}
+            >
+              <button
+                type="button"
+                className="row-button"
+                data-testid={`sidebar-session-${t.id}-open`}
+                aria-current={activeSession?.id === t.id ? 'page' : undefined}
+                title={t.cwd}
+                onClick={() => {
+                  store.showTerminals(SCRATCH)
+                  store.selectTerminal(SCRATCH, t.id)
+                }}
+              >
+                <span className="ico glyph" aria-hidden="true">
+                  ›_
+                </span>
+                <span className="name">{tabLabel(t)}</span>
+              </button>
+              {!t.alive && (
+                <span className="reveal">
+                  <span className="word" data-testid={`sidebar-session-${t.id}-exited`}>
+                    exited
+                  </span>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+/** The projects and their workspaces, under the Projects head: each row's menu and card. */
+function ProjectList(): React.JSX.Element {
+  const store = useStore()
   const projects = useQueSelector((s) => s.projects)
   const workspaces = useQueSelector((s) => s.workspaces)
   const view = useQueSelector((s) => s.view)
   const connected = useQueSelector((s) => s.connected)
   const loaded = useQueSelector((s) => s.loaded)
-  const tickets = useQueSelector((s) => s.tickets)
-  const ticketsSync = useQueSelector((s) => s.ticketsSync)
   const filter = useQueSelector((s) => s.filter)
-  const searchOpen = useQueSelector((s) => s.searchOpen)
-  const searchFocusNonce = useQueSelector((s) => s.searchFocusNonce)
   const sort = useQueSelector((s) => s.sort)
   const locked = useQueSelector((s) => s.quiet?.locked ?? false)
   const dialog = useQueSelector((s) => s.dialog)
@@ -163,43 +220,13 @@ export default function Sidebar(): React.JSX.Element {
   const popout = usePopout(!locked)
   const rows = useRef(new Map<string, HTMLLIElement>())
   const showPopout = popout.show
-
-  const searchRef = useRef<HTMLInputElement>(null)
-  // The usage card stands beside it.
-  const asideRef = useRef<HTMLElement>(null)
-  // the nonce re-runs the focus on every request
-  useEffect(() => {
-    if (!searchOpen) return
-    searchRef.current?.focus()
-    searchRef.current?.select()
-  }, [searchOpen, searchFocusNonce])
   const filtering = filter.trim() !== ''
-  const openTickets = countOpenTickets(tickets.filter((t) => matches(filter, t.key, t.summary)))
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [menu, setMenu] = useState<OpenMenu | null>(null)
   const closeMenu = useCallback(() => setMenu(null), [])
   const selected = view.kind === 'terminals' ? view.key : null
-  const allSessions = store.tabs(SCRATCH)
-  const sessions = allSessions.filter((t) => matches(filter, tabLabel(t), t.name, t.cwd))
   const narrowed = filterSidebar(filter, projects, Object.values(workspaces))
   const shownProjects = sortProjects(narrowed.projects, Object.values(workspaces), sort)
-  const activeSession = selected === SCRATCH ? store.activeTab(SCRATCH) : null
-
-  // The selected workspace has been looked at: when it becomes the selected one in a
-  // focused window, when it finishes while selected, when the window regains focus, and
-  // when quiet hours unlock on it. Never while they lock it: nothing of it shows.
-  const seenId = selected !== null && selected in workspaces ? selected : null
-  const seenFinishedAt = seenId ? workspaces[seenId]?.finishedAt : null
-
-  useEffect(() => {
-    if (!seenId || locked) return
-
-    if (document.hasFocus()) void store.markSeen(seenId)
-    const onFocus = (): void => void store.markSeen(seenId)
-    window.addEventListener('focus', onFocus)
-
-    return () => window.removeEventListener('focus', onFocus)
-  }, [store, seenId, seenFinishedAt, locked])
 
   const toggle = (id: string): void =>
     setCollapsed((prev) => {
@@ -282,6 +309,228 @@ export default function Sidebar(): React.JSX.Element {
     menu?.kind === kind && menu.id === id ? menu : null
 
   return (
+    <>
+      {loaded && projects.length === 0 && (
+        <p className="empty-note" data-testid="sidebar-empty">
+          Add a git repository to start a workspace.
+        </p>
+      )}
+      {loaded && filtering && projects.length > 0 && shownProjects.length === 0 && (
+        <p className="empty-note" data-testid="sidebar-projects-nomatch">
+          Nothing matches
+        </p>
+      )}
+      {shownProjects.map((p) => {
+        const open = filtering || !collapsed.has(p.id)
+        const list = sortWorkspaces(narrowed.workspacesOf(p.id), sort)
+        const looks = list.map((w) => rowTone(w, selected === w.id))
+        const unseenCount = looks.filter((l) => l.unseen).length
+        const projectMenu = menuFor('project', p.id)
+
+        return (
+          <div key={p.id} className="project" data-testid={`sidebar-project-${p.id}`}>
+            <div className={`project-head${open ? '' : ' collapsed'}`}>
+              <button
+                type="button"
+                className="row-button disclosure"
+                data-testid={`sidebar-project-${p.id}-toggle`}
+                aria-expanded={open}
+                title={p.path}
+                onClick={() => toggle(p.id)}
+                onContextMenu={(e) => menuAtPointer(e, 'project', p.id)}
+              >
+                <span className="ico" aria-hidden="true">
+                  <FolderIcon />
+                  <ChevronIcon open={open} />
+                </span>
+                <span className="name">{p.name}</span>
+              </button>
+              {!open && (
+                <span className="count" data-testid={`sidebar-project-${p.id}-count`}>
+                  {unseenCount > 0 && (
+                    <>
+                      <span className="done">{unseenCount} done</span> ·{' '}
+                    </>
+                  )}
+                  {looks.length}
+                </span>
+              )}
+              <div className="head-actions">
+                <button
+                  type="button"
+                  className="ghost icon"
+                  data-testid={`sidebar-project-${p.id}-add-workspace`}
+                  aria-label={`New workspace in ${p.name}`}
+                  title={`New workspace in ${p.name}`}
+                  disabled={!connected}
+                  onClick={() => store.openDialog({ kind: 'new-workspace', projectId: p.id })}
+                >
+                  <PlusIcon />
+                </button>
+                <button
+                  type="button"
+                  className="ghost icon sm more"
+                  data-testid={`sidebar-project-${p.id}-menu`}
+                  aria-label={`More actions for ${p.name}`}
+                  aria-haspopup="menu"
+                  aria-expanded={projectMenu !== null}
+                  onClick={() => toggleMenu('project', p.id)}
+                >
+                  ⋯
+                </button>
+              </div>
+              {projectMenu && (
+                <Menu
+                  label={`Actions for ${p.name}`}
+                  testId={`sidebar-project-${p.id}-menu`}
+                  items={projectItems(p)}
+                  at={projectMenu.at}
+                  onClose={closeMenu}
+                />
+              )}
+            </div>
+            {open && (
+              <ul>
+                {list.map((w, i) => {
+                  const look = looks[i]
+                  const workspaceMenu = look.removing ? null : menuFor('workspace', w.id)
+                  const word = hoverWord(w, look, now)
+
+                  return (
+                    <li
+                      key={w.id}
+                      className={`workspace row weight-${look.weight}`}
+                      data-testid={`sidebar-workspace-${w.id}`}
+                      ref={(el) => {
+                        if (el) rows.current.set(w.id, el)
+                        else rows.current.delete(w.id)
+                      }}
+                      onContextMenu={
+                        look.removing
+                          ? (e) => e.preventDefault()
+                          : (e) => menuAtPointer(e, 'workspace', w.id)
+                      }
+                      onMouseEnter={(e) => popout.enter(w.id, e.currentTarget)}
+                      onMouseLeave={popout.leave}
+                      onMouseDown={popout.press}
+                    >
+                      <button
+                        type="button"
+                        className="row-button"
+                        data-testid={`sidebar-workspace-${w.id}-open`}
+                        aria-current={selected === w.id ? 'page' : undefined}
+                        disabled={look.removing}
+                        onClick={() => store.showTerminals(w.id)}
+                      >
+                        <span className="ico" aria-hidden="true">
+                          <StatusMark w={w} look={look} word={word.word} />
+                        </span>
+                        <span className="name" data-testid={`sidebar-workspace-${w.id}-name`}>
+                          {w.title ?? w.name}
+                        </span>
+                        {look.background.length > 0 && (
+                          <BackgroundMark data-testid={`sidebar-workspace-${w.id}-background`} />
+                        )}
+                        {look.removing && (
+                          <span
+                            className="step-word"
+                            data-testid={`sidebar-workspace-${w.id}-step`}
+                          >
+                            {word.word}
+                          </span>
+                        )}
+                      </button>
+                      <span className="reveal" data-testid={`sidebar-workspace-${w.id}-reveal`}>
+                        <span
+                          className={word.tone ? `word toned tone-${word.tone}` : 'word'}
+                          data-testid={`sidebar-workspace-${w.id}-word`}
+                        >
+                          {word.word}
+                        </span>
+                        {!look.removing && (
+                          <button
+                            type="button"
+                            className="ghost icon sm more"
+                            data-testid={`sidebar-workspace-${w.id}-menu`}
+                            aria-label={`More actions for ${w.title ?? w.name}`}
+                            aria-haspopup="menu"
+                            aria-expanded={workspaceMenu !== null}
+                            onClick={() => toggleMenu('workspace', w.id)}
+                          >
+                            ⋯
+                          </button>
+                        )}
+                      </span>
+                      {popout.open?.id === w.id && (
+                        <WorkspacePopout ws={w} row={popout.open.row} onClose={popout.close} />
+                      )}
+                      {workspaceMenu && (
+                        <Menu
+                          label={`Actions for ${w.title ?? w.name}`}
+                          testId={`sidebar-workspace-${w.id}-menu`}
+                          items={workspaceItems(w)}
+                          at={workspaceMenu.at}
+                          onClose={closeMenu}
+                        />
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+export default function Sidebar(): React.JSX.Element {
+  const store = useStore()
+  const view = useQueSelector((s) => s.view)
+  const connected = useQueSelector((s) => s.connected)
+  const tickets = useQueSelector((s) => s.tickets)
+  const ticketsSync = useQueSelector((s) => s.ticketsSync)
+  const filter = useQueSelector((s) => s.filter)
+  const searchOpen = useQueSelector((s) => s.searchOpen)
+  const searchFocusNonce = useQueSelector((s) => s.searchFocusNonce)
+  const sort = useQueSelector((s) => s.sort)
+  const locked = useQueSelector((s) => s.quiet?.locked ?? false)
+  // A list that could not be drawn tries again with each load (a Restart reconnects and loads).
+  const loads = useQueSelector((s) => s.loads)
+
+  const searchRef = useRef<HTMLInputElement>(null)
+  // The usage card stands beside it.
+  const asideRef = useRef<HTMLElement>(null)
+  // the nonce re-runs the focus on every request
+  useEffect(() => {
+    if (!searchOpen) return
+    searchRef.current?.focus()
+    searchRef.current?.select()
+  }, [searchOpen, searchFocusNonce])
+  const openTickets = countOpenTickets(tickets.filter((t) => matches(filter, t.key, t.summary)))
+  const selected = view.kind === 'terminals' ? view.key : null
+
+  // The selected workspace has been looked at: when it becomes the selected one in a
+  // focused window, when it finishes while selected, when the window regains focus, and
+  // when quiet hours unlock on it. Never while they lock it: nothing of it shows.
+  const seenId = useQueSelector((s) =>
+    selected !== null && selected in s.workspaces ? selected : null
+  )
+
+  const seenFinishedAt = useQueSelector((s) => (seenId ? s.workspaces[seenId]?.finishedAt : null))
+
+  useEffect(() => {
+    if (!seenId || locked) return
+
+    if (document.hasFocus()) void store.markSeen(seenId)
+    const onFocus = (): void => void store.markSeen(seenId)
+    window.addEventListener('focus', onFocus)
+
+    return () => window.removeEventListener('focus', onFocus)
+  }, [store, seenId, seenFinishedAt, locked])
+
+  return (
     <aside ref={asideRef} className="sidebar" data-testid="sidebar" aria-label="Sidebar">
       <button
         type="button"
@@ -336,49 +585,9 @@ export default function Sidebar(): React.JSX.Element {
             </button>
           </div>
         </div>
-        {allSessions.length > 0 && sessions.length === 0 ? (
-          <p className="empty-note" data-testid="sidebar-sessions-nomatch">
-            Nothing matches
-          </p>
-        ) : sessions.length === 0 ? (
-          <p className="empty-note" data-testid="sidebar-sessions-empty">
-            No sessions. Press + to open a terminal.
-          </p>
-        ) : (
-          <ul>
-            {sessions.map((t) => (
-              <li
-                key={t.id}
-                className={`session row${t.alive ? '' : ' exited weight-faint'}`}
-                data-testid={`sidebar-session-${t.id}`}
-              >
-                <button
-                  type="button"
-                  className="row-button"
-                  data-testid={`sidebar-session-${t.id}-open`}
-                  aria-current={activeSession?.id === t.id ? 'page' : undefined}
-                  title={t.cwd}
-                  onClick={() => {
-                    store.showTerminals(SCRATCH)
-                    store.selectTerminal(SCRATCH, t.id)
-                  }}
-                >
-                  <span className="ico glyph" aria-hidden="true">
-                    ›_
-                  </span>
-                  <span className="name">{tabLabel(t)}</span>
-                </button>
-                {!t.alive && (
-                  <span className="reveal">
-                    <span className="word" data-testid={`sidebar-session-${t.id}-exited`}>
-                      exited
-                    </span>
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <Region what="The sessions" testId="sidebar-sessions-failed" reset={loads}>
+          <SessionList />
+        </Region>
       </nav>
       <nav aria-label="Projects">
         <div className="section-head">
@@ -408,177 +617,9 @@ export default function Sidebar(): React.JSX.Element {
             </button>
           </div>
         </div>
-        {loaded && projects.length === 0 && (
-          <p className="empty-note" data-testid="sidebar-empty">
-            Add a git repository to start a workspace.
-          </p>
-        )}
-        {loaded && filtering && projects.length > 0 && shownProjects.length === 0 && (
-          <p className="empty-note" data-testid="sidebar-projects-nomatch">
-            Nothing matches
-          </p>
-        )}
-        {shownProjects.map((p) => {
-          const open = filtering || !collapsed.has(p.id)
-          const list = sortWorkspaces(narrowed.workspacesOf(p.id), sort)
-          const looks = list.map((w) => rowTone(w, selected === w.id))
-          const unseenCount = looks.filter((l) => l.unseen).length
-          const projectMenu = menuFor('project', p.id)
-
-          return (
-            <div key={p.id} className="project" data-testid={`sidebar-project-${p.id}`}>
-              <div className={`project-head${open ? '' : ' collapsed'}`}>
-                <button
-                  type="button"
-                  className="row-button disclosure"
-                  data-testid={`sidebar-project-${p.id}-toggle`}
-                  aria-expanded={open}
-                  title={p.path}
-                  onClick={() => toggle(p.id)}
-                  onContextMenu={(e) => menuAtPointer(e, 'project', p.id)}
-                >
-                  <span className="ico" aria-hidden="true">
-                    <FolderIcon />
-                    <ChevronIcon open={open} />
-                  </span>
-                  <span className="name">{p.name}</span>
-                </button>
-                {!open && (
-                  <span className="count" data-testid={`sidebar-project-${p.id}-count`}>
-                    {unseenCount > 0 && (
-                      <>
-                        <span className="done">{unseenCount} done</span> ·{' '}
-                      </>
-                    )}
-                    {looks.length}
-                  </span>
-                )}
-                <div className="head-actions">
-                  <button
-                    type="button"
-                    className="ghost icon"
-                    data-testid={`sidebar-project-${p.id}-add-workspace`}
-                    aria-label={`New workspace in ${p.name}`}
-                    title={`New workspace in ${p.name}`}
-                    disabled={!connected}
-                    onClick={() => store.openDialog({ kind: 'new-workspace', projectId: p.id })}
-                  >
-                    <PlusIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost icon sm more"
-                    data-testid={`sidebar-project-${p.id}-menu`}
-                    aria-label={`More actions for ${p.name}`}
-                    aria-haspopup="menu"
-                    aria-expanded={projectMenu !== null}
-                    onClick={() => toggleMenu('project', p.id)}
-                  >
-                    ⋯
-                  </button>
-                </div>
-                {projectMenu && (
-                  <Menu
-                    label={`Actions for ${p.name}`}
-                    testId={`sidebar-project-${p.id}-menu`}
-                    items={projectItems(p)}
-                    at={projectMenu.at}
-                    onClose={closeMenu}
-                  />
-                )}
-              </div>
-              {open && (
-                <ul>
-                  {list.map((w, i) => {
-                    const look = looks[i]
-                    const workspaceMenu = look.removing ? null : menuFor('workspace', w.id)
-                    const word = hoverWord(w, look, now)
-
-                    return (
-                      <li
-                        key={w.id}
-                        className={`workspace row weight-${look.weight}`}
-                        data-testid={`sidebar-workspace-${w.id}`}
-                        ref={(el) => {
-                          if (el) rows.current.set(w.id, el)
-                          else rows.current.delete(w.id)
-                        }}
-                        onContextMenu={
-                          look.removing
-                            ? (e) => e.preventDefault()
-                            : (e) => menuAtPointer(e, 'workspace', w.id)
-                        }
-                        onMouseEnter={(e) => popout.enter(w.id, e.currentTarget)}
-                        onMouseLeave={popout.leave}
-                        onMouseDown={popout.press}
-                      >
-                        <button
-                          type="button"
-                          className="row-button"
-                          data-testid={`sidebar-workspace-${w.id}-open`}
-                          aria-current={selected === w.id ? 'page' : undefined}
-                          disabled={look.removing}
-                          onClick={() => store.showTerminals(w.id)}
-                        >
-                          <span className="ico" aria-hidden="true">
-                            <StatusMark w={w} look={look} word={word.word} />
-                          </span>
-                          <span className="name" data-testid={`sidebar-workspace-${w.id}-name`}>
-                            {w.title ?? w.name}
-                          </span>
-                          {look.background.length > 0 && (
-                            <BackgroundMark data-testid={`sidebar-workspace-${w.id}-background`} />
-                          )}
-                          {look.removing && (
-                            <span
-                              className="step-word"
-                              data-testid={`sidebar-workspace-${w.id}-step`}
-                            >
-                              {word.word}
-                            </span>
-                          )}
-                        </button>
-                        <span className="reveal" data-testid={`sidebar-workspace-${w.id}-reveal`}>
-                          <span
-                            className={word.tone ? `word toned tone-${word.tone}` : 'word'}
-                            data-testid={`sidebar-workspace-${w.id}-word`}
-                          >
-                            {word.word}
-                          </span>
-                          {!look.removing && (
-                            <button
-                              type="button"
-                              className="ghost icon sm more"
-                              data-testid={`sidebar-workspace-${w.id}-menu`}
-                              aria-label={`More actions for ${w.title ?? w.name}`}
-                              aria-haspopup="menu"
-                              aria-expanded={workspaceMenu !== null}
-                              onClick={() => toggleMenu('workspace', w.id)}
-                            >
-                              ⋯
-                            </button>
-                          )}
-                        </span>
-                        {popout.open?.id === w.id && (
-                          <WorkspacePopout ws={w} row={popout.open.row} onClose={popout.close} />
-                        )}
-                        {workspaceMenu && (
-                          <Menu
-                            label={`Actions for ${w.title ?? w.name}`}
-                            testId={`sidebar-workspace-${w.id}-menu`}
-                            items={workspaceItems(w)}
-                            at={workspaceMenu.at}
-                            onClose={closeMenu}
-                          />
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          )
-        })}
+        <Region what="The projects" testId="sidebar-projects-failed" reset={loads}>
+          <ProjectList />
+        </Region>
       </nav>
       <div className="sidebar-bottom" data-testid="sidebar-bottom">
         {/* The Quiet row (or, while one runs, the unlock row), with Restart or Update at its
