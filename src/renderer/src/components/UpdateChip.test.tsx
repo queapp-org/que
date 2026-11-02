@@ -123,7 +123,7 @@ describe('UpdateChip', () => {
 
     it('reads Update in the same place when the check already found a newer release, and says what it opens', async () => {
       seed()
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
 
       render(<App />)
 
@@ -142,7 +142,7 @@ describe('UpdateChip', () => {
       const user = userEvent.setup()
       seed()
       fakeBridge.setDaemon(STALE)
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
       render(<App />)
 
       const restart = await screen.findByRole('button', { name: 'Restart' })
@@ -162,7 +162,7 @@ describe('UpdateChip', () => {
       await screen.findByTestId('sidebar-settings')
       expect(screen.queryByTestId('sidebar-app-update')).not.toBeInTheDocument()
 
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
 
       expect(await screen.findByRole('button', { name: 'Update' })).toBeInTheDocument()
     })
@@ -308,7 +308,7 @@ describe('UpdateChip', () => {
     it('opens the release page on Update, and stays until the update is taken', async () => {
       const user = userEvent.setup()
       seed()
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
       render(<App />)
 
       await user.click(await screen.findByRole('button', { name: 'Update' }))

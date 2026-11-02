@@ -18,7 +18,6 @@ import type {
   Ticket,
   TicketsListResult,
   TicketsSyncState,
-  UpdateInfo,
   UpdateStatus,
   UserConfig,
   Workspace,
@@ -1024,11 +1023,6 @@ class FakeBridge {
     this.updateBook = { ...this.updateBook, ...patch }
 
     for (const cb of this.updateListeners) cb({ ...this.updateBook })
-  }
-
-  /** The newer release the check knows of; see setUpdateStatus. */
-  setUpdate(update: UpdateInfo | null): void {
-    this.setUpdateStatus({ update })
   }
 
   /** What the next app.checkForUpdate() finds, instead of up to date as of now. */

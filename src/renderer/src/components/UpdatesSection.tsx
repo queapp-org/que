@@ -3,46 +3,33 @@ import type { UpdateStatus } from '../../../preload/index.d'
 import { hhmm } from '../../../shared/format'
 import { useQueSelector, useStore } from '../store'
 
-const ANSWER = 'settings-updates-answer'
+interface Answer {
+  className: string
+  text: string
+  role?: 'alert'
+}
 
 /** The last answer, the first that holds of: a local build, a newer release, a failure, up to date. */
-function Answer({ status }: { status: UpdateStatus }): React.JSX.Element | null {
-  const { releaseBuild, update, failed, checkedAt } = status
+function answerOf({ releaseBuild, update, failed, checkedAt }: UpdateStatus): Answer | null {
   const at = checkedAt === null ? null : hhmm(checkedAt)
 
   if (!releaseBuild) {
-    return (
-      <p className="hint" data-testid={ANSWER}>
-        Local build: que doesn&apos;t check for releases.
-      </p>
-    )
+    return { className: 'hint', text: "Local build: que doesn't check for releases." }
   }
 
-  if (update) {
-    return (
-      <p className="updates-news" data-testid={ANSWER}>
-        que {update.version} is available.
-      </p>
-    )
-  }
+  if (update) return { className: 'updates-news', text: `que ${update.version} is available.` }
 
   if (failed) {
-    return (
-      <p className="form-error" role="alert" data-testid={ANSWER}>
-        Couldn&apos;t check: no answer from GitHub.{at && ` Tried at ${at}.`}
-      </p>
-    )
+    const tried = at ? ` Tried at ${at}.` : ''
+
+    return {
+      className: 'form-error',
+      role: 'alert',
+      text: `Couldn't check: no answer from GitHub.${tried}`
+    }
   }
 
-  if (at) {
-    return (
-      <p className="hint" data-testid={ANSWER}>
-        Up to date. Checked at {at}.
-      </p>
-    )
-  }
-
-  return null
+  return at ? { className: 'hint', text: `Up to date. Checked at ${at}.` } : null
 }
 
 /**
@@ -56,6 +43,8 @@ export default function UpdatesSection(): React.JSX.Element | null {
   const [checking, setChecking] = useState(false)
 
   if (!status) return null
+
+  const answer = answerOf(status)
 
   const check = (): void => {
     setChecking(true)
@@ -72,7 +61,11 @@ export default function UpdatesSection(): React.JSX.Element | null {
         <span className="updates-version" data-testid="settings-updates-version">
           que {status.version}
         </span>
-        <Answer status={status} />
+        {answer && (
+          <p className={answer.className} role={answer.role} data-testid="settings-updates-answer">
+            {answer.text}
+          </p>
+        )}
         {status.releaseBuild && (
           <span className="updates-actions">
             <button

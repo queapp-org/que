@@ -387,8 +387,8 @@ only under the pointer.
   runs an older build than the app: it hands every terminal to this build, reads
   Restarting… at 0.4 opacity while that runs, and a failed restart goes to the error line
   above the tab strip. Update, while the service runs this build and a newer release is
-  published: it opens the release's download page, since an unsigned build cannot install
-  itself, and stays until the update is taken; there is no dismiss. When both hold, Restart
+  published: it opens the release's download page, since que cannot install itself yet,
+  and stays until the update is taken; there is no dismiss. When both hold, Restart
   shows, because it can be done now, and Update follows once the service is current. With
   neither, the control is absent. During an unlock the unlock row takes the Quiet row's
   place: the open lock at 12px and `m:ss left` in mono 11px `--accent`, and `lock now` in
