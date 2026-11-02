@@ -59,6 +59,15 @@ export function tempDir(prefix: string): string {
 const argvOf = (path: string): string[][] => readFakeLog(path).map((call) => call.argv)
 
 /**
+ * Repeats a hover or a drag until its result holds. The window under test is a real one on a
+ * real screen: a real pointer over it sends the page mouse events too, which take the test's
+ * hover off its element or end its drag, and the test's own pointer does not come back by itself.
+ */
+export function retryPointer(attempt: () => Promise<void>): Promise<void> {
+  return expect(attempt).toPass({ timeout: 40_000 })
+}
+
+/**
  * A fresh QUE_HOME, for specs that seed state with the CLI before launching.
  * Its config.toml turns quiet hours off (they default to on in the evening)
  * unless the spec passes its own config.
