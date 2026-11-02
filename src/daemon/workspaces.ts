@@ -925,9 +925,8 @@ export function sessionEnv(
   return env
 }
 
-/** The variables que adds to a workspace terminal's environment. */
-export type WorkspaceTerminalEnv = SessionEnv & {
-  QUE_WORKSPACE_ID: string
+/** The variables que adds to every terminal's environment, loose or a workspace's. */
+export type TerminalEnv = {
   QUE_SOCKET: string
   QUE_HOME: string
   PATH: string
@@ -938,16 +937,15 @@ export type WorkspaceTerminalEnv = SessionEnv & {
   QUE_USER_ZDOTDIR?: string
 }
 
-/** Extra environment for a workspace terminal: hooks wrapper first on PATH. */
-export function workspaceTerminalEnv(
-  ws: Workspace,
-  paths: QuePaths,
-  socket: string,
-  session: SessionEnv = {}
-): WorkspaceTerminalEnv {
-  const env: WorkspaceTerminalEnv = {
-    ...session,
-    QUE_WORKSPACE_ID: ws.id,
+/** The variables que adds to a workspace terminal's environment. */
+export type WorkspaceTerminalEnv = SessionEnv & TerminalEnv & { QUE_WORKSPACE_ID: string }
+
+/**
+ * Extra environment for every terminal the daemon opens: the hooks wrapper
+ * first on PATH, so a claude started there reports its session.
+ */
+export function terminalEnv(paths: QuePaths, socket: string): TerminalEnv {
+  const env: TerminalEnv = {
     QUE_SOCKET: socket,
     QUE_HOME: paths.home,
     PATH: `${paths.binDir}:${process.env.PATH ?? ''}`
@@ -966,4 +964,14 @@ export function workspaceTerminalEnv(
   }
 
   return env
+}
+
+/** Extra environment for a workspace terminal: every terminal's, plus the workspace and its session. */
+export function workspaceTerminalEnv(
+  ws: Workspace,
+  paths: QuePaths,
+  socket: string,
+  session: SessionEnv = {}
+): WorkspaceTerminalEnv {
+  return { ...session, ...terminalEnv(paths, socket), QUE_WORKSPACE_ID: ws.id }
 }

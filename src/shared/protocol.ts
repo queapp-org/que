@@ -360,13 +360,25 @@ export interface WorkspaceFile {
   truncated: boolean
 }
 
-export interface HookEventParams {
-  workspaceId: string
-  /** The daemon terminal the hook fired in (QUE_TERMINAL_ID), when it fired in one. */
-  terminalId?: string
-  /** The hook JSON Claude Code wrote to the hook's stdin. */
-  payload: HookEvent
-}
+/**
+ * A hook from `que hook`: from a workspace's session, or from a session in a
+ * loose terminal, which names only its terminal. The daemon feeds a loose
+ * terminal's hooks to the live-session record alone, never to a workspace.
+ */
+export type HookEventParams =
+  | {
+      workspaceId: string
+      /** The daemon terminal the hook fired in (QUE_TERMINAL_ID), when it fired in one. */
+      terminalId?: string
+      /** The hook JSON Claude Code wrote to the hook's stdin. */
+      payload: HookEvent
+    }
+  | {
+      workspaceId?: undefined
+      /** The loose terminal the hook fired in (QUE_TERMINAL_ID). */
+      terminalId: string
+      payload: HookEvent
+    }
 
 export interface TicketsStartParams {
   key: string

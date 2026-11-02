@@ -152,12 +152,14 @@ this is still a restart.
 
 A project is a registered git repository; a workspace is a git worktree on its
 own branch under `worktree_root`, with the repo's `que.toml` setup command run
-inside it. Workspace terminals start with `<QUE_HOME>/bin` first on `PATH`.
-That directory holds two small scripts the daemon writes at startup:
+inside it. Every terminal the daemon opens, a workspace's or a loose one (the
+sidebar's Sessions, `que term new`), starts with `<QUE_HOME>/bin` first on
+`PATH`. That directory holds two small scripts the daemon writes at startup:
 
 - `claude` runs the `claude` the daemon resolved (`QUE_REAL_CLAUDE`, else the
-  next one down `PATH`) and, inside a que workspace, adds
-  `--settings <QUE_HOME>/hooks.json`. Outside one it is transparent. The
+  next one down `PATH`) and, inside a que terminal (`QUE_TERMINAL_ID`), adds
+  `--settings <QUE_HOME>/hooks.json`; the instructions file and the permission
+  mode come only in a workspace's terminal. Outside que it is transparent. The
   user's own settings files are never written. If what it runs is another
   tool's wrapper that hands the command back (wrappers exec, so the pid is the
   same), it skips what it already tried and does not add `--settings` twice;
@@ -166,6 +168,9 @@ That directory holds two small scripts the daemon writes at startup:
 
 `hooks.json` registers `que hook` for every hook event, so each event a session
 fires arrives at the daemon as JSON on stdin, tagged with the workspace it ran in.
+A loose terminal's events name only the terminal, and the daemon feeds them to
+the record of live sessions (below) and nothing else: such a session has no
+status, chime or quiet-hours accounting.
 
 It also sets the session's status line to `que statusline`. Claude Code runs it
 after each reply with the session JSON on stdin; on a plan account that carries
@@ -230,20 +235,27 @@ teammates) still running keeps it working; a shell or monitor does not.
 and emits `workspace.updated` with the full row. Nothing in the rules reads the clock, so they are
 tested exhaustively as plain functions.
 
-The same hooks keep a record of the sessions that are live in workspace
-terminals (`live-sessions.ts`). Every terminal carries its own id
-(`QUE_TERMINAL_ID`), which `que hook` passes along, so a session start names
-the terminal it runs in. An entry is written on the session's start and cleared
-when Claude ends the session, when the terminal exits, or when it is killed. The
-record is saved in the store as it changes and frozen when shutdown begins, so
-a crash leaves it as current as a clean stop. At start the next daemon consumes
-each entry once and, unless the workspace is gone or archived, opens a terminal
-in it that types `claude --resume <session>` once setup is done. An entry whose terminal is
-alive in the new daemon came over with it and stays live rather than being resumed
-again. While quiet
+The same hooks keep a record of the sessions that are live in the daemon's
+terminals, a workspace's or a loose one (`live-sessions.ts`). Every terminal
+carries its own id (`QUE_TERMINAL_ID`), which `que hook` passes along, so a
+session start names the terminal it runs in. A workspace terminal's entry names
+the workspace; a loose terminal's keeps the `cwd` its start hook reports, the
+folder the session started in (`claude --resume` looks sessions up by project
+folder, and the user may have `cd`'d after the terminal opened). An entry is
+written on the session's start and cleared when Claude ends the session, when
+the terminal exits, or when it is killed. The record is saved in the store as
+it changes and frozen when shutdown begins, so a crash leaves it as current as
+a clean stop. At start the next daemon consumes each entry once, resumes each
+session id once across workspace and loose entries, and types
+`claude --resume <session>` into a new terminal: in the workspace once setup is
+done, unless the workspace is gone, archived or being removed; or a loose
+terminal opened in the entry's folder, unless the folder is gone. An entry whose
+terminal is alive in the new daemon came over with it (a handoff carries loose
+terminals as well) and stays live rather than being resumed again. While quiet
 hours are locked the entries wait for the unlock. If a resume fails, the shell
 shows the error and nothing else is typed; the daemon log names each session
-it resumed or skipped.
+it resumed or skipped, and why. A plain shell that ran no Claude session, and a
+`claude` started in a terminal outside que, are not reopened.
 
 ## The sessions report
 

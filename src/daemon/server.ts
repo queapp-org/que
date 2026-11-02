@@ -60,6 +60,7 @@ import { tokenizerWorkerFrom } from '../shared/packaged'
 import { readWorkspaceFile, workspaceFiles } from './files'
 import {
   sessionEnv,
+  terminalEnv,
   WorkspaceManager,
   workspaceTerminalEnv,
   type WorkspaceTerminalEnv
@@ -173,7 +174,7 @@ export class DaemonServer {
   readonly workspaces: WorkspaceManager
   readonly quiet: QuietService
   readonly usage: UsageService
-  /** Workspace terminals with a live Claude session, restored after a restart. */
+  /** Terminals (a workspace's or loose) with a live Claude session, restored after a restart. */
   readonly liveSessions: LiveSessions
   /** The last good user config, the file stamp it was read at, and when the file was last statted. */
   private config: UserConfig
@@ -242,7 +243,7 @@ export class DaemonServer {
       projects: () => this.workspaces.listProjects(),
       createWorkspace: (p) => this.workspaces.create(p),
       openTerminal: async (workspaceId) => this.openWorkspaceTerminal(workspaceId, 120, 30),
-      createSession: async (cwd) => this.createTerminal({ cwd, cols: 120, rows: 30 }).info(),
+      createSession: async (cwd) => this.openLooseTerminal({ cwd, cols: 120, rows: 30 }).info(),
       writeTerminal: (id, data) => this.requireTerm(id).write(data),
       learnProject: async (projectKey, projectName) => {
         this.setConfig({ jira: { projects: { [projectKey]: projectName } } }, false)
@@ -273,19 +274,27 @@ export class DaemonServer {
       ...storedLiveSessions(this.store),
       locked: () => this.quiet.locked(),
       workspace: (id) => this.store.getWorkspace(id),
-      isWorkspaceTerminal: (termId, wsId) => {
+      folderExists: (path) => fs.statSync(path, { throwIfNoEntry: false })?.isDirectory() === true,
+      // A loose terminal has no workspace, so one with none matches only a loose terminal.
+      ownsTerminal: (termId, wsId) => {
         const t = host.get(termId)
 
         return t !== undefined && t.alive && t.workspaceId === wsId
       },
       onLive: (termId) => this.labelFromTerminal(termId),
       resume: (entry) => {
+        const command = startCommand({ resumeSessionId: entry.sessionId })
+
+        if (entry.workspaceId === undefined) {
+          // A loose terminal has no setup to wait for; the shell reads what is typed once it starts.
+          const t = this.openLooseTerminal({ cwd: entry.cwd, cols: 120, rows: 30 })
+          t.write(command)
+
+          return t.id
+        }
+
         const t = this.openWorkspaceTerminal(entry.workspaceId, 120, 30)
-        this.typeAfterSetup(
-          entry.workspaceId,
-          t.id,
-          startCommand({ resumeSessionId: entry.sessionId })
-        )
+        this.typeAfterSetup(entry.workspaceId, t.id, command)
 
         return t.id
       },
@@ -443,6 +452,14 @@ export class DaemonServer {
     this.bus.emit('term.created', t.info())
 
     return t
+  }
+
+  /**
+   * A loose terminal (no workspace): the hooks wrapper first on PATH, so a claude
+   * started there reports its session to the live-session record alone.
+   */
+  private openLooseTerminal(params: TermCreateParams): HostedTerminal {
+    return this.createTerminal(params, { env: terminalEnv(this.paths, this.socketPath) })
   }
 
   /** A shell in the workspace's worktree, carrying its que environment. */
@@ -835,7 +852,7 @@ export class DaemonServer {
 
       return this.opts.handoff(p ?? {}, () => this.release(conn))
     },
-    'term.create': (p) => this.createTerminal(p).info(),
+    'term.create': (p) => this.openLooseTerminal(p).info(),
     'term.list': (p) =>
       this.opts.host
         .list()
@@ -947,6 +964,13 @@ export class DaemonServer {
       return { ok: true }
     },
     'hook.event': (p) => {
+      if (p.workspaceId === undefined) {
+        // A loose terminal's session: kept for a restart, and no workspace hears of it.
+        this.liveSessions.hook(undefined, p.terminalId, p.payload)
+
+        return { ok: true }
+      }
+
       const ws = this.workspaces.get(p.workspaceId)
       this.liveSessions.hook(ws.id, p.terminalId, p.payload)
       this.status.hook(ws.id, p.payload)

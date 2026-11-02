@@ -2,8 +2,9 @@
 // goes through) against a real daemon process: its terminals move to a
 // new daemon process with the same ids and the same shells, and a successor
 // that cannot start leaves the running daemon serving them. A Claude session
-// live in a workspace terminal stays the same live session across the move (it
-// is not resumed a second time), and the next hard restart still resumes it.
+// live in a workspace terminal or a loose one stays the same live session
+// across the move (it is not resumed a second time), and the next hard restart
+// still resumes it.
 import fs from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +24,9 @@ import { assertPidsGone } from '../../src/testing/leak-check'
 import { fakeEnv, QUIET_OFF, writeGitconfig } from '../fakes/env.cjs'
 
 const UPGRADE_LINE = /^daemon upgraded: pid (\d+) → (\d+), (\d+) terminals? carried over$/m
+
+/** The session id given to claude in a loose terminal (the fake honours --session-id). */
+const LOOSE_SESSION = '6b2e9f4c-1a7d-4c3e-8f5b-2d9a6e1c7b40'
 
 let home: string
 let scratch: string
@@ -229,7 +233,7 @@ describe('daemon handoff', () => {
   })
 
   describe('with a live Claude session', () => {
-    it('keeps the session live across the upgrade, and a later restart resumes it', async () => {
+    it('keeps the sessions of a workspace and a loose terminal live across the upgrade, and a later restart resumes them', async () => {
       // The hooks wrapper the daemon installs runs this CLI bundle.
       bundleEntry('src/cli/index.ts')
       const before = clients[0]
@@ -262,10 +266,27 @@ describe('daemon handoff', () => {
       const session = (await before.request('workspace.get', { id: ws.id })).sessionId as string
       const entry = { workspaceId: ws.id, terminalId: term.id, sessionId: session }
       await expect.poll(liveRecord, { timeout: 10_000 }).toEqual([entry])
-      const [claude] = claudeRuns()
-      pids.add(claude.pid)
 
-      expect(claudeRuns()).toEqual([{ pid: claude.pid, resume: null }])
+      // A session in a loose terminal too, started after a cd away from where it opened.
+      const notes = join(home, 'notes')
+      fs.mkdirSync(notes)
+      const loose = await shell(before)
+      await before.request('term.write', {
+        id: loose.id,
+        data: `cd ${notes} && claude --session-id ${LOOSE_SESSION}\r`
+      })
+      const looseEntry = { terminalId: loose.id, sessionId: LOOSE_SESSION, cwd: notes }
+      await expect.poll(liveRecord, { timeout: 20_000 }).toEqual([entry, looseEntry])
+      const [claude, looseClaude] = claudeRuns()
+      pids.add(claude.pid)
+      pids.add(looseClaude.pid)
+
+      const unresumed = [
+        { pid: claude.pid, resume: null },
+        { pid: looseClaude.pid, resume: null }
+      ]
+
+      expect(claudeRuns()).toEqual(unresumed)
 
       const r = await upgrade()
 
@@ -274,31 +295,37 @@ describe('daemon handoff', () => {
       const newPid = Number(to)
       pids.add(newPid)
 
-      expect(carried).toBe('1')
+      expect(carried).toBe('2')
       const after = await connect()
 
       expect((await after.request('daemon.ping')).pid).toBe(newPid)
-      // The new daemon took the session as live in its adopted terminal: no
-      // second terminal resumes it, and the same claude process still answers.
-      expect(await terminalsOf(after, ws.id)).toEqual([
-        expect.objectContaining({ id: term.id, pid: term.pid, alive: true })
+      // The new daemon took both sessions as live in their adopted terminals: no
+      // other terminal resumes either, and the same claude processes still answer.
+      expect(await after.request('term.list')).toEqual([
+        expect.objectContaining({ id: term.id, pid: term.pid, alive: true }),
+        expect.objectContaining({ id: loose.id, pid: loose.pid, alive: true })
       ])
       expect(pidAlive(claude.pid)).toBe(true)
-      expect(liveRecord()).toEqual([entry])
+      expect(pidAlive(looseClaude.pid)).toBe(true)
+      expect(liveRecord()).toEqual([entry, looseEntry])
       await after.request('term.write', { id: term.id, data: 'still there\r' })
+      await after.request('term.write', { id: loose.id, data: 'still jotting\r' })
       await expect
         .poll(() => screen(after, term.id), { timeout: 10_000 })
         .toContain('Fake reply to: still there')
-      expect(claudeRuns()).toEqual([{ pid: claude.pid, resume: null }])
-      expect(await terminalsOf(after, ws.id)).toHaveLength(1)
+      await expect
+        .poll(() => screen(after, loose.id), { timeout: 10_000 })
+        .toContain('Fake reply to: still jotting')
+      expect(claudeRuns()).toEqual(unresumed)
+      expect(await after.request('term.list')).toHaveLength(2)
 
-      // A hard restart: the stop ends the terminal, and the next daemon on the
-      // same home resumes the session the handoff kept in the record.
+      // A hard restart: the stop ends the terminals, and the next daemon on the
+      // same home resumes the sessions the handoff kept in the record.
       const stop = await runCli('daemon', 'stop')
 
       expect(stop.code, stop.stderr).toBe(0)
       await expect.poll(() => pidAlive(newPid), { timeout: 5_000 }).toBe(false)
-      expect(liveRecord()).toEqual([entry])
+      expect(liveRecord()).toEqual([entry, looseEntry])
 
       const restarted = await DaemonClient.connectOrStart({
         paths: quePaths(),
@@ -310,14 +337,25 @@ describe('daemon handoff', () => {
       clients.push(restarted)
       pids.add((await restarted.request('daemon.ping')).pid)
 
-      await expect.poll(() => terminalsOf(restarted, ws.id), { timeout: 10_000 }).toHaveLength(1)
+      await expect.poll(() => restarted.request('term.list'), { timeout: 10_000 }).toHaveLength(2)
       const [restored] = await terminalsOf(restarted, ws.id)
+      const [restoredLoose] = (await restarted.request('term.list')).filter((t) => !t.workspaceId)
       pids.add(restored.pid)
+      pids.add(restoredLoose.pid)
 
       expect(restored.id).not.toBe(term.id)
+      expect(restoredLoose.id).not.toBe(loose.id)
+      expect(restoredLoose.cwd).toBe(notes)
+      // The loose one is typed into at once, the workspace's once setup has ended: either may run first.
       await expect
-        .poll(() => claudeRuns().map((run) => run.resume), { timeout: 20_000 })
-        .toEqual([null, session])
+        .poll(
+          () =>
+            claudeRuns()
+              .map((run) => run.resume ?? '')
+              .sort(),
+          { timeout: 20_000 }
+        )
+        .toEqual(['', '', LOOSE_SESSION, session].sort())
 
       for (const run of claudeRuns()) pids.add(run.pid)
       // afterEach stops the daemon and fails if a shell, claude or daemon is left.

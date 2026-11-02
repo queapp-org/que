@@ -1,5 +1,6 @@
 // `que hook`: the command Claude Code runs for every hook event inside a que
-// workspace. It forwards the hook JSON to the daemon and always exits 0
+// terminal. It forwards the hook JSON to the daemon, tagged with the workspace
+// it ran in (a loose terminal's with the terminal alone), and always exits 0
 // without printing to stdout: hook stdout can be read as a decision (for
 // PermissionRequest), and que never decides anything for the user.
 import net from 'node:net'
@@ -57,9 +58,14 @@ export function sessionSocket(): string {
 }
 
 export async function runHook(): Promise<void> {
-  const workspaceId = process.env.QUE_WORKSPACE_ID
+  // Hooks only see the environment: a daemon terminal sets QUE_TERMINAL_ID,
+  // a workspace's terminal QUE_WORKSPACE_ID too. A loose terminal's hooks name
+  // the terminal alone; outside que there is nothing to report.
+  const workspaceId = process.env.QUE_WORKSPACE_ID || undefined
+  const terminalId = process.env.QUE_TERMINAL_ID || undefined
+  const origin = workspaceId ? { workspaceId, terminalId } : terminalId ? { terminalId } : null
 
-  if (!workspaceId) return
+  if (!origin) return
 
   const work = (async () => {
     const text = await readStdin()
@@ -72,13 +78,8 @@ export async function runHook(): Promise<void> {
     }
 
     if (!payload) return
-    // Hooks only see the environment: a daemon terminal sets QUE_TERMINAL_ID.
-    // When it is unset it is left out of the frame.
-    await requestOnce(sessionSocket(), 'hook.event', {
-      workspaceId,
-      terminalId: process.env.QUE_TERMINAL_ID || undefined,
-      payload
-    })
+    // An unset terminal id is left out of the frame.
+    await requestOnce(sessionSocket(), 'hook.event', { ...origin, payload })
   })()
 
   await withBudget(work, BUDGET_MS)

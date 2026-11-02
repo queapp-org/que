@@ -58,6 +58,23 @@ describe('decoders', () => {
       'payload must be a hook event'
     )
   })
+
+  it("takes a loose terminal's hook by its terminal alone, and refuses one from neither", () => {
+    const payload = {
+      hook_event_name: 'SessionStart',
+      session_id: '3c9e7b21-8d4a-4f6e-b2c1-9a7d5e3f1b08',
+      cwd: '/Users/dev/notes',
+      transcript_path: '/Users/dev/.claude/projects/-Users-dev-notes/3c9e7b21.jsonl'
+    }
+
+    expect(decoders['hook.event']({ terminalId: 'term_01', payload })).toEqual({
+      terminalId: 'term_01',
+      payload
+    })
+    expect(() => decoders['hook.event']({ payload })).toThrow(
+      'workspaceId or terminalId is required'
+    )
+  })
 })
 
 describe('method table', () => {

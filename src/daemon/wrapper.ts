@@ -1,9 +1,10 @@
-// The hooks wrapper. Workspace terminals get <QUE_HOME>/bin first on PATH:
-// its `claude` adds `--settings <QUE_HOME>/hooks.json` when started inside a
-// workspace, and those hooks run `que hook`, which reports to the daemon. It
-// also adds the instructions file and the permission mode from the terminal's
-// QUE_INSTRUCTIONS and QUE_PERMISSION_MODE. The user's own Claude Code
-// settings are never touched.
+// The hooks wrapper. The daemon's terminals get <QUE_HOME>/bin first on PATH:
+// its `claude` adds `--settings <QUE_HOME>/hooks.json` when started inside one
+// (QUE_TERMINAL_ID), and those hooks run `que hook`, which reports to the
+// daemon. In a workspace's terminal it also adds the instructions file and the
+// permission mode from the terminal's QUE_INSTRUCTIONS and QUE_PERMISSION_MODE;
+// a loose terminal gets the hooks alone. The user's own Claude Code settings
+// are never touched.
 import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { appExecutable, cliScriptFrom, packagedResourcesDir } from '../shared/packaged'
@@ -40,8 +41,9 @@ export type StartFrom =
 /**
  * What workspace.start types: claude on the start prompt when one is set, else on the
  * brief file read by the shell (so the brief arrives verbatim, never quoted by us), else
- * a bare claude. A session restored after a daemon restart resumes its session id
- * instead. The wrapper adds the hook settings and permission mode either way.
+ * a bare claude. A session restored after a daemon restart, in a workspace or a
+ * loose terminal, resumes its session id instead. The wrapper adds the hook
+ * settings either way, and in a workspace the permission mode.
  */
 export function startCommand(from: StartFrom): string {
   if ('resumeSessionId' in from) return `claude --resume ${shQuote(from.resumeSessionId)}\r`
@@ -151,10 +153,10 @@ const MAX_WRAPPER_DEPTH = 16
 
 function claudeScript(paths: QuePaths): string {
   return `#!/bin/sh
-# que wrapper for Claude Code. Inside a que workspace terminal it adds que's
-# hook settings for this session only, plus the instructions file
-# (QUE_INSTRUCTIONS) and permission mode (QUE_PERMISSION_MODE) when set;
-# anywhere else it is transparent. When
+# que wrapper for Claude Code. Inside a que terminal it adds que's hook
+# settings for this session only; in a workspace's terminal also the
+# instructions file (QUE_INSTRUCTIONS) and permission mode (QUE_PERMISSION_MODE)
+# when set; anywhere else it is transparent. When
 # another claude wrapper on PATH hands the command back here (same pid: they
 # exec), the claude already tried is skipped and --settings is not added twice.
 QUE_BIN=${shQuote(paths.binDir)}
@@ -224,6 +226,10 @@ if [ -n "$QUE_WORKSPACE_ID" ] && [ -z "$REENTERED" ]; then
   fi
   exec "$REAL" --settings "$QUE_HOOKS" "$@"
 fi
+if [ -n "$QUE_TERMINAL_ID" ] && [ -z "$REENTERED" ]; then
+  # A loose terminal: the hooks alone, which keep its session for a restart.
+  exec "$REAL" --settings "$QUE_HOOKS" "$@"
+fi
 exec "$REAL" "$@"
 `
 }
@@ -233,12 +239,12 @@ export function queScript(opts: WrapperOptions): string {
   const env = opts.runAsNode ? 'ELECTRON_RUN_AS_NODE=1 ' : ''
 
   return `#!/bin/sh
-# que CLI launcher for workspace terminals and hooks.
+# que CLI launcher for que's terminals and hooks.
 ${env}exec ${runner} ${shQuote(opts.cliScript)} "$@"
 `
 }
 
-// zsh startup files for workspace terminals (ZDOTDIR points here). Each one
+// zsh startup files for the daemon's terminals (ZDOTDIR points here). Each one
 // sources the user's own file at top level, then the last ones put que's bin
 // directory back in front of PATH, since profiles commonly prepend to it.
 const ZSH_RESTORE_USER = `__que_zdotdir="$ZDOTDIR"
@@ -253,7 +259,7 @@ const ZSH_PREPEND = `if [[ -n "\${QUE_HOME-}" ]]; then
 fi`
 
 function zshFiles() {
-  const header = '# que: workspace terminal startup; sources your own file of the same name.\n'
+  const header = '# que: terminal startup; sources your own file of the same name.\n'
 
   return {
     '.zshenv': `${header}if [[ -n "\${QUE_USER_ZDOTDIR-}" ]]; then

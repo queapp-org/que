@@ -13,6 +13,7 @@ All notable changes to que are recorded here. The format follows
 
 ### Fixed
 
+- A Claude session started in a loose terminal (the sidebar's Sessions) now comes back after a restart or a crash, as workspace sessions do: a new loose terminal opens in the folder where the session started, even if you changed directory after opening the terminal, and picks the session up with `claude --resume`. While quiet hours are locked it waits for the unlock, and a session whose folder has since been deleted is skipped. This covers loose terminals opened after the update; loose sessions still show no status.
 - A daemon started from inside a que terminal no longer passes that terminal's workspace, socket, instructions file, permission mode or claude wrapper state on to the terminals it opens, so its sessions get only their own repo's instructions and permission mode.
 
 ## [0.2.0] - 2026-10-28
