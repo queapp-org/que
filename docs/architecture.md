@@ -36,6 +36,8 @@ Electron binary with `ELECTRON_RUN_AS_NODE=1`, so `node-pty` is the one native
 module and it is built once, for Electron's ABI. In the packaged app the daemon,
 CLI and client bundles live in `que.app/Contents/Resources/{daemon,cli,client}`
 and `node-pty` in `Resources/daemon/node_modules`, outside the asar archive.
+The daemon sets `process.noAsar` so it can delete a removed worktree holding a
+`.asar` file.
 `que daemon install` adds an opt-in launchd agent that starts it at login.
 
 Quitting the app closes a socket connection and nothing more: terminals and

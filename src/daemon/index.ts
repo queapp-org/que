@@ -11,6 +11,10 @@ import { HandoffSender, receiveHandoff } from './handoff'
 import { PtyHost } from './pty-host'
 import { DaemonServer } from './server'
 
+// Under the Electron binary Node's fs treats a .asar file as a directory, so deleting a removed
+// worktree that holds one fails. The daemon reads nothing inside an archive.
+process.noAsar = true
+
 declare const __QUE_VERSION__: string
 
 // oxlint-disable-next-line anti-slop/no-runtime-typeof -- build-time define, absent when run unbundled
