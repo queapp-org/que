@@ -13,6 +13,7 @@ All notable changes to que are recorded here. The format follows
 
 ### Fixed
 
+- Pull request checks lag less on busy repositories. The poll's listing of a repository's recent pull requests no longer asks for their checks, which made it time out; checks are asked only for the open and draft pull requests your workspaces hold. When that listing fails anyway, each workspace is still checked in the same poll instead of waiting for the next one.
 - A daemon started from inside a que terminal no longer passes that terminal's workspace, socket, instructions file, permission mode or claude wrapper state on to the terminals it opens, so its sessions get only their own repo's instructions and permission mode.
 
 ## [0.2.0] - 2026-10-28

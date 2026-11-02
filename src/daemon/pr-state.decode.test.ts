@@ -90,7 +90,7 @@ describe('decodePullRequest', () => {
     })
   })
 
-  it('reads missing optional fields as empty', () => {
+  it('reads missing optional fields as empty, and a missing rollup as not asked for', () => {
     expect(decodePullRequest({ number: 7, url: 'https://github.com/rquellh/que/pull/7' })).toEqual({
       number: 7,
       url: 'https://github.com/rquellh/que/pull/7',
@@ -104,7 +104,7 @@ describe('decodePullRequest', () => {
       deletions: null,
       baseRefName: '',
       headRefName: '',
-      checks: []
+      checks: null
     })
   })
 

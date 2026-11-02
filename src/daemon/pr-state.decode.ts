@@ -8,6 +8,14 @@ import { isObj, numOrNull, type Obj, strOrEmpty, strOrNull } from '../shared/jso
 export const FIELDS =
   'number,url,title,state,isDraft,reviewDecision,statusCheckRollup,mergedAt,updatedAt,additions,deletions,baseRefName,headRefName'
 
+/**
+ * The fields of a project's listing of its newest pull requests: FIELDS without the check
+ * rollup, the heaviest part of the query; checks are asked of each head that needs them.
+ */
+export const LIST_FIELDS = FIELDS.split(',')
+  .filter((f) => f !== 'statusCheckRollup')
+  .join(',')
+
 /** A check run in the rollup (GitHub Actions and other apps). */
 export interface GhCheckRun {
   kind: 'run'
@@ -51,7 +59,8 @@ export interface GhPullRequest {
   /** The branch it merges into and the branch it merges from; empty when missing. */
   baseRefName: string
   headRefName: string
-  checks: GhCheck[]
+  /** The rollup; null when the item carries none, as LIST_FIELDS asks for none. */
+  checks: GhCheck[] | null
 }
 
 /** One rollup item; null when it is neither a check run nor a commit status. */
@@ -119,7 +128,7 @@ export function decodePullRequest(v: unknown): GhPullRequest | null {
     deletions: numOrNull(v.deletions),
     baseRefName: strOrEmpty(v.baseRefName),
     headRefName: strOrEmpty(v.headRefName),
-    checks: decodeCheckRollup(v.statusCheckRollup)
+    checks: 'statusCheckRollup' in v ? decodeCheckRollup(v.statusCheckRollup) : null
   }
 }
 

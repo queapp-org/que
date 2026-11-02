@@ -123,21 +123,33 @@ function reviewOf(decision: string): PullRequest['review'] {
   }
 }
 
-/** A decoded `gh pr list` item as the PullRequest que keeps. */
-export function parsePullRequest(r: GhPullRequest, checkedAt: string): PullRequest {
-  let state: PullRequest['state'] = 'open'
+/** The state que shows for a decoded `gh pr list` item. */
+function stateOf(r: GhPullRequest): PullRequest['state'] {
+  if (r.mergedAt || r.state === 'MERGED') return 'merged'
 
-  if (r.mergedAt || r.state === 'MERGED') state = 'merged'
-  else if (r.state === 'CLOSED') state = 'closed'
-  else if (r.isDraft) state = 'draft'
-  const checkRuns = checkRunsOf(r.checks)
+  if (r.state === 'CLOSED') return 'closed'
+
+  return r.isDraft ? 'draft' : 'open'
+}
+
+/**
+ * A decoded `gh pr list` item as the PullRequest que keeps. One listed without its rollup
+ * (`checks` null) keeps the checks of its copy in `stored`, else has none.
+ */
+export function parsePullRequest(
+  r: GhPullRequest,
+  checkedAt: string,
+  stored: PullRequest[] = []
+): PullRequest {
+  const old = r.checks === null ? stored.find((p) => p.number === r.number) : undefined
+  const checkRuns = r.checks === null ? (old?.checkRuns ?? []) : checkRunsOf(r.checks)
 
   return {
     url: r.url,
     number: r.number,
     title: r.title,
-    state,
-    checks: checksOf(checkRuns),
+    state: stateOf(r),
+    checks: old ? old.checks : checksOf(checkRuns),
     review: reviewOf(r.reviewDecision),
     checkRuns,
     updatedAt: r.updatedAt,
@@ -186,8 +198,22 @@ export function pullRequestList(prs: PullRequest[], stored: PullRequest[] = []):
 }
 
 /** True for a merged or closed pull request: it no longer changes much, so it is checked less often. */
-export function isSettled(pr: PullRequest): boolean {
+export function isSettled(pr: Pick<PullRequest, 'state'>): boolean {
   return pr.state === 'merged' || pr.state === 'closed'
+}
+
+/**
+ * True when a pull request listed without its rollup may keep the checks of its copy in
+ * `stored`: both are merged or closed, so its checks were read once it settled. While those are
+ * still pending they are read again when `due`. An open or draft one, or one that settled since
+ * it was stored, is asked about with its checks.
+ */
+export function keepsStoredChecks(r: GhPullRequest, stored: PullRequest[], due: boolean): boolean {
+  const old = stored.find((p) => p.number === r.number)
+
+  if (!old || !isSettled(old) || !isSettled({ state: stateOf(r) })) return false
+
+  return !due || old.checks !== 'pending'
 }
 
 const live = (pr: PullRequest) => !isSettled(pr)

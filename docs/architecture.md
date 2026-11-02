@@ -283,15 +283,21 @@ the session created, on any branch:
   project). A URL for another repository is ignored.
 
 Every `pr_poll_seconds` (default 60) it lists each project's newest pull
-requests once (`gh pr list --state all --limit 100`), grouped by head branch; a
-branch missing from a full page is asked about on its own (`--head <branch>`).
-Protected branches are never asked about, but a created pull request is always
-looked up (`gh pr view <n>`) when no listed branch holds it. A merged or closed
-pull request is re-checked only every fifth time. `pr-state.ts` maps each answer
-to state (draft, open, merged, closed), checks (none, pending, passing,
-failing), review decision, and the branches it merges into and from
-(`base`/`head`, from `baseRefName`/`headRefName`; the app derives a stack from
-them). One already stored stays when its branch moves on, so nothing drops out;
+requests once (`gh pr list --state all --limit 100`), grouped by head branch,
+without their checks: the check rollup is the heaviest part of that query, and on
+a busy repository it timed out. A head is asked about on its own, checks included
+(`--head <branch>`), when it holds an open or draft pull request or one merged or
+closed since it was stored, and when a full page misses it. When the project's
+listing fails (logged once until one succeeds), every head is asked about on its
+own in the same tick, so no workspace waits for the next one. Protected branches
+are never asked about, but a created pull request is always looked up
+(`gh pr view <n>`) when no listed branch holds it. A merged or closed pull request
+is re-checked only every fifth time, and keeps the checks it had when it settled;
+while those were still pending, its head is asked again on those ticks.
+`pr-state.ts` maps each answer to state (draft, open, merged, closed), checks
+(none, pending, passing, failing), review decision, and the branches it merges
+into and from (`base`/`head`, from `baseRefName`/`headRefName`; the app derives
+a stack from them). One already stored stays when its branch moves on, so nothing drops out;
 the list is newest first by number, at most 20. When it differs from the stored
 one (ignoring `checkedAt`) it is saved in `prs_json` and `workspace.updated` is
 emitted. A failed `gh` keeps the stored value and logs one line until a call
@@ -305,8 +311,9 @@ them, and a run that changes counts as a change, so `workspace.updated` fires
 when a check finishes even though `updatedAt` stays put.
 
 `workspace.checkPrs` checks one workspace's pull requests now (the app's refresh,
-`que ws pr --refresh`) and fails with gh's message when a call fails; the poll and
-the hooks only log.
+`que ws pr --refresh`), asking each of its heads on its own, checks included, merged
+and closed pull requests too, and fails with gh's message when a call fails; the
+poll and the hooks only log.
 
 `workspace.prThread` (`que ws pr`) answers the conversation: issue comments and
 reviews from `gh pr view <n> --json comments,reviews`, line comments from

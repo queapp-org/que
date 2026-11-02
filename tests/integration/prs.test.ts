@@ -11,6 +11,7 @@ import { recordEvents, startTestDaemon, type TestDaemon } from '../../src/testin
 import {
   addFakePullRequest,
   fakeCheckRun,
+  type FakeCall,
   readFakeLog,
   readFakePullRequests,
   setFakePullRequest
@@ -55,6 +56,19 @@ const prViews = () =>
   readFakeLog(daemon.ghLog).filter(
     (c) => c.argv[1] === 'view' && !c.argv.includes('comments,reviews')
   )
+
+/** The listings of a whole project: `gh pr list` without `--head`. */
+const projectListings = () =>
+  readFakeLog(daemon.ghLog).filter((c) => c.argv[1] === 'list' && !c.argv.includes('--head'))
+
+/** The listings of one head branch: `gh pr list --head <branch>`. */
+const branchListings = (branch: string) =>
+  readFakeLog(daemon.ghLog).filter(
+    (c) => c.argv[1] === 'list' && c.argv[c.argv.indexOf('--head') + 1] === branch
+  )
+
+/** The fields a recorded call asked for with `--json`. */
+const fieldsOf = (call: FakeCall) => (call.argv[call.argv.indexOf('--json') + 1] ?? '').split(',')
 
 const opts = { timeout: 10_000 }
 
@@ -162,6 +176,76 @@ describe('pull request tracking', () => {
       updates.some((w) => w.id === ws.id && w.pr?.number === 41 && w.prs[0]?.state === 'closed')
     ).toBe(true)
   }, 30_000)
+
+  describe('checks', () => {
+    it('lists the project without checks and reads them from the branch of an open pull request', async () => {
+      const ws = await workspace()
+      setFakePullRequest(daemon.ghPrs, ws.branch, {
+        isDraft: false,
+        statusCheckRollup: [
+          fakeCheckRun({ name: 'unit tests', conclusion: 'FAILURE' }),
+          fakeCheckRun({ name: 'lint' })
+        ]
+      })
+
+      await expect
+        .poll(async () => (await prOf(ws.id))?.checkRuns.map((c) => [c.name, c.state]), opts)
+        .toEqual([
+          ['unit tests', 'failing'],
+          ['lint', 'passing']
+        ])
+      expect((await prOf(ws.id))?.checks).toBe('failing')
+
+      expect(projectListings().length).toBeGreaterThan(0)
+      expect(projectListings().filter((c) => fieldsOf(c).includes('statusCheckRollup'))).toEqual([])
+      expect(fieldsOf(branchListings(ws.branch)[0])).toContain('statusCheckRollup')
+    }, 30_000)
+
+    it('keeps the checks of a merged pull request without asking for them again', async () => {
+      const ws = await workspace()
+      setFakePullRequest(daemon.ghPrs, ws.branch, {
+        isDraft: false,
+        statusCheckRollup: [fakeCheckRun({ name: 'unit tests' })]
+      })
+      await expect.poll(async () => (await prOf(ws.id))?.checks, opts).toBe('passing')
+
+      setFakePullRequest(daemon.ghPrs, ws.branch, {
+        state: 'MERGED',
+        mergedAt: '2026-10-14T03:00:00Z'
+      })
+      await expect.poll(async () => (await prOf(ws.id))?.state, opts).toBe('merged')
+      const asked = branchListings(ws.branch).length
+      const listed = projectListings().length
+
+      // The only workspace holds a settled pull request now, so each listing is a fifth tick's,
+      // the one that re-checks it.
+      await expect.poll(() => projectListings().length, opts).toBeGreaterThan(listed + 1)
+
+      expect(branchListings(ws.branch)).toHaveLength(asked)
+      expect(await prOf(ws.id)).toMatchObject({ state: 'merged', checks: 'passing' })
+    }, 30_000)
+
+    it('asks each branch on its own when the project listing fails', async () => {
+      vi.stubEnv(
+        'QUE_FAKE_GH_REPO_LIST_FAIL',
+        'HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)'
+      )
+      const projectId = await project()
+      const retry = await workspace('APP-1432-retry-logic', projectId)
+      const backoff = await workspace('APP-1433-backoff', projectId)
+      setFakePullRequest(daemon.ghPrs, retry.branch, { isDraft: true })
+      addFakePullRequest(daemon.ghPrs, backoff.branch, {
+        isDraft: false,
+        statusCheckRollup: [fakeCheckRun({ name: 'unit tests', conclusion: 'FAILURE' })]
+      })
+
+      await expect.poll(async () => (await prOf(retry.id))?.state, opts).toBe('draft')
+      await expect
+        .poll(async () => await prOf(backoff.id), opts)
+        .toMatchObject({ number: 2, state: 'open', checks: 'failing' })
+      expect(projectListings().length).toBeGreaterThan(0)
+    }, 30_000)
+  })
 
   describe('pull requests the session creates itself', () => {
     /** A Bash PostToolUse for `command`, as Claude Code reports it to `que hook`. */
