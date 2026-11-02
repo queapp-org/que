@@ -47,7 +47,6 @@
     "test:contract": "QUE_CONTRACT=1 vitest run --project node tests/contract",
     "smoke": "npm run build:node && node scripts/smoke.mjs",
     "e2e": "npm run build && playwright test",
-    "demo:gif": "npm run build && playwright test -c playwright.demo.config.ts && node scripts/demo-gif.mjs",
     "day:gif": "node scripts/day-gif.mjs",
     "verify": "node scripts/verify.mjs",
     "test:flaky": "node scripts/flake-hunt.mjs",

@@ -27,7 +27,7 @@ the hook JSON on stdin (`hook_event_name`, `session_id`, `cwd`, `transcript_path
 UserPromptSubmit, a fake `Read` (Pre/PostToolUse), a reply, and Stop.
 `/needs-input` fires UserPromptSubmit, then the permission Notification, and waits for `y`; `/exit` fires
 SessionEnd and exits 0. The banner shows the cwd with `$HOME` as `~`.
-With `QUE_FAKE_CLAUDE_STREAM=<ms>` (the quiet-mode demo recording uses it) a prompt's turn keeps working instead:
+With `QUE_FAKE_CLAUDE_STREAM=<ms>` a prompt's turn keeps working instead:
 every `<ms>` it prints a tool step (`● Edit(src/upload.ts)`) and fires Pre/PostToolUse, ignoring
 further lines, until `SIGUSR1` ends the turn with a reply and Stop, or `SIGUSR2` fires the
 permission Notification and waits for `y` as `/needs-input` does.
