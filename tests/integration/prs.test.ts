@@ -343,8 +343,13 @@ describe('pull request tracking', () => {
       })
 
       // On the branch, the recorded pull request is listed once and never looked up on its own.
-      await expect.poll(() => prNumbersOf(wsId), opts).toEqual([1])
-      expect((await client.request('workspace.get', { id: wsId })).prUrls).toEqual([url])
+      await expect
+        .poll(() => client.request('workspace.get', { id: wsId }), opts)
+        .toMatchObject({ prs: [{ number: 1 }], prUrls: [url] })
+      // A tick under way may have read the workspace before the URL was recorded. The one after it
+      // has not, so once that one has finished a lookup would have shown.
+      const listed = projectListings().length
+      await expect.poll(() => projectListings().length, opts).toBeGreaterThan(listed + 2)
       expect(prViews()).toEqual([])
 
       // It is merged from another head, and a new one is opened from the branch.
@@ -359,8 +364,17 @@ describe('pull request tracking', () => {
       fs.writeFileSync(daemon.ghPrs, JSON.stringify(all))
       addFakePullRequest(daemon.ghPrs, branch, { number: 2, isDraft: false })
 
-      await expect.poll(() => prNumbersOf(wsId), opts).toEqual([2, 1])
-      expect(await prOf(wsId)).toMatchObject({ number: 2, state: 'open' })
+      // Only the lookup by number can show it merged, so the list is read after that lookup: its
+      // fresh copy replaces the stored one rather than joining it.
+      await expect
+        .poll(() => client.request('workspace.get', { id: wsId }), opts)
+        .toMatchObject({
+          pr: { number: 2, state: 'open' },
+          prs: [
+            { number: 2, state: 'open' },
+            { number: 1, state: 'merged' }
+          ]
+        })
       expect(prViews().some((c) => c.argv[2] === '1')).toBe(true)
       expect(prViews().some((c) => c.argv[2] === '2')).toBe(false)
     }, 60_000)
