@@ -26,7 +26,7 @@ const docs = makeWorkspace({ id: 'ws_01hzx4m1p8rt', projectId: project.id, name:
 const RESTART_TITLE =
   'que was updated. The background service still runs the previous build. Restart it on this build; every terminal keeps running.'
 
-/** A newer release, as the main process's daily check reports it. */
+/** A newer release, as the main process's update check reports it. */
 const RELEASE = { version: '0.3.0', url: 'https://github.com/queapp-org/que/releases/tag/v0.3.0' }
 
 /** A daemon still running the build before this app's. */

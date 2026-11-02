@@ -8,8 +8,10 @@ import { isObj } from '../shared/json.decode'
 export interface UpdateCheckState {
   /** Epoch ms of the last attempt, successful or not. */
   checkedAt: number
-  /** The newest release seen by that attempt, if any. */
+  /** The newest release any attempt has seen, kept through a failed one. */
   latest: UpdateInfo | null
+  /** That attempt got no usable answer. */
+  failed: boolean
 }
 
 /** The fields of `GET /repos/{owner}/{repo}/releases/latest` the check uses. */
@@ -25,7 +27,10 @@ export function decodeRelease(v: unknown): GhRelease | null {
   return { tagName: v.tag_name, htmlUrl: v.html_url }
 }
 
-/** The persisted state; null without a numeric checkedAt. A malformed `latest` reads as none. */
+/**
+ * The persisted state; null without a numeric checkedAt. A malformed `latest` reads as none,
+ * and a file from a build before `failed` reads as not failed.
+ */
 export function decodeUpdateCheckState(v: unknown): UpdateCheckState | null {
   if (!isObj(v) || typeof v.checkedAt !== 'number') return null
   const l = v.latest
@@ -35,7 +40,7 @@ export function decodeUpdateCheckState(v: unknown): UpdateCheckState | null {
       ? { version: l.version, url: l.url }
       : null
 
-  return { checkedAt: v.checkedAt, latest }
+  return { checkedAt: v.checkedAt, latest, failed: v.failed === true }
 }
 
 /**

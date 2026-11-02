@@ -19,6 +19,7 @@ import type {
   TicketsListResult,
   TicketsSyncState,
   UpdateInfo,
+  UpdateStatus,
   UserConfig,
   Workspace,
   WorkspaceDiff,
@@ -111,6 +112,11 @@ class Gate {
   }
 }
 
+/** A release build at 0.2.0 that has not asked yet. */
+function currentUpdateStatus(): UpdateStatus {
+  return { version: '0.2.0', releaseBuild: true, update: null, checkedAt: null, failed: false }
+}
+
 function rpcError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code })
 }
@@ -179,9 +185,13 @@ class FakeBridge {
   private folder: string | null = null
   private tray = '● 0 ▸ 0 ✕ 0'
   private editorCalls: string[] = []
-  private updateInfo: UpdateInfo | null = null
-  private updateListeners = new Set<(info: UpdateInfo) => void>()
+  private updateBook: UpdateStatus = currentUpdateStatus()
+  private updateListeners = new Set<(status: UpdateStatus) => void>()
   private updateOpens = 0
+  private updateCheckCount = 0
+  /** A test's hold on app.checkForUpdate. */
+  private updateCheckGate = new Gate()
+  private updateCheckAnswer: Partial<UpdateStatus> | null = null
   private createCallLog: WorkspaceCreateParams[] = []
   private startCallLog: string[] = []
   private termListCalls = 0
@@ -382,11 +392,19 @@ class FakeBridge {
           return { ok: true }
         },
         trayTitle: async () => this.tray,
-        update: async () => (this.updateInfo ? { ...this.updateInfo } : null),
-        onUpdate: (cb) => {
+        updateStatus: async () => ({ ...this.updateBook }),
+        onUpdateStatus: (cb) => {
           this.updateListeners.add(cb)
 
           return () => this.updateListeners.delete(cb)
+        },
+        checkForUpdate: async () => {
+          this.updateCheckCount++
+          await this.updateCheckGate.pass()
+          this.setUpdateStatus(this.updateCheckAnswer ?? { checkedAt: Date.now(), failed: false })
+          this.updateCheckAnswer = null
+
+          return { ...this.updateBook }
         },
         openUpdate: async () => {
           this.updateOpens++
@@ -999,13 +1017,38 @@ class FakeBridge {
   }
 
   /**
-   * What app.update() resolves to. Set before render to model a check that
-   * finished before the window opened; set after render to emit onUpdate.
+   * What the check says, as the main process does when one finishes. Set before render to
+   * model a check that finished before the window opened; set after render to emit onUpdateStatus.
    */
-  setUpdate(info: UpdateInfo | null): void {
-    this.updateInfo = info
+  setUpdateStatus(patch: Partial<UpdateStatus>): void {
+    this.updateBook = { ...this.updateBook, ...patch }
 
-    if (info) for (const cb of this.updateListeners) cb({ ...info })
+    for (const cb of this.updateListeners) cb({ ...this.updateBook })
+  }
+
+  /** The newer release the check knows of; see setUpdateStatus. */
+  setUpdate(update: UpdateInfo | null): void {
+    this.setUpdateStatus({ update })
+  }
+
+  /** What the next app.checkForUpdate() finds, instead of up to date as of now. */
+  answerUpdateCheck(patch: Partial<UpdateStatus>): void {
+    this.updateCheckAnswer = patch
+  }
+
+  /** Holds every app.checkForUpdate until releaseUpdateCheck(), as a request in flight would. */
+  holdUpdateCheck(): void {
+    this.updateCheckGate.hold()
+  }
+
+  /** Lets the held app.checkForUpdate calls go on. */
+  releaseUpdateCheck(): void {
+    this.updateCheckGate.release()
+  }
+
+  /** How many times app.checkForUpdate() was called. */
+  updateCheckCalls(): number {
+    return this.updateCheckCount
   }
 
   /** How many times app.openUpdate() was called. */
@@ -1366,9 +1409,12 @@ class FakeBridge {
     this.folder = null
     this.tray = '● 0 ▸ 0 ✕ 0'
     this.editorCalls = []
-    this.updateInfo = null
+    this.updateBook = currentUpdateStatus()
     this.updateListeners.clear()
     this.updateOpens = 0
+    this.updateCheckCount = 0
+    this.updateCheckGate.reset()
+    this.updateCheckAnswer = null
     this.createCallLog = []
     this.startCallLog = []
     this.termListCalls = 0

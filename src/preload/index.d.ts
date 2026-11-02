@@ -57,6 +57,7 @@ import type {
   QuietState,
   QuietUnlock,
   UpdateInfo,
+  UpdateStatus,
   Usage,
   UsageWindow,
   UserConfig,
@@ -96,6 +97,7 @@ export type {
   TermInfo,
   TermSnapshotResult,
   UpdateInfo,
+  UpdateStatus,
   Workspace,
   WorkspaceDiff,
   WorkspaceDiffFile,
@@ -145,10 +147,12 @@ export interface AppApi {
   openInEditor(params: { path: string }): Promise<{ ok: true }>
   /** The menu-bar title. Answers only when the app was launched with QUE_E2E=1. */
   trayTitle(): Promise<string>
-  /** A newer release, if the daily update check found one; else null. */
-  update(): Promise<UpdateInfo | null>
-  /** Fires when the update check finds a newer release after the window opened. */
-  onUpdate(cb: (info: UpdateInfo) => void): () => void
+  /** What the update check last said, and what this build is. */
+  updateStatus(): Promise<UpdateStatus>
+  /** Fires whenever a check finishes, in the background or asked for. */
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
+  /** Asks for the latest release now, past the interval. A local build never asks and answers as it stands. */
+  checkForUpdate(): Promise<UpdateStatus>
   /** Opens the newer release's page in the browser. */
   openUpdate(): Promise<{ ok: true }>
   /** True only when the app was launched with QUE_E2E=1. */

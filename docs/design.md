@@ -282,6 +282,10 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   A region of the window that cannot be drawn (the sidebar's lists, the main area, the review
   pane) shows the error line in its place, saying which part and why, and the rest of the
   window stays up.
+- Settings' last fieldset, `[ UPDATES ]`, is one wrapping row: `que 0.3.0` in mono `--fg`,
+  the last answer (a hint, a new release in `--fg`, or a form error), and plain buttons at
+  the right end, Check for updates and, with a release, Download. It alone stays enabled
+  without the daemon, because the check runs in the main process.
 
 ## Sidebar
 

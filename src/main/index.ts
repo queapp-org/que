@@ -15,13 +15,13 @@ import {
   type ParamsOf,
   type Report
 } from '../shared/protocol'
-import type { DaemonState, QuietKind, QuietState, UpdateInfo } from '../shared/types'
+import type { DaemonState, QuietKind, QuietState, UpdateStatus } from '../shared/types'
 import { handOffDaemon, handOffFailedText } from '../shared/upgrade'
 import { createBoardWindow } from './board'
 import { decodeAbsolutePath } from './ipc.decode'
 import { installMenu } from './menu'
 import { createTray, type QueTray, quietTitle } from './tray'
-import { checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
+import { CHECK_TICK_MS, checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
 import { errorCode, errorMessage } from '../shared/errors.decode'
 
 // The daemon owns every terminal and workspace. This process only proxies the
@@ -47,8 +47,17 @@ function locked(): boolean {
 // storage, caches) included, so a test QUE_HOME isolates all of it.
 app.setPath('userData', join(queHome(), 'app'))
 
-/** A newer release, once the update check has found one. */
-let update: UpdateInfo | null = null
+/** What the update check last said, and what this build is. */
+let updateStatus: UpdateStatus = {
+  version: app.getVersion(),
+  releaseBuild: isReleaseBuild(app.isPackaged, readLocalBuild(app.getAppPath())),
+  update: null,
+  checkedAt: null,
+  failed: false
+}
+
+/** The check in flight: a click during a tick's request shares its answer. */
+let updateChecking: Promise<UpdateStatus> | null = null
 
 /** The daemon as last seen after a connect (see refreshDaemon). */
 let daemon: DaemonState | null = null
@@ -316,22 +325,31 @@ function showWindow(): void {
   if (!e2e) app.focus({ steal: true })
 }
 
+/** Runs one check, past the interval when `force`, and tells the windows what it said. */
+function runUpdateCheck(force: boolean): Promise<UpdateStatus> {
+  return (updateChecking ??= checkForUpdate({
+    currentVersion: updateStatus.version,
+    statePath: join(queHome(), 'state', 'update-check.json'),
+    force
+  }).then((result) => {
+    updateStatus = { ...updateStatus, ...result }
+    updateChecking = null
+    sendToRenderer('que:updateStatus', updateStatus)
+
+    return updateStatus
+  }))
+}
+
 /**
- * Once per launch (and at most once a day, see update-check.ts): is there a newer release?
- * Only a release build asks; one run from source or built by `npm run package` (and so install:local) never does.
+ * Is there a newer release? At launch and on every tick while the app is open, each asking
+ * only when the last attempt is old enough or failed (see update-check.ts). Only a release
+ * build asks; one run from source or built by `npm run package` (and so install:local) never
+ * does. QUE_UPDATE_CHECK=0 turns off these checks, not Settings' button: a click is a request.
  */
-function startUpdateCheck(): void {
-  if (e2e || process.env.QUE_UPDATE_CHECK === '0') return
-
-  if (!isReleaseBuild(app.isPackaged, readLocalBuild(app.getAppPath()))) return
-  void checkForUpdate({
-    currentVersion: app.getVersion(),
-    statePath: join(queHome(), 'state', 'update-check.json')
-  }).then((info) => {
-    update = info
-
-    if (info) sendToRenderer('que:update', info)
-  })
+function startUpdateChecks(): void {
+  if (e2e || process.env.QUE_UPDATE_CHECK === '0' || !updateStatus.releaseBuild) return
+  void runUpdateCheck(false)
+  setInterval(() => void runUpdateCheck(false), CHECK_TICK_MS)
 }
 
 function sendToRenderer(channel: string, ...args: unknown[]): void {
@@ -374,11 +392,18 @@ function registerIpc(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('app:update', () => update)
+  ipcMain.handle('app:updateStatus', () => updateStatus)
+
+  // A click asks past the interval; a local build never reaches the network, whatever the renderer asks.
+  ipcMain.handle('app:checkForUpdate', () =>
+    updateStatus.releaseBuild ? runUpdateCheck(true) : updateStatus
+  )
 
   // Opens only the release page the check found; the renderer cannot pass a URL.
   ipcMain.handle('app:openUpdate', () => {
-    if (update) void shell.openExternal(update.url)
+    const url = updateStatus.update?.url
+
+    if (url) void shell.openExternal(url)
 
     return { ok: true }
   })
@@ -454,7 +479,7 @@ app.whenReady().then(async () => {
   }
 
   if (!mainWindow) createWindow()
-  startUpdateCheck()
+  startUpdateChecks()
   app.on('activate', () => {
     if (!mainWindow) createWindow()
     showApp()
