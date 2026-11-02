@@ -4,7 +4,7 @@ import { Command } from 'commander'
 import { buildIdOf, daemonIsStale, staleDaemonHint } from '../shared/build-id'
 import { DaemonClient, DaemonError, resolveDaemonScript } from '../shared/client'
 import { plural } from '../shared/format'
-import { quePaths } from '../shared/paths'
+import { describeSocket, quePaths } from '../shared/paths'
 import { delay, waitForExit } from '../shared/process'
 import type { TermInfo } from '../shared/protocol'
 import { attach } from './attach'
@@ -140,7 +140,7 @@ async function main(): Promise<void> {
 
       if (!c) {
         if (opts.json) console.log(JSON.stringify({ running: false, socket: paths.socket }))
-        else console.log(`daemon not running (socket ${paths.socket})`)
+        else console.log(`daemon not running (socket ${describeSocket(paths)})`)
         process.exitCode = 3
 
         return
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
 
         if (stale) console.log(staleDaemonHint(info.buildId, expectedBuildId))
         console.log(`started ${info.startedAt}`)
-        console.log(`socket ${paths.socket}`)
+        console.log(`socket ${describeSocket(paths)}`)
         console.log(`terminals ${alive} alive / ${terms.length} total`)
       } finally {
         c.close()
