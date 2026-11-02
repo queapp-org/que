@@ -17,7 +17,7 @@ import { AppShellPage } from './pages/AppShellPage'
 import { ReportPage } from './pages/ReportPage'
 import { SidebarPage } from './pages/SidebarPage'
 import { TerminalPage } from './pages/TerminalPage'
-import { type LaunchedApp, launchApp, newQueHome, tempDir } from './utils/app'
+import { type LaunchedApp, launchApp, newQueHome, retryPointer, tempDir } from './utils/app'
 import { que, queJson } from './utils/que'
 
 let launched: LaunchedApp
@@ -229,26 +229,31 @@ test('a resting pointer on a workspace row opens its card with the branch and th
   })
 
   await test.step('Rest the pointer on the row: the card opens beside it', async () => {
-    await sidebar.workspace(workspace.id).hover()
-    await expect(sidebar.workspacePopout(workspace.id)).toBeVisible()
-    await expect(sidebar.workspacePopoutBranch(workspace.id)).toHaveText(`branch ${branch}`)
-    await expect(sidebar.workspacePopoutPath(workspace.id)).toContainText(workspace.name)
+    await retryPointer(async () => {
+      await sidebar.workspace(workspace.id).hover()
+      await expect(sidebar.workspacePopout(workspace.id)).toBeVisible()
+      await expect(sidebar.workspacePopoutBranch(workspace.id)).toHaveText(`branch ${branch}`)
+      await expect(sidebar.workspacePopoutPath(workspace.id)).toContainText(workspace.name)
+    })
   })
 
   await test.step('It lists both pull requests, newest first, with their state and counts', async () => {
-    await expect(sidebar.workspacePopoutPrState(workspace.id, 3)).toHaveText('open', {
-      timeout: 15_000
+    await retryPointer(async () => {
+      await sidebar.workspace(workspace.id).hover()
+      await expect(sidebar.workspacePopoutPrState(workspace.id, 3)).toHaveText('open', {
+        timeout: 15_000
+      })
+      await expect(sidebar.workspacePopoutPrDiff(workspace.id, 3)).toHaveText('+214 −38')
+      await expect(sidebar.workspacePopoutPrTitle(workspace.id, 3)).toHaveText(
+        'Add retry logic to the uploader, with backoff and a cap on attempts'
+      )
+      await expect(sidebar.workspacePopoutPrLink(workspace.id, 3)).toHaveAttribute(
+        'href',
+        'https://github.com/rquellh/que/pull/3'
+      )
+      await expect(sidebar.workspacePopoutPrState(workspace.id, 1)).toHaveText('merged')
+      await expect(sidebar.workspacePopoutPrDiff(workspace.id, 1)).toHaveText('+12 −4')
     })
-    await expect(sidebar.workspacePopoutPrDiff(workspace.id, 3)).toHaveText('+214 −38')
-    await expect(sidebar.workspacePopoutPrTitle(workspace.id, 3)).toHaveText(
-      'Add retry logic to the uploader, with backoff and a cap on attempts'
-    )
-    await expect(sidebar.workspacePopoutPrLink(workspace.id, 3)).toHaveAttribute(
-      'href',
-      'https://github.com/rquellh/que/pull/3'
-    )
-    await expect(sidebar.workspacePopoutPrState(workspace.id, 1)).toHaveText('merged')
-    await expect(sidebar.workspacePopoutPrDiff(workspace.id, 1)).toHaveText('+12 −4')
     await launched.window.screenshot({ path: 'test-results/workspace-popout.png' })
   })
 

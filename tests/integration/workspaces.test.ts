@@ -726,6 +726,8 @@ describe('workspace.seen', () => {
     })
 
     expect(ws).toMatchObject({ finishedAt: null, seenAt: null })
+    // Setup's own workspace.updated is out of the way before the test records events.
+    await waitForStatus(daemon, ws.id, 'idle')
     const updated = recordEvents(client, 'workspace.updated')
 
     const seen = await client.request('workspace.seen', { id: ws.id })

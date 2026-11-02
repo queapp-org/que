@@ -25,6 +25,7 @@ All notable changes to que are recorded here. The format follows
 
 - When the home path is too long for a unix socket, the socket moved to `/tmp/que-<uid>/daemon.sock` for every such home, so two daemons with different long homes shared one socket. Each home now gets its own, `/tmp/que-<uid>/<hash of the home>.sock`, and `que daemon status` and `que doctor` say when the socket has moved.
 - A launch with no network no longer hides a newer release que already knew about, or blocks the next check for the whole interval. A failed check keeps what it knew and tries again within the hour.
+- `git add` and `git commit` in a workspace fail far less often with `index.lock: File exists` while que shows that workspace, because the background service's `git status` no longer takes the lock.
 
 ## [0.2.0] - 2026-10-28
 

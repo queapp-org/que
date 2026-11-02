@@ -52,6 +52,21 @@ describe('workspace.diff', () => {
     expect(d).toMatchObject({ base: 'origin/main', head: ws.branch, commitsAhead: 0, files: [] })
   })
 
+  it('leaves the index alone, so a read holds no lock against a git add in the worktree', async () => {
+    fs.appendFileSync(join(ws.path, 'README.md'), 'a second line\n')
+    commitAll('Change readme')
+    // A new stat and the same content as the index: git status refreshes the index for this,
+    // under its lock, unless told not to. A rewritten index is the trace it leaves.
+    const later = new Date(Date.now() + 60_000)
+    fs.utimesSync(join(ws.path, 'README.md'), later, later)
+    const index = join(gitIn(ws.path, 'rev-parse', '--absolute-git-dir'), 'index')
+    const before = fs.readFileSync(index)
+
+    expect(file(await diff(), 'README.md')).toMatchObject({ status: 'modified', dirty: false })
+
+    expect(fs.readFileSync(index).equals(before)).toBe(true)
+  })
+
   it('shows committed, then uncommitted and untracked changes against the base', async () => {
     fs.appendFileSync(join(ws.path, 'README.md'), 'a second line\n')
     fs.writeFileSync(join(ws.path, 'notes.txt'), 'one\ntwo\nthree\n')

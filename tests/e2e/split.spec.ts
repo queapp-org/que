@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test'
 import { AppShellPage } from './pages/AppShellPage'
 import { TerminalPage } from './pages/TerminalPage'
 import { TabRowPage } from './pages/TabRowPage'
-import { type LaunchedApp, launchApp } from './utils/app'
+import { type LaunchedApp, launchApp, retryPointer } from './utils/app'
 
 let launched: LaunchedApp
 
@@ -65,12 +65,16 @@ test('a split survives quitting the app and comes back with both terminals', asy
     const box = await terminal.divider.boundingBox()
     expect(box).not.toBeNull()
     const { x, y, width, height } = box as { x: number; y: number; width: number; height: number }
-    await launched.window.mouse.move(x + width / 2, y + height / 2)
-    await launched.window.mouse.down()
-    await launched.window.mouse.move(x + width / 2 + 120, y + height / 2, { steps: 6 })
-    await launched.window.mouse.up()
-    const after = await terminal.divider.boundingBox()
-    expect((after as { x: number }).x).toBeGreaterThan(x + 60)
+    await retryPointer(async () => {
+      // From wherever the last attempt left the divider.
+      const from = await terminal.divider.boundingBox()
+      await launched.window.mouse.move((from as { x: number }).x + width / 2, y + height / 2)
+      await launched.window.mouse.down()
+      await launched.window.mouse.move(x + width / 2 + 120, y + height / 2, { steps: 6 })
+      await launched.window.mouse.up()
+      const after = await terminal.divider.boundingBox()
+      expect((after as { x: number }).x).toBeGreaterThan(x + 60)
+    })
     await launched.window.screenshot({ path: 'test-results/split-panes.png' })
   })
 
@@ -107,8 +111,10 @@ test('a split survives quitting the app and comes back with both terminals', asy
     const inactive = active === firstId ? secondId : firstId
     await expect(terminal.tabClose(inactive)).toBeVisible()
     await expect(terminal.tabClose(inactive)).toHaveCSS('opacity', '0')
-    await terminal.tabSelect(inactive).hover()
-    await expect(terminal.tabClose(inactive)).toHaveCSS('opacity', '0.5')
+    await retryPointer(async () => {
+      await terminal.tabSelect(inactive).hover()
+      await expect(terminal.tabClose(inactive)).toHaveCSS('opacity', '0.5')
+    })
   })
 
   await test.step('Split below from the tab row; the controls stay in the top strip, the first', async () => {

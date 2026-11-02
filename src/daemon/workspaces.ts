@@ -68,7 +68,9 @@ export async function git(
     timeoutMs,
     maxBuffer: opts.maxBuffer ?? 16 * 1024 * 1024,
     input: opts.input,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    // Without this, each git status holds index.lock while it runs, and a git add or commit in
+    // that worktree fails on the spot. The daemon reads a shown worktree after every change.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }
   })
 
   if (opts.trim === false) return { ok: r.ok, stdout: r.stdout, stderr: r.stderr }

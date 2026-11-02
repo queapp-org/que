@@ -36,6 +36,12 @@ describe('que term list', () => {
       rows: 24
     })
 
+    // The daemon learns the foreground program a moment after the terminal starts. The timeout
+    // covers its slowest path: the next one-second poll, then two `ps` calls of up to 5 s each.
+    await expect
+      .poll(async () => (await daemon.client.request('term.list'))[0]?.process, { timeout: 15_000 })
+      .toBe('cat')
+
     const terms = await runCliJson<TermInfo[]>('term', 'list', '--json')
     expect(terms).toHaveLength(1)
     expect(terms[0]).toEqual({
@@ -46,7 +52,8 @@ describe('que term list', () => {
       rows: 24,
       pid: expect.any(Number),
       alive: true,
-      createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
+      createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      process: 'cat'
     })
     expect(terms[0]).not.toHaveProperty('workspaceId')
   }, 30_000)
