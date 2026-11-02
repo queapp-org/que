@@ -1,30 +1,35 @@
 // Interactive Claude sessions that come back after a daemon restart. While the
-// daemon runs it keeps a record of every workspace terminal in which a session
-// is live, as the hooks report it: written on SessionStart, cleared on
-// SessionEnd, when the terminal exits, and when it is killed. The record is
+// daemon runs it keeps a record of every terminal in which a session is live,
+// as the hooks report it: written on SessionStart, cleared on SessionEnd, when
+// the terminal exits, and when it is killed. A workspace terminal's entry names
+// the workspace; a loose terminal's names the folder the session started in,
+// since `claude --resume` finds a session by its project folder. The record is
 // persisted as it changes, so a crash leaves it as current as a clean stop.
 // The next daemon takes the record at start: each entry is consumed once and,
-// unless its workspace is gone, reopened as a terminal in the workspace that
-// types `claude --resume <session>`. While quiet hours are locked nothing is
-// opened; the entries wait for the unlock (or the next start).
+// unless its workspace (or folder) is gone, reopened as a terminal in the
+// workspace (or a loose one in the folder) that types `claude --resume
+// <session>`. While quiet hours are locked nothing is opened; the entries wait
+// for the unlock (or the next start).
 import type { HookEvent } from '../shared/protocol'
 import type { Workspace } from '../shared/types'
 import { errorMessage } from '../shared/errors.decode'
 import { decodeLiveSessions } from './live-sessions.decode'
 import type { Store } from './store'
 
-/** A workspace terminal in which a Claude session is live. */
-export interface LiveSession {
-  workspaceId: string
-  terminalId: string
-  sessionId: string
-}
+/**
+ * A terminal in which a Claude session is live: a workspace's, or a loose
+ * terminal's, which keeps the folder the session started in instead.
+ */
+export type LiveSession =
+  | { workspaceId: string; terminalId: string; sessionId: string; cwd?: undefined }
+  | { workspaceId?: undefined; terminalId: string; sessionId: string; cwd: string }
 
 /** What changes the record: a hook from a session, or a terminal that ended or was killed. */
 export type LiveInput =
   | {
       kind: 'hook'
-      workspaceId: string
+      /** The workspace the hook fired in; none for a loose terminal. */
+      workspaceId?: string
       /** The terminal the hook fired in (QUE_TERMINAL_ID), when it fired in one. */
       terminalId?: string
       payload: HookEvent
@@ -32,26 +37,41 @@ export type LiveInput =
   | { kind: 'terminal_gone'; terminalId: string }
 
 /**
- * The record after one input. Only a main session's start in a workspace
- * terminal adds an entry (replacing the terminal's earlier one); its end, or
- * the terminal going away, removes it. Never mutates `live`; returns it
- * unchanged when nothing changed.
+ * The record after one input. Only a main session's start in a daemon terminal
+ * adds an entry (replacing the terminal's earlier one): a workspace's, or a
+ * loose one in the folder the start reports. Its end, or the terminal going
+ * away, removes it. Never mutates `live`; returns it unchanged when nothing
+ * changed.
  */
 export function trackLive(live: readonly LiveSession[], input: LiveInput): readonly LiveSession[] {
   if (input.kind === 'terminal_gone') {
     return without(live, (e) => e.terminalId === input.terminalId)
   }
 
-  const { payload, terminalId } = input
+  const { payload, terminalId, workspaceId } = input
 
   if (payload.agent_id || !terminalId) return live
 
   switch (payload.hook_event_name) {
     case 'SessionStart': {
-      const entry = { workspaceId: input.workspaceId, terminalId, sessionId: payload.session_id }
+      const sessionId = payload.session_id
+
+      // A loose session without a folder could not be resumed anywhere.
+      if (workspaceId === undefined && !payload.cwd) return live
+
+      const entry: LiveSession =
+        workspaceId !== undefined
+          ? { workspaceId, terminalId, sessionId }
+          : { terminalId, sessionId, cwd: payload.cwd }
+
       const same = live.find((e) => e.terminalId === terminalId)
 
-      if (same && same.sessionId === entry.sessionId && same.workspaceId === entry.workspaceId) {
+      if (
+        same &&
+        same.sessionId === sessionId &&
+        same.workspaceId === entry.workspaceId &&
+        same.cwd === entry.cwd
+      ) {
         return live
       }
 
@@ -73,31 +93,34 @@ function without(
   return live.some(drop) ? live.filter((e) => !drop(e)) : live
 }
 
+/** What a restore looks up: the workspaces, and whether a loose session's folder is still there. */
+export interface RestoreLookup {
+  workspace: (id: string) => Workspace | undefined
+  folderExists: (path: string) => boolean
+}
+
 export interface RestorePlan {
   resume: LiveSession[]
   skip: Array<{ entry: LiveSession; why: string }>
 }
 
 /**
- * Which of a previous daemon's sessions to resume: one per session id, in a
- * workspace that still exists and is not archived, and not already live again.
+ * Which of a previous daemon's sessions to resume: one per session id, workspace
+ * and loose entries alike, not already live again, and each where it can still
+ * run: a workspace that exists and is not archived or being removed, or a loose
+ * session's folder that is still there.
  */
 export function planRestore(
   pending: readonly LiveSession[],
-  workspace: (id: string) => Workspace | undefined,
+  lookup: RestoreLookup,
   liveSessionIds: ReadonlySet<string>
 ): RestorePlan {
   const plan: RestorePlan = { resume: [], skip: [] }
   const taken = new Set(liveSessionIds)
 
   for (const entry of pending) {
-    const ws = workspace(entry.workspaceId)
-    let why: string | null = null
-
-    if (!ws) why = 'the workspace is gone'
-    else if (ws.archivedAt) why = 'the workspace is archived'
-    else if (ws.status === 'removing') why = 'the workspace is being removed'
-    else if (taken.has(entry.sessionId)) why = 'the session is already live'
+    const why =
+      whyNot(entry, lookup) ?? (taken.has(entry.sessionId) ? 'the session is already live' : null)
 
     if (why) {
       plan.skip.push({ entry, why })
@@ -111,17 +134,44 @@ export function planRestore(
   return plan
 }
 
-export interface LiveSessionsOptions {
+/** Why the entry has nowhere to resume; null when it has. */
+function whyNot(entry: LiveSession, lookup: RestoreLookup): string | null {
+  if (entry.workspaceId === undefined) {
+    return lookup.folderExists(entry.cwd) ? null : 'the folder is gone'
+  }
+
+  const ws = lookup.workspace(entry.workspaceId)
+
+  if (!ws) return 'the workspace is gone'
+
+  if (ws.archivedAt) return 'the workspace is archived'
+
+  if (ws.status === 'removing') return 'the workspace is being removed'
+
+  return null
+}
+
+/** How the log names where a session ran. */
+function where(e: LiveSession): string {
+  return e.workspaceId !== undefined ? `of workspace ${e.workspaceId}` : `from ${e.cwd}`
+}
+
+export interface LiveSessionsOptions extends RestoreLookup {
   /** The record as the previous daemon left it. */
   load: () => LiveSession[]
   /** Persists the whole record (this daemon's live sessions and those still to restore). */
   save: (entries: LiveSession[]) => void
   /** Quiet hours are on and not unlocked: no terminal may be opened. */
   locked: () => boolean
-  workspace: (id: string) => Workspace | undefined
-  /** The terminal is alive in this daemon and belongs to the workspace. */
-  isWorkspaceTerminal: (terminalId: string, workspaceId: string) => boolean
-  /** Opens a terminal in the workspace that resumes the session; returns its id. */
+  /**
+   * The terminal is alive in this daemon and belongs to the workspace, or, with
+   * no workspace, is a loose terminal.
+   */
+  ownsTerminal: (terminalId: string, workspaceId: string | undefined) => boolean
+  /**
+   * Opens a terminal that resumes the session, in the workspace or a loose one
+   * in the session's folder; returns its id.
+   */
   resume: (entry: LiveSession) => string
   /** A session went live in the terminal (its start hook landed). */
   onLive?: (terminalId: string) => void
@@ -146,7 +196,7 @@ export class LiveSessions {
   start(): void {
     this.running = true
     const stored = this.o.load()
-    this.live = stored.filter((e) => this.o.isWorkspaceTerminal(e.terminalId, e.workspaceId))
+    this.live = stored.filter((e) => this.o.ownsTerminal(e.terminalId, e.workspaceId))
     this.pending = stored.filter((e) => !this.live.includes(e))
 
     if (this.live.length > 0) {
@@ -177,10 +227,12 @@ export class LiveSessions {
     if (this.running && !this.o.locked()) this.restore()
   }
 
-  /** A hook from `que hook`; one naming a terminal this daemon does not own counts as from none. */
-  hook(workspaceId: string, terminalId: string | undefined, payload: HookEvent): void {
-    const term =
-      terminalId && this.o.isWorkspaceTerminal(terminalId, workspaceId) ? terminalId : undefined
+  /**
+   * A hook from `que hook`, from a workspace or (with none) a loose terminal; one
+   * naming a terminal this daemon does not own there counts as from none.
+   */
+  hook(workspaceId: string | undefined, terminalId: string | undefined, payload: HookEvent): void {
+    const term = terminalId && this.o.ownsTerminal(terminalId, workspaceId) ? terminalId : undefined
 
     this.apply({ kind: 'hook', workspaceId, terminalId: term, payload })
   }
@@ -222,23 +274,21 @@ export class LiveSessions {
     const batch = this.pending
     this.pending = []
     this.persist()
-    const plan = planRestore(batch, this.o.workspace, new Set(this.live.map((e) => e.sessionId)))
+    const plan = planRestore(batch, this.o, new Set(this.live.map((e) => e.sessionId)))
 
     for (const { entry, why } of plan.skip) {
-      this.o.log(
-        `live sessions: skipped session ${entry.sessionId} of workspace ${entry.workspaceId}: ${why}`
-      )
+      this.o.log(`live sessions: skipped session ${entry.sessionId} ${where(entry)}: ${why}`)
     }
 
     for (const entry of plan.resume) {
       try {
         const terminalId = this.o.resume(entry)
         this.o.log(
-          `live sessions: resuming session ${entry.sessionId} of workspace ${entry.workspaceId} in terminal ${terminalId}`
+          `live sessions: resuming session ${entry.sessionId} ${where(entry)} in terminal ${terminalId}`
         )
       } catch (err) {
         this.o.log(
-          `live sessions: could not resume session ${entry.sessionId} of workspace ${entry.workspaceId}: ${errorMessage(err)}`
+          `live sessions: could not resume session ${entry.sessionId} ${where(entry)}: ${errorMessage(err)}`
         )
       }
     }

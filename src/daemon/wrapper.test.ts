@@ -13,6 +13,7 @@ import { FAKE_WRAPPERS, FAKES_BIN, readFakeLog, readWrapperLog } from '../testin
 
 const NODE_DIR = dirname(process.execPath)
 const WORKSPACE_ID = 'ws_01hzx3k9c2qf'
+const LOOSE_TERMINAL_ID = 'c2e8a4f1-7d3b-4a6e-b9c5-1f8d3e7a2b46'
 
 let home: string
 let paths: QuePaths
@@ -95,11 +96,29 @@ describe('bin/claude', () => {
     ])
   })
 
-  it('is transparent outside a workspace', async () => {
+  it('is transparent outside a que terminal', async () => {
     const r = await runWrapper(['--version'], {})
 
     expect(r).toEqual({ code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' })
     expect(readFakeLog(claudeLog).map((c) => c.argv)).toEqual([['--version']])
+  })
+
+  it('adds --settings in a loose terminal, and none of the workspace-only flags', async () => {
+    // Set by hand in a loose terminal, the session variables are still a
+    // workspace's to give, so the wrapper leaves them out.
+    const instructions = join(home, 'instructions.md')
+    fs.writeFileSync(instructions, 'Delegate searches to a smaller model.\n')
+
+    const r = await runWrapper(['--resume', 'sess_8c1d2e'], {
+      QUE_TERMINAL_ID: LOOSE_TERMINAL_ID,
+      QUE_INSTRUCTIONS: instructions,
+      QUE_PERMISSION_MODE: 'acceptEdits'
+    })
+
+    expect(r.code).toBe(0)
+    expect(readFakeLog(claudeLog).map((c) => c.argv)).toEqual([
+      ['--settings', paths.hooksJson, '--resume', 'sess_8c1d2e']
+    ])
   })
 
   it('runs QUE_REAL_CLAUDE, the claude the daemon resolved, ahead of PATH order', async () => {

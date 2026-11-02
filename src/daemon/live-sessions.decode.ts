@@ -13,13 +13,17 @@ export function decodeLiveSessions(text: string | undefined): LiveSession[] {
     return []
   }
 
-  return objects(value).flatMap((e) => {
+  return objects(value).flatMap((e): LiveSession[] => {
     const workspaceId = str(e.workspaceId)
     const terminalId = str(e.terminalId)
     const sessionId = str(e.sessionId)
+    const cwd = str(e.cwd)
 
-    if (!workspaceId || !terminalId || !sessionId) return []
+    if (!terminalId || !sessionId) return []
 
-    return [{ workspaceId, terminalId, sessionId }]
+    if (workspaceId) return [{ workspaceId, terminalId, sessionId }]
+
+    // A loose terminal's session, in the folder it started in.
+    return cwd ? [{ terminalId, sessionId, cwd }] : []
   })
 }

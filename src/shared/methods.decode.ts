@@ -147,16 +147,18 @@ export const decoders: { [M in MethodName]: (p: Params) => ParamsOf<M> } = {
   'workspace.watch': idOnly,
   'workspace.unwatch': idOnly,
   'hook.event': (p) => {
-    const workspaceId = str(p, 'workspaceId')
+    const workspaceId = optString(p, 'workspaceId')
+    const terminalId = optString(p, 'terminalId')
     const payload = decodeHookEvent(p?.payload)
 
     if (!payload) throw new ParamsError('payload must be a hook event')
 
-    return {
-      workspaceId,
-      terminalId: optString(p, 'terminalId'),
-      payload
-    }
+    if (workspaceId !== undefined) return { workspaceId, terminalId, payload }
+
+    // A loose terminal's hook names its terminal instead.
+    if (terminalId === undefined) throw new ParamsError('workspaceId or terminalId is required')
+
+    return { terminalId, payload }
   },
   'report.get': (p) => ({ since: optString(p, 'since') }),
   'quiet.state': none,
