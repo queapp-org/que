@@ -53,11 +53,7 @@ async function waitForScreen(d: TestDaemon, id: string, text: string): Promise<v
 
 /** The sessions the fake claude was asked to resume, in order. */
 function resumed(d: TestDaemon): string[] {
-  return readFakeLog(d.claudeLog).flatMap((call) => {
-    const i = call.argv.indexOf('--resume')
-
-    return i >= 0 ? [call.argv[i + 1]] : []
-  })
+  return resumedIn(d).map((r) => r.session)
 }
 
 async function terminalsOf(d: TestDaemon, wsId: string): Promise<string[]> {

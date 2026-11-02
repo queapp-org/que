@@ -964,15 +964,13 @@ export class DaemonServer {
       return { ok: true }
     },
     'hook.event': (p) => {
-      if (p.workspaceId === undefined) {
-        // A loose terminal's session: kept for a restart, and no workspace hears of it.
-        this.liveSessions.hook(undefined, p.terminalId, p.payload)
+      // A loose terminal's hook names no workspace: its session is kept for a restart, and no
+      // workspace hears of it.
+      const ws = p.workspaceId === undefined ? undefined : this.workspaces.get(p.workspaceId)
+      this.liveSessions.hook(ws?.id, p.terminalId, p.payload)
 
-        return { ok: true }
-      }
+      if (!ws) return { ok: true }
 
-      const ws = this.workspaces.get(p.workspaceId)
-      this.liveSessions.hook(ws.id, p.terminalId, p.payload)
       this.status.hook(ws.id, p.payload)
       this.prs.hook(ws.id, p.payload).catch((e: unknown) => {
         this.log(`pull request capture failed for ${ws.id}: ${errorMessage(e)}`)
