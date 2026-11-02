@@ -1,10 +1,11 @@
-// The app's update check: at most once a day, ask GitHub for the latest
-// release and say whether it is newer than the running version. Every input
-// that varies (clock, network, state file) is injected; failures of any kind
-// (offline, 403/404 while the repository is private, bad JSON) are silent.
+// The app's update check: once the last attempt is six hours old, or failed, ask
+// GitHub for the latest release and say whether it is newer than the running version.
+// Every input that varies (clock, network, state file) is injected. Nothing here throws:
+// an attempt with no usable answer (offline, a 403 or 404, bad JSON, a release page off
+// github.com) is reported and recorded as failed, keeping the release it already knew of.
 import fs from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { UpdateInfo } from '../shared/types'
+import type { UpdateInfo, UpdateStatus } from '../shared/types'
 import {
   decodeLocalBuild,
   decodeRelease,
@@ -16,7 +17,16 @@ import {
 export type { UpdateCheckState, UpdateInfo }
 
 export const LATEST_RELEASE_URL = 'https://api.github.com/repos/queapp-org/que/releases/latest'
-export const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
+export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+/**
+ * How often an open app looks at the interval. Shorter than the interval so a Mac waking
+ * from sleep catches up within the hour, and a failed attempt retries on the next tick.
+ */
+export const CHECK_TICK_MS = 60 * 60 * 1000
+
+/** What one check says: the part of UpdateStatus that changes between attempts. */
+export type UpdateCheckResult = Pick<UpdateStatus, 'update' | 'checkedAt' | 'failed'>
 
 type Semver = { core: [number, number, number]; pre: string[] }
 
@@ -82,9 +92,9 @@ export function readLocalBuild(appPath: string): string | null {
   }
 }
 
-/** The once-a-day gate: no state, or the last attempt is a day old (or in the future). */
+/** The interval's gate: no state, a failed last attempt, or one that is six hours old (or in the future). */
 export function shouldCheck(state: UpdateCheckState | null, now: number): boolean {
-  if (!state) return true
+  if (!state || state.failed) return true
   const age = now - state.checkedAt
 
   return age >= CHECK_INTERVAL_MS || age < 0
@@ -103,7 +113,7 @@ function writeState(path: string, state: UpdateCheckState): void {
     fs.mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     fs.writeFileSync(path, `${JSON.stringify(state)}\n`)
   } catch {
-    // Not worth failing over; the next launch simply checks again.
+    // Not worth failing over; the next tick simply checks again.
   }
 }
 
@@ -114,6 +124,8 @@ export interface UpdateCheckOptions {
   fetch?: typeof fetch
   url?: string
   timeoutMs?: number
+  /** Ask whatever the interval says (a click on Check for updates). */
+  force?: boolean
 }
 
 /** The decoded release, if it is a usable one. */
@@ -125,21 +137,28 @@ function releaseOf(release: GhRelease | null): UpdateInfo | null {
   return { version: release.tagName.replace(/^v/, ''), url: release.htmlUrl }
 }
 
+/** What a record says to the app: its release when newer than `currentVersion`, and how the attempt went. */
+function resultOf(state: UpdateCheckState | null, currentVersion: string): UpdateCheckResult {
+  const latest = state?.latest
+
+  return {
+    update: latest && isNewer(latest.version, currentVersion) ? latest : null,
+    checkedAt: state?.checkedAt ?? null,
+    failed: state?.failed ?? false
+  }
+}
+
 /**
- * Asks for the latest release unless one was asked for within the last day,
- * and resolves to it when it is newer than `currentVersion`, else null. Never
- * rejects.
+ * Asks for the latest release, unless the interval says the record still stands (`force`
+ * skips that), and resolves to what the record now says. Never rejects.
  */
-export async function checkForUpdate(opts: UpdateCheckOptions): Promise<UpdateInfo | null> {
+export async function checkForUpdate(opts: UpdateCheckOptions): Promise<UpdateCheckResult> {
   const now = opts.now ?? Date.now
   const prev = readState(opts.statePath)
 
-  const newer = (s: UpdateCheckState | null): UpdateInfo | null =>
-    s?.latest && isNewer(s.latest.version, opts.currentVersion) ? s.latest : null
+  if (!opts.force && !shouldCheck(prev, now())) return resultOf(prev, opts.currentVersion)
 
-  if (!shouldCheck(prev, now())) return newer(prev)
-
-  const state: UpdateCheckState = { checkedAt: now(), latest: null }
+  const state: UpdateCheckState = { checkedAt: now(), latest: prev?.latest ?? null, failed: true }
 
   try {
     const res = await (opts.fetch ?? fetch)(opts.url ?? LATEST_RELEASE_URL, {
@@ -150,12 +169,17 @@ export async function checkForUpdate(opts: UpdateCheckOptions): Promise<UpdateIn
       signal: AbortSignal.timeout(opts.timeoutMs ?? 5000)
     })
 
-    if (res.ok) state.latest = releaseOf(decodeRelease(await res.json()))
+    const release = res.ok ? releaseOf(decodeRelease(await res.json())) : null
+
+    if (release) {
+      state.latest = release
+      state.failed = false
+    }
   } catch {
-    // Offline, timed out, or not JSON: say nothing.
+    // Offline, timed out, or not JSON: the attempt stays failed.
   }
 
   writeState(opts.statePath, state)
 
-  return newer(state)
+  return resultOf(state, opts.currentVersion)
 }

@@ -282,6 +282,10 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   A region of the window that cannot be drawn (the sidebar's lists, the main area, the review
   pane) shows the error line in its place, saying which part and why, and the rest of the
   window stays up.
+- Settings' last fieldset, `[ UPDATES ]`, is one wrapping row: `que 0.3.0` in mono `--fg`,
+  the last answer (a hint, a new release in `--fg`, or a form error), and plain buttons at
+  the right end, Check for updates and, with a release, Download. It alone stays enabled
+  without the daemon, because the check runs in the main process.
 
 ## Sidebar
 
@@ -383,8 +387,8 @@ only under the pointer.
   runs an older build than the app: it hands every terminal to this build, reads
   Restarting… at 0.4 opacity while that runs, and a failed restart goes to the error line
   above the tab strip. Update, while the service runs this build and a newer release is
-  published: it opens the release's download page, since an unsigned build cannot install
-  itself, and stays until the update is taken; there is no dismiss. When both hold, Restart
+  published: it opens the release's download page, since que cannot install itself yet,
+  and stays until the update is taken; there is no dismiss. When both hold, Restart
   shows, because it can be done now, and Update follows once the service is current. With
   neither, the control is absent. During an unlock the unlock row takes the Quiet row's
   place: the open lock at 12px and `m:ss left` in mono 11px `--accent`, and `lock now` in

@@ -26,7 +26,7 @@ const docs = makeWorkspace({ id: 'ws_01hzx4m1p8rt', projectId: project.id, name:
 const RESTART_TITLE =
   'que was updated. The background service still runs the previous build. Restart it on this build; every terminal keeps running.'
 
-/** A newer release, as the main process's daily check reports it. */
+/** A newer release, as the main process's update check reports it. */
 const RELEASE = { version: '0.3.0', url: 'https://github.com/queapp-org/que/releases/tag/v0.3.0' }
 
 /** A daemon still running the build before this app's. */
@@ -123,7 +123,7 @@ describe('UpdateChip', () => {
 
     it('reads Update in the same place when the check already found a newer release, and says what it opens', async () => {
       seed()
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
 
       render(<App />)
 
@@ -142,7 +142,7 @@ describe('UpdateChip', () => {
       const user = userEvent.setup()
       seed()
       fakeBridge.setDaemon(STALE)
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
       render(<App />)
 
       const restart = await screen.findByRole('button', { name: 'Restart' })
@@ -162,7 +162,7 @@ describe('UpdateChip', () => {
       await screen.findByTestId('sidebar-settings')
       expect(screen.queryByTestId('sidebar-app-update')).not.toBeInTheDocument()
 
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
 
       expect(await screen.findByRole('button', { name: 'Update' })).toBeInTheDocument()
     })
@@ -308,7 +308,7 @@ describe('UpdateChip', () => {
     it('opens the release page on Update, and stays until the update is taken', async () => {
       const user = userEvent.setup()
       seed()
-      fakeBridge.setUpdate(RELEASE)
+      fakeBridge.setUpdateStatus({ update: RELEASE })
       render(<App />)
 
       await user.click(await screen.findByRole('button', { name: 'Update' }))

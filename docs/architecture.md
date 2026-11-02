@@ -452,8 +452,10 @@ quiet hours end leaves the night to the morning summary.
 
 The main process proxies an allow-list of methods and forwards events to the
 renderer, keeps the menu-bar title (`● 3 ▸ 1 ✕ 0`), shows the quiet board window
-while locked, and checks once a day for a newer release, which the sidebar's
-Quiet row offers as Update while the daemon runs this build. Only a release
+while locked, and looks for a newer release: it asks at launch, hourly looks
+whether the last attempt is six hours old (a failed one asks again on the next
+look), and Settings can ask at any time. The sidebar's Quiet row offers what it
+finds as Update while the daemon runs this build. Only a release
 build checks: one run from source is not packaged, and `npm run package` (which
 `npm run install:local` runs) marks its bundle's package.json with
 `queLocalBuild`; releases build with `npm run dist`. The renderer only

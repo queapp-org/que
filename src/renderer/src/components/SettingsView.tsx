@@ -10,6 +10,7 @@ import { SUGGESTED_START_PROMPT } from '../../../shared/brief'
 import { type ConfigPatch, HHMM, WEEKDAYS } from '../../../shared/types'
 import { errorMessage } from '../../../shared/errors.decode'
 import { useQue, useStore } from '../store'
+import UpdatesSection from './UpdatesSection'
 
 type DayMode = 'inherit' | 'custom' | 'none'
 
@@ -982,6 +983,7 @@ export default function SettingsView(): React.JSX.Element {
             branch. Comma-separated.
           </p>
         </fieldset>
+        <UpdatesSection />
       </form>
     </section>
   )

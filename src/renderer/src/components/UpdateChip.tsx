@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import type { UpdateInfo } from '../../../preload/index.d'
+import { useState } from 'react'
 import { useQueSelector, useStore } from '../store'
 
 const RESTART_TITLE =
@@ -12,31 +11,15 @@ const RESTART_TITLE =
  *   hands every terminal to this build in place (see QueStore.upgradeDaemon), and on
  *   success it goes away with the stale state.
  * - Update, while the service runs this build and the release check found a newer
- *   release. Its click opens that release's download page; an unsigned build cannot
- *   install itself.
+ *   release. Its click opens that release's download page; que cannot install itself
+ *   yet (#91).
  * Restart wins when both hold, since it can be done now; Update follows once it is.
  */
 export default function UpdateChip(): React.JSX.Element | null {
   const store = useStore()
   const stale = useQueSelector((s) => s.daemon?.stale ?? false)
+  const release = useQueSelector((s) => s.updateStatus?.update ?? null)
   const [busy, setBusy] = useState(false)
-  const [release, setRelease] = useState<UpdateInfo | null>(null)
-
-  useEffect(() => {
-    let live = true
-    store.fetchUpdate().then(
-      (found) => {
-        if (live && found) setRelease(found)
-      },
-      () => {}
-    )
-    const off = store.onUpdate((found) => setRelease(found))
-
-    return () => {
-      live = false
-      off()
-    }
-  }, [store])
 
   if (stale) {
     const restart = (): void => {

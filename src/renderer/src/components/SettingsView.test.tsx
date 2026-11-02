@@ -730,3 +730,129 @@ describe('SettingsView instructions', () => {
     })
   })
 })
+
+describe('SettingsView updates', () => {
+  /** When the last attempt ran, as the check records it. */
+  const CHECKED_AT = new Date(2026, 10, 2, 14, 20).getTime()
+
+  const RELEASE = { version: '0.3.1', url: 'https://github.com/queapp-org/que/releases/tag/v0.3.1' }
+
+  it('shows the version and when the check last said up to date', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ version: '0.3.0', checkedAt: CHECKED_AT })
+
+    await openSettings(user)
+
+    const section = await screen.findByTestId('settings-updates')
+    expect(within(section).getByTestId('settings-updates-version')).toHaveTextContent('que 0.3.0')
+    expect(within(section).getByTestId('settings-updates-answer')).toHaveTextContent(
+      `Up to date. Checked at ${hhmm(CHECKED_AT)}.`
+    )
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
+  })
+
+  it('reads Checking… and is disabled while the request runs, keeping the last answer', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ checkedAt: CHECKED_AT })
+    fakeBridge.holdUpdateCheck()
+    await openSettings(user)
+
+    await user.click(await screen.findByRole('button', { name: 'Check for updates' }))
+
+    expect(await screen.findByRole('button', { name: 'Checking…' })).toBeDisabled()
+    expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(hhmm(CHECKED_AT))
+
+    fakeBridge.releaseUpdateCheck()
+
+    expect(await screen.findByRole('button', { name: 'Check for updates' })).toBeEnabled()
+    expect(fakeBridge.updateCheckCalls()).toBe(1)
+  })
+
+  it('finds a newer release: says so, Download opens it, and the Quiet row offers Update', async () => {
+    const user = userEvent.setup()
+    fakeBridge.answerUpdateCheck({ update: RELEASE, checkedAt: CHECKED_AT, failed: false })
+    await openSettings(user)
+    expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Check for updates' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(
+        'que 0.3.1 is available.'
+      )
+    })
+    expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check for updates' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Download' }))
+
+    await waitFor(() => {
+      expect(fakeBridge.openUpdateCalls()).toBe(1)
+    })
+  })
+
+  it('says it could not check, and the button can ask again', async () => {
+    const user = userEvent.setup()
+    fakeBridge.answerUpdateCheck({ checkedAt: CHECKED_AT, failed: true })
+    await openSettings(user)
+
+    await user.click(await screen.findByRole('button', { name: 'Check for updates' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `Couldn't check: no answer from GitHub. Tried at ${hhmm(CHECKED_AT)}.`
+    )
+    expect(screen.getByRole('button', { name: 'Check for updates' })).toBeEnabled()
+  })
+
+  it('shows a known release, not the error, after a failed attempt', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ update: RELEASE, checkedAt: CHECKED_AT, failed: true })
+
+    await openSettings(user)
+
+    expect(await screen.findByTestId('settings-updates-answer')).toHaveTextContent(
+      'que 0.3.1 is available.'
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('updates the answer when a background check finishes while Settings is open', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ checkedAt: CHECKED_AT })
+    await openSettings(user)
+    await screen.findByTestId('settings-updates-answer')
+
+    fakeBridge.setUpdateStatus({ update: RELEASE, checkedAt: CHECKED_AT + 3_600_000 })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(
+        'que 0.3.1 is available.'
+      )
+    })
+    expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
+  })
+
+  it('keeps working while the daemon is unreachable, since the check runs in the app', async () => {
+    const user = userEvent.setup()
+    await openSettings(user)
+    const toggle = await screen.findByTestId('settings-chime-complete')
+
+    fakeBridge.disconnect()
+
+    await waitFor(() => expect(toggle).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Check for updates' })).toBeEnabled()
+  })
+
+  it('says a local build does not check, and offers no button', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ releaseBuild: false })
+
+    await openSettings(user)
+
+    expect(await screen.findByTestId('settings-updates-answer')).toHaveTextContent(
+      "Local build: que doesn't check for releases."
+    )
+    expect(screen.getByTestId('settings-updates-version')).toHaveTextContent('que 0.2.0')
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).not.toBeInTheDocument()
+  })
+})
