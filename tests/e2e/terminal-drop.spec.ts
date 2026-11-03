@@ -21,7 +21,7 @@ test('dropped files paste their quoted paths at the cursor, and nothing navigate
   const quote = join(dir, "it's here.txt")
   writeFileSync(shot, 'png')
   writeFileSync(quote, 'text')
-  const quoted = `'${shot}' '${quote.replace("'", `'\\''`)}'`
+  const quoted = `'${shot}' '${quote.replace(/'/g, `'\\''`)}'`
   let terminal: TerminalPage
   let id = ''
   let url = ''
