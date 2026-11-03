@@ -117,6 +117,11 @@ export function installTestHook(): void {
     },
     screenTextOf,
     trayTitle: () => window.que.app.trayTitle(),
+    cursorOf: (termId) => {
+      const buf = mounted.get(termId)?.buffer.active
+
+      return buf ? { col: buf.cursorX, row: buf.cursorY } : null
+    },
     pointOf: (termId, text) => {
       const term = mounted.get(termId)
 

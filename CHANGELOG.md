@@ -14,6 +14,10 @@ All notable changes to que are recorded here. The format follows
 - Cmd+Backspace clears to the start of the line in a terminal, and Cmd+Left and Cmd+Right go to its start and end.
 - Links in a terminal work. Cmd+click opens a URL in your browser, whether it is plain text or an OSC 8 hyperlink; a plain click does nothing, and a link underlines under the pointer. Only http and https links open.
 
+### Fixed
+
+- Emoji such as ✅, 🚀 and 🧠 take two cells in a terminal, so the text after them no longer sits wrong or overlaps. Sequences that join several emoji into one, and symbols turned into emoji by a variation selector (⚠️), can still sit off by a cell.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

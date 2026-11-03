@@ -3,6 +3,7 @@
 import { Terminal as HeadlessTerminal } from '@xterm/headless'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import type { TermSnapshotResult } from '../shared/protocol'
+import { applyUnicodeWidths } from '../shared/unicode-width'
 
 const SCROLLBACK = 10000
 
@@ -15,6 +16,7 @@ export class TerminalMirror {
     // The serialize addon is typed against the browser Terminal; the @xterm/headless
     // terminal implements the same public surface it uses.
     this.term.loadAddon(this.serializer)
+    applyUnicodeWidths(this.term)
   }
 
   write(data: string): void {

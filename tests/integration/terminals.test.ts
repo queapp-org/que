@@ -50,6 +50,22 @@ describe('terminals', () => {
       expect(listed.find((t) => t.id === id)).toMatchObject({ alive: false })
     }, 20_000)
 
+    it('counts an emoji as two cells, so the cursor stands where the program thinks it does', async () => {
+      // Back to the line's start and two cells right: B lands on A only if the emoji took two.
+      const line = (emoji: string): string => `${emoji}A\\r\\033[2CB\\n\\r`
+
+      const { id } = await client.request('term.create', {
+        file: '/bin/sh',
+        args: ['-c', `printf '${line('✅')}${line('🚀')}${line('🧠')}'; sleep 30`],
+        cols: 80,
+        rows: 24
+      })
+
+      await expect
+        .poll(async () => (await client.request('term.snapshot', { id })).text, { timeout: 10_000 })
+        .toBe('✅B\n🚀B\n🧠B')
+    }, 20_000)
+
     it('streams live output to an attached client', async () => {
       const data = recordEvents(client, 'term.data')
       const { id } = await client.request('term.create', { file: '/bin/cat', cols: 80, rows: 24 })
