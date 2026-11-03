@@ -2,6 +2,8 @@
 // electron-builder (`npm run package`; pass --no-build to reuse release/),
 // launches it through Playwright with a fresh QUE_HOME, QUE_E2E=1 and the fakes
 // first on PATH, and checks that:
+//   - the microphone prompt has que's text, and a signed build has the
+//     audio-input entitlement (an unsigned build carries no entitlements);
 //   - the daemon the app starts runs from inside que.app/Contents/Resources,
 //     under the app's own binary;
 //   - a terminal opens and runs a command (read through window.__que);
@@ -108,6 +110,29 @@ let daemonPid = null
 let failed = false
 
 try {
+  // The microphone, from the bundle before it runs. Programs in que's terminals
+  // need the entitlement, or a signed build denies them the mic with no prompt. An
+  // unsigned build carries no entitlements, so codesign prints nothing for it.
+  const micText = execFileSync(
+    'plutil',
+    ['-extract', 'NSMicrophoneUsageDescription', 'raw', join(appPath, 'Contents', 'Info.plist')],
+    { encoding: 'utf8' }
+  ).trim()
+
+  log(`microphone prompt "${micText}"`)
+
+  if (micText === 'This app needs access to the microphone')
+    throw new Error("the microphone prompt is still Electron's default")
+
+  const entitlements = spawnSync('codesign', ['-d', '--entitlements', '-', '--xml', appPath], {
+    encoding: 'utf8'
+  }).stdout
+
+  if (entitlements && !entitlements.includes('com.apple.security.device.audio-input'))
+    throw new Error('a signed build without the audio-input entitlement')
+
+  log(entitlements ? 'has the audio-input entitlement' : 'unsigned: no entitlements to check')
+
   app = await electron.launch({ executablePath, args: [], env })
   const window = await app.firstWindow()
   log(`launched; window ${await window.title()}`)

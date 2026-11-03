@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Programs in a que terminal can use the microphone, so Claude Code's dictation works. macOS asks once, the first time one tries. 0.3.0 denied it without asking.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added
