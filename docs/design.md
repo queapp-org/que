@@ -258,6 +258,8 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   `button.ghost.icon` chevrons. Enter and Shift+Enter step, Escape closes it and hands the
   keyboard back to the terminal. Every match sits on `--bg-active` behind a 1px `--fg-faint`
   outline; the current one takes a 1px `--accent` outline instead.
+- A right-click on a terminal opens the app's menu at the pointer: Copy, only with a selection,
+  and Paste. Closing it returns the keyboard to the terminal.
 - Row actions (the ⋯ button) show on hover, focus, or while their menu is open.
 - The window has no native title bar. The traffic lights sit in the 40px strip
   above the sidebar's content; that strip, the tab row's empty space and the review

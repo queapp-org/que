@@ -182,6 +182,7 @@ class FakeBridge {
   private daemonStateCount = 0
   private home = '/Users/dev'
   private filePaths = new Map<File, string>()
+  private attachGate = new Gate()
   private folder: string | null = null
   private tray = '● 0 ▸ 0 ✕ 0'
   private editorCalls: string[] = []
@@ -349,6 +350,7 @@ class FakeBridge {
           const t = this.terminal(id)
           this.attachCallLog.push(id)
           Object.assign(t, { cols, rows })
+          await this.attachGate.pass()
 
           return { snapshot: t.screen, cols, rows }
         },
@@ -981,6 +983,20 @@ class FakeBridge {
     this.terminals.set(info.id, { ...info, input: '', screen })
   }
 
+  /** A program printed: emits term.data, as the daemon does for an attached terminal. */
+  printToTerminal(id: string, data: string): void {
+    this.emit('term.data', { id, data })
+  }
+
+  /** Attaches wait until releaseAttach(): a slow daemon, with output arriving meanwhile. */
+  holdAttach(): void {
+    this.attachGate.hold()
+  }
+
+  releaseAttach(): void {
+    this.attachGate.release()
+  }
+
   /** Adds a terminal and emits term.created with its row, as the daemon does when another client opens one. */
   announceTerminal(info: TermInfo): void {
     this.terminals.set(info.id, { ...info, input: '', screen: '' })
@@ -1409,6 +1425,7 @@ class FakeBridge {
     this.daemonStateCount = 0
     this.folder = null
     this.filePaths.clear()
+    this.attachGate.reset()
     this.tray = '● 0 ▸ 0 ✕ 0'
     this.editorCalls = []
     this.updateBook = currentUpdateStatus()
