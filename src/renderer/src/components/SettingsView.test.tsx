@@ -186,6 +186,22 @@ describe('SettingsView', () => {
       })
     })
 
+    it('shows Option as Meta from config and writes it on toggle', async () => {
+      const user = userEvent.setup()
+      fakeBridge.setConfig({ terminal: { optionAsMeta: true } })
+      await openSettings(user)
+      const toggle = await screen.findByTestId('settings-option-as-meta')
+      expect(toggle).toBeChecked()
+
+      await user.click(toggle)
+
+      await waitFor(() => {
+        expect(fakeBridge.configSetCalls()).toEqual([
+          { patch: { terminal: { optionAsMeta: false } }, applyTonight: false }
+        ])
+      })
+    })
+
     it('shows the manual-quiet chime from config and writes it on toggle', async () => {
       const user = userEvent.setup()
       fakeBridge.setConfig({

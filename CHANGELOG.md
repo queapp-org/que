@@ -8,6 +8,8 @@ All notable changes to que are recorded here. The format follows
 
 ### Added
 
+- Option acts as Meta in a terminal, so Claude Code's Option shortcuts and a shell's Alt+B, F, D and Y work. If your keyboard needs Option to type characters such as `#` and `@`, turn it off under Settings > Terminal or with `terminal.option_as_meta = false`; open terminals follow the change.
+- Cmd+Backspace clears to the start of the line in a terminal, and Cmd+Left and Cmd+Right go to its start and end.
 - Links in a terminal work. Cmd+click opens a URL in your browser, whether it is plain text or an OSC 8 hyperlink; a plain click does nothing, and a link underlines under the pointer. Only http and https links open.
 
 ## [0.3.0] - 2026-11-02
