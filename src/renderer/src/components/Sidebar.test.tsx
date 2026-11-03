@@ -12,6 +12,7 @@ import {
   makeWorkspace
 } from '@renderer/testing/fixtures'
 import { minutesAgo, openWorkspace } from '@renderer/testing/helpers'
+import type { PreparationStep } from '@shared/types'
 import App from '../App'
 
 const uploader = makeProject()
@@ -173,7 +174,10 @@ describe('Sidebar', () => {
         expect(actions?.closest('.project-head')).toBeNull()
       }
 
-      for (const name of ['New workspace in uploader', 'More actions for uploader']) {
+      for (const name of [
+        'New workspace running Claude Code in uploader',
+        'More actions for uploader'
+      ]) {
         expect(
           screen.getByRole('button', { name }).closest('.project-head .head-actions')
         ).not.toBeNull()
@@ -290,7 +294,7 @@ describe('Sidebar', () => {
       render(<App />)
       await screen.findByTestId(`sidebar-workspace-${retry.id}`)
 
-      const created = await window.que.workspace.create({
+      const created = fakeBridge.createElsewhere({
         projectId: uploader.id,
         name: 'APP-1460 upload resume'
       })
@@ -302,6 +306,194 @@ describe('Sidebar', () => {
         'preparing'
       )
       expect(screen.queryByTestId(`sidebar-workspace-${board.id}`)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('the project head button', () => {
+    const start = (name = 'uploader'): Promise<HTMLElement> =>
+      screen.findByRole('button', { name: `New workspace running Claude Code in ${name}` })
+
+    it('is the 8-bit character alone, with no plus and no text, and says what it does', async () => {
+      seed()
+      render(<App />)
+
+      const button = await start()
+
+      expect(button).toHaveAttribute('title', 'New workspace running Claude Code')
+      expect(button).toHaveTextContent('')
+      expect(button.closest('.project-head .head-actions')).not.toBeNull()
+      const svg = button.querySelector('svg')
+      expect(svg).toHaveAttribute('viewBox', '1 0 16 10')
+      expect(svg).toHaveAttribute('width', '16')
+      expect(svg).toHaveAttribute('height', '10')
+      expect(svg).toHaveClass('claude-code-mark')
+    })
+
+    it('makes a workspace with a generated name, starting Claude, and shows it at once', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      render(<App />)
+
+      await user.click(await start())
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(fakeBridge.prepareWorkspaceCalls()).toEqual([{ projectId: uploader.id, start: true }])
+      const [ws] = await window.que.workspace.list()
+      expect(ws.name).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/)
+      expect(await screen.findByTestId(`sidebar-workspace-${ws.id}-open`)).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(mark(ws.id)).toHaveAttribute('data-status', 'preparing')
+      expect(mark(ws.id)).toHaveClass('working-mark', 'neutral')
+      expect(screen.getByTestId(`sidebar-workspace-${ws.id}-step`)).toHaveTextContent(
+        /^fetching origin \ds$/
+      )
+    })
+
+    it('makes one workspace from a double click', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      render(<App />)
+
+      await user.dblClick(await start())
+
+      await waitFor(() => {
+        expect(fakeBridge.prepareWorkspaceCalls()).toHaveLength(1)
+      })
+      expect(await window.que.workspace.list()).toHaveLength(1)
+    })
+
+    it('leaves the dialog to the project menu', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      render(<App />)
+
+      await user.click(await screen.findByRole('button', { name: 'More actions for uploader' }))
+      await user.click(screen.getByRole('menuitem', { name: 'New workspace…' }))
+
+      expect(screen.getByRole('dialog', { name: 'New workspace' })).toBeInTheDocument()
+      expect(fakeBridge.prepareWorkspaceCalls()).toEqual([])
+    })
+
+    it('says to restart a background service older than the app, on the error line', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      fakeBridge.withoutMethods('workspace.prepare')
+      render(<App />)
+
+      await user.click(await start())
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Restart que's background service to create a workspace"
+      )
+      expect(await window.que.workspace.list()).toEqual([])
+    })
+
+    it('puts a refusal on the error line', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      fakeBridge.refusePrepare('invalid que.toml in /Users/dev/code/uploader: setup: not a string')
+      render(<App />)
+
+      await user.click(await start())
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'invalid que.toml in /Users/dev/code/uploader: setup: not a string'
+      )
+      expect(await window.que.workspace.list()).toEqual([])
+    })
+  })
+
+  describe('preparing', () => {
+    const steps = {
+      plan: ['fetch', 'worktree', 'setup', 'claude'] as PreparationStep[],
+      since: new Date(NOW - 12_000).toISOString(),
+      done: [
+        { step: 'fetch' as const, ms: 900 },
+        { step: 'worktree' as const, ms: 200 }
+      ]
+    }
+
+    const preparing = makeWorkspace({
+      id: 'ws_01hzx7q2n4ks',
+      name: 'quiet-amber-fern',
+      status: 'preparing',
+      preparation: steps
+    })
+
+    const stopped = makeWorkspace({
+      id: 'ws_01hzx8w5c9tb',
+      name: 'still-coral-reef',
+      status: 'stuck',
+      statusReason: 'preparation_failed',
+      preparation: {
+        ...steps,
+        done: [
+          { step: 'fetch' as const, ms: 900 },
+          { step: 'worktree' as const, ms: 40, error: 'unknown base ref v9' }
+        ]
+      }
+    })
+
+    it('draws the neutral mark and the step with its clock, always shown, ticking each second', async () => {
+      let t = NOW
+      fakeBridge.seedProject(uploader)
+      fakeBridge.seedWorkspace(preparing)
+      render(<App now={() => t} />)
+
+      const step = await screen.findByTestId(`sidebar-workspace-${preparing.id}-step`)
+
+      expect(step).toHaveTextContent('running setup 12s')
+      expect(screen.getByTestId(`sidebar-workspace-${preparing.id}-open`)).toContainElement(step)
+      expect(mark(preparing.id)).toHaveClass('working-mark', 'neutral')
+      expect(screen.getByTestId(`sidebar-workspace-${preparing.id}-open`)).toBeEnabled()
+
+      t = NOW + 3_000
+      await waitFor(
+        () => {
+          expect(step).toHaveTextContent('running setup 15s')
+        },
+        { timeout: 3_000 }
+      )
+    })
+
+    it('offers only Remove in its menu', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      fakeBridge.seedWorkspace(preparing)
+      render(<App />)
+
+      await user.click(
+        await screen.findByRole('button', { name: `More actions for ${preparing.name}` })
+      )
+
+      expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Remove…'])
+    })
+
+    it('shows a failed step and why at the right end, in the bad tone, and can be removed', async () => {
+      const user = userEvent.setup()
+      fakeBridge.seedProject(uploader)
+      fakeBridge.seedWorkspace(stopped)
+      render(<App />)
+
+      const step = await screen.findByTestId(`sidebar-workspace-${stopped.id}-step`)
+
+      expect(step).toHaveTextContent('creating worktree failed: unknown base ref v9')
+      expect(step).toHaveClass('failed')
+      expect(step).toHaveAttribute('title', 'creating worktree failed: unknown base ref v9')
+      expect(mark(stopped.id)).toHaveClass('tone-bad')
+      expect(mark(stopped.id)).toHaveAttribute(
+        'title',
+        'creating worktree failed: unknown base ref v9'
+      )
+      expect(word(stopped.id)).toHaveTextContent('creating worktree failed')
+      expect(word(stopped.id)).toHaveClass('tone-bad')
+
+      await user.click(screen.getByRole('button', { name: `More actions for ${stopped.name}` }))
+      await user.click(screen.getByRole('menuitem', { name: 'Remove…' }))
+
+      expect(screen.getByRole('dialog', { name: `Remove ${stopped.name}?` })).toBeInTheDocument()
     })
   })
 

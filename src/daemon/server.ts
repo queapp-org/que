@@ -223,6 +223,7 @@ export class DaemonServer {
       status: this.status,
       emit,
       killTerminals: (id) => this.killWorkspaceTerminals(id),
+      startClaude: (id) => void this.startWorkspace(id),
       log: (m) => this.log(m),
       randomName: opts.randomWorkspaceName,
       config: () => this.strictConfig()
@@ -483,8 +484,8 @@ export class DaemonServer {
   }
 
   /**
-   * Starts claude on the brief (or the configured start prompt) in the workspace's first terminal (opened when it has
-   * none). Answers with the terminal at once; the command is typed once setup has ended.
+   * Starts claude on the brief (or the configured start prompt), or a bare claude with no brief, in the workspace's
+   * first terminal (opened when it has none). Answers with the terminal at once; the command is typed once setup has ended.
    */
   private startWorkspace(id: string, cols = 120, rows = 30): WorkspaceStartResult {
     const ws = this.workspaces.get(id)
@@ -821,6 +822,9 @@ export class DaemonServer {
       throw e
     }
 
+    // The table's type proves these methods' params name the workspace.
+    if (METHODS[name].needsWorktree) this.workspaces.requireWorktree((params as { id: string }).id)
+
     // Each handler takes its own method's params; the table above pairs them.
     const run = this.handlers[name] as (
       params: unknown,
@@ -913,6 +917,7 @@ export class DaemonServer {
       return { ok: true }
     },
     'workspace.create': (p) => this.workspaces.create(p),
+    'workspace.prepare': (p) => this.workspaces.prepare(p),
     'workspace.list': (p) => this.workspaces.list(p?.projectId),
     'workspace.get': (p) => this.workspaces.get(p.id),
     'workspace.remove': async (p) => {

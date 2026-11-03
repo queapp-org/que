@@ -128,7 +128,8 @@ describe('App', () => {
       render(<App />)
       await user.click(await screen.findByTestId(`sidebar-workspace-${retry.id}-open`))
       await user.click(await screen.findByRole('button', { name: 'Show review' }))
-      await user.click(screen.getByRole('button', { name: 'New workspace in uploader' }))
+      await user.click(screen.getByRole('button', { name: 'More actions for uploader' }))
+      await user.click(screen.getByRole('menuitem', { name: 'New workspace…' }))
       expect(screen.getByRole('dialog')).toBeInTheDocument()
 
       await user.keyboard('{Meta>}b{/Meta}')
@@ -171,7 +172,8 @@ describe('App', () => {
       const user = userEvent.setup()
       fakeBridge.seedProject(makeProject())
       render(<App />)
-      await user.click(await screen.findByRole('button', { name: /^New workspace in/ }))
+      await user.click(await screen.findByRole('button', { name: /^More actions for/ }))
+      await user.click(screen.getByRole('menuitem', { name: 'New workspace…' }))
       await screen.findByRole('dialog')
 
       await user.keyboard('{Meta>}k{/Meta}')
@@ -322,7 +324,9 @@ describe('App', () => {
         expect(screen.getByRole('button', { name })).toBeDisabled()
       }
 
-      expect(screen.getByRole('button', { name: 'New workspace in uploader' })).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'New workspace running Claude Code in uploader' })
+      ).toBeDisabled()
 
       expect(screen.getByRole('button', { name: 'Open in editor' })).toBeDisabled()
     })

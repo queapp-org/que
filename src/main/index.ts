@@ -18,7 +18,7 @@ import {
 import type { DaemonState, QuietKind, QuietState, UpdateStatus } from '../shared/types'
 import { handOffDaemon, handOffFailedText } from '../shared/upgrade'
 import { createBoardWindow } from './board'
-import { decodeAbsolutePath } from './ipc.decode'
+import { decodeAbsolutePath, decodeWorkspaceId } from './ipc.decode'
 import { installMenu } from './menu'
 import { createTray, type QueTray, quietTitle } from './tray'
 import { CHECK_TICK_MS, checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
@@ -391,6 +391,23 @@ function registerIpc(): void {
 
     return { ok: true }
   })
+
+  // Opens only a workspace's own setup log: the renderer names the workspace, not a path.
+  ipcMain.handle('app:openSetupLog', (_e, arg) =>
+    reply(async () => {
+      const id = decodeWorkspaceId(arg)
+
+      if (id === null) throw new Error('not a workspace id')
+
+      // A spec never launches the viewer.
+      if (e2e) return { ok: true }
+      const failed = await shell.openPath(join(quePaths().workspaceLogsDir, `${id}-setup.log`))
+
+      if (failed) throw new Error(failed)
+
+      return { ok: true }
+    })
+  )
 
   ipcMain.handle('app:updateStatus', () => updateStatus)
 

@@ -59,7 +59,8 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
   })
 
   await test.step('Create a workspace from the dialog, starting claude by hand', async () => {
-    await sidebar.projectAddWorkspace(project.id).click()
+    await sidebar.projectMenu(project.id).click()
+    await sidebar.projectMenuNewWorkspace(project.id).click()
     await sidebar.newWorkspaceBrief.fill('APP-1432 retry logic')
     await sidebar.newWorkspaceName.fill('APP-1432 retry logic')
     await expect(sidebar.newWorkspaceSlug).toHaveText('Becomes app-1432-retry-logic')

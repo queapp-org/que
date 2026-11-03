@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { prCounts } from '../pr-list'
-import { isWorkspace, type ReviewView, useQueSelector, useStore } from '../store'
+import { isPreparing, isWorkspace, type ReviewView, useQueSelector, useStore } from '../store'
 import ChangesList from './ChangesList'
 import FilesTree from './FilesTree'
 import {
@@ -123,6 +123,8 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
   const place = store.reviewPlace(termKey)
   const [filterFocus, setFilterFocus] = useState(0)
   const workspace = useQueSelector((s) => isWorkspace(s, termKey))
+  // Until its preparation has finished there is no worktree to read.
+  const preparing = useQueSelector((s) => isPreparing(s, termKey))
 
   const pr =
     place.view === 'prs' && place.pr !== null
@@ -201,7 +203,7 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
               <RefreshButton
                 key={`${termKey}:${place.view}:${pr?.number ?? ''}`}
                 testId={`${testId}-refresh`}
-                disabled={!connected}
+                disabled={!connected || preparing}
                 onRefresh={refresh}
               />
               <button
@@ -210,7 +212,7 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
                 aria-label="Open in editor"
                 title="Open in editor"
                 data-testid={`${testId}-open-editor`}
-                disabled={!connected}
+                disabled={!connected || preparing}
                 onClick={() => void store.openInEditor(ws.path)}
               >
                 <EditorIcon />
@@ -232,6 +234,10 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
       {!workspace ? (
         <p className="changes-note" data-testid="review-empty">
           No workspace
+        </p>
+      ) : preparing ? (
+        <p className="changes-note" data-testid="review-preparing">
+          Nothing to review yet.
         </p>
       ) : place.view === 'changes' ? (
         <ChangesList termKey={termKey} />

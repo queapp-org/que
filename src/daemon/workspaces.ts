@@ -20,18 +20,24 @@ import type { QuePaths } from '../shared/paths'
 import type {
   ProjectAddParams,
   WorkspaceCreateParams,
+  WorkspacePrepareParams,
   WorkspaceRemoveParams,
   WorkspaceRenameParams
 } from '../shared/protocol'
 import { randomWorkspaceName } from '../shared/names'
+import { preparationFailure, preparationStep, preparationUnfinished } from '../shared/preparation'
 import { workspaceSlug } from '../shared/slug'
 import { removalStep } from '../shared/removal'
 import type {
+  Preparation,
+  PreparationResult,
+  PreparationStep,
   Project,
   Removal,
   RemovalFailure,
   RemovalResult,
   RemovalStep,
+  TitleSource,
   Workspace
 } from '../shared/types'
 import { reflogBranches, renameBranch, withBranch } from './branch-history'
@@ -54,6 +60,8 @@ export interface GitOptions {
   maxBuffer?: number
   /** Written to git's stdin (e.g. object ids for `cat-file --batch-check`). */
   input?: string
+  /** Kills the run when it aborts. */
+  signal?: AbortSignal
 }
 
 /** Runs git in `cwd`; never throws. */
@@ -68,6 +76,7 @@ export async function git(
     timeoutMs,
     maxBuffer: opts.maxBuffer ?? 16 * 1024 * 1024,
     input: opts.input,
+    signal: opts.signal,
     // Without this, each git status holds index.lock while it runs, and a git add or commit in
     // that worktree fails on the spot. The daemon reads a shown worktree after every change.
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }
@@ -158,6 +167,8 @@ export interface WorkspaceManagerOptions {
   emit: Emit
   /** Kills (and announces) every terminal of a workspace. */
   killTerminals: (workspaceId: string) => void
+  /** Opens the workspace's first terminal and has claude start there once its setup has ended. */
+  startClaude: (workspaceId: string) => void
   /** The user config; throws bad_request when the file cannot be read. */
   config: () => UserConfig
   log?: (msg: string) => void
@@ -165,11 +176,31 @@ export interface WorkspaceManagerOptions {
   randomName?: () => string
 }
 
+/** A new workspace that passed every check that needs no worktree: its name, branch and folder are free. */
+interface NewWorkspace {
+  project: Project
+  repo: RepoConfig
+  name: string
+  branch: string
+  path: string
+  brief?: string
+  title?: string
+  titleSource?: TitleSource
+}
+
+/** How a worktree is added: `resumed` after a restart stopped an earlier try, `signal` to kill it. */
+interface AddWorktreeOptions {
+  resumed?: boolean
+  signal?: AbortSignal
+}
+
 export class WorkspaceManager {
   private setups = new Map<string, ChildProcess>()
   private teardowns = new Map<string, ChildProcess>()
   /** Each workspace's removal in progress, settling when it has finished. */
   private removals = new Map<string, Promise<void>>()
+  /** Each workspace's preparation in progress: how to stop it, and when it has stopped. */
+  private preparations = new Map<string, { stop: AbortController; done: Promise<void> }>()
   /** After close(): the store may be closed, so a removal stops where it is. */
   private closed = false
 
@@ -307,15 +338,50 @@ export class WorkspaceManager {
   /**
    * Makes a workspace from a name (a clash is refused) or, without one, under a random
    * three-word name (drawn again on a clash, up to 50 times). The title defaults to the
-   * brief's first line; a brief goes to `.que/brief.md`.
+   * brief's first line; a brief goes to `.que/brief.md`. Answers once the worktree exists, with
+   * setup running in the background; nothing is left behind when it is refused.
    */
   async create(p: WorkspaceCreateParams): Promise<Workspace> {
+    const fresh = await this.newWorkspace(p)
+    await this.fetchOrigin(fresh.project)
+    const baseRef = await this.addWorktree(fresh, p.baseRef)
+    const ws = this.insertWorkspace(fresh, baseRef)
+    this.startSetup(ws, fresh.repo.setup)
+
+    return ws
+  }
+
+  /**
+   * As create, but answers with the row before any of the slow work: a refused name still fails
+   * here, and the steps then run in the background (see runPreparation).
+   */
+  async prepare(p: WorkspacePrepareParams): Promise<Workspace> {
+    const fresh = await this.newWorkspace(p)
+    const plan: PreparationStep[] = ['fetch', 'worktree']
+
+    if (fresh.repo.setup) plan.push('setup')
+
+    if (p.start) plan.push('claude')
+
+    const ws = this.insertWorkspace(fresh, p.baseRef ?? '', {
+      plan,
+      since: new Date().toISOString(),
+      done: []
+    })
+
+    this.log(`workspace ${ws.id} preparing: ${plan.join(', ')}`)
+    this.beginPreparation(ws.id)
+
+    return ws
+  }
+
+  /** Checks the name and draws one when none is given; throws when it cannot be used. */
+  private async newWorkspace(p: WorkspaceCreateParams): Promise<NewWorkspace> {
     const project = this.project(p.projectId)
     const brief = p.brief?.trim() ? p.brief : undefined
     const explicitTitle = p.title?.trim() || undefined
     const title = explicitTitle || (brief ? titleOf(brief) : undefined) || undefined
     const titleSource = title ? (explicitTitle ? 'user' : 'brief') : undefined
-    const id = newId('ws_')
     const explicit = p.name !== undefined
     const draw = this.opts.randomName ?? (() => randomWorkspaceName())
     const wanted = explicit ? workspaceSlug(p.name ?? '') : draw()
@@ -338,16 +404,16 @@ export class WorkspaceManager {
     const repo = this.repoConfig(project.path)
 
     // The first free name: only the given one for an explicit name, else up to 50 draws.
-    let slug = ''
+    let name = ''
     let branch = ''
     let path = ''
     let clash = ''
 
     for (let i = 1; i <= (explicit ? 1 : 50); i++) {
-      slug = i === 1 ? wanted : draw()
-      branch = p.branch ?? slug
-      path = join(config.worktreeRoot, project.name, slug)
-      clash = await this.clash(project, slug, branch, path)
+      name = i === 1 ? wanted : draw()
+      branch = p.branch ?? name
+      path = join(config.worktreeRoot, project.name, name)
+      clash = await this.clash(project, name, branch, path)
 
       if (!clash) break
 
@@ -356,18 +422,35 @@ export class WorkspaceManager {
 
     if (clash) throw conflict(clash)
 
-    const remotes = await git(project.path, ['remote'])
-    const hasOrigin = remotes.ok && remotes.stdout.split('\n').includes('origin')
+    return { project, repo, name, branch, path, brief, title, titleSource }
+  }
 
-    if (hasOrigin) {
-      const fetched = await git(project.path, ['fetch', 'origin'], 30_000)
+  /** Fetches origin, when there is one; a failure is logged and the work goes on from what is known. */
+  private async fetchOrigin(project: Project, signal?: AbortSignal): Promise<void> {
+    const remotes = await git(project.path, ['remote'], 60_000, { signal })
 
-      if (!fetched.ok) this.log(`git fetch origin failed (continuing): ${fetched.stderr}`)
-    }
+    if (!remotes.ok || !remotes.stdout.split('\n').includes('origin')) return
+    const fetched = await git(project.path, ['fetch', 'origin'], 30_000, { signal })
+
+    if (!fetched.ok) this.log(`git fetch origin failed (continuing): ${fetched.stderr}`)
+  }
+
+  /**
+   * `git worktree add` from the asked base, else from origin/<default branch> when that ref
+   * exists, else <default branch>; then the files worktree_include lists, and the brief. Answers
+   * with the base. A try the daemon's restart stopped may have got as far as the branch or the
+   * whole worktree, so a resumed one goes on from there.
+   */
+  private async addWorktree(
+    w: Pick<NewWorkspace, 'project' | 'repo' | 'branch' | 'path' | 'brief'>,
+    asked: string | undefined,
+    opts: AddWorktreeOptions = {}
+  ): Promise<string> {
+    const { project, branch, path, brief } = w
 
     const base =
-      p.baseRef ??
-      (hasOrigin && (await refExists(project.path, `refs/remotes/origin/${project.defaultBranch}`))
+      asked ??
+      ((await refExists(project.path, `refs/remotes/origin/${project.defaultBranch}`))
         ? `origin/${project.defaultBranch}`
         : project.defaultBranch)
 
@@ -377,19 +460,22 @@ export class WorkspaceManager {
 
     fs.mkdirSync(dirname(path), { recursive: true })
 
-    const added = await git(project.path, [
-      'worktree',
-      'add',
-      '--no-track',
-      '-b',
-      branch,
-      path,
-      base
-    ])
+    if (!opts.resumed || !fs.existsSync(join(path, '.git'))) {
+      const branched = opts.resumed && (await refExists(project.path, `refs/heads/${branch}`))
 
-    if (!added.ok) throw badRequest(`git worktree add failed: ${added.stderr}`)
+      const added = await git(
+        project.path,
+        branched
+          ? ['worktree', 'add', path, branch]
+          : ['worktree', 'add', '--no-track', '-b', branch, path, base],
+        60_000,
+        { signal: opts.signal }
+      )
 
-    copyIncludes(project.path, path, repo.worktreeInclude, (m) => this.log(m))
+      if (!added.ok) throw badRequest(`git worktree add failed: ${added.stderr}`)
+    }
+
+    copyIncludes(project.path, path, w.repo.worktreeInclude, (m) => this.log(m))
 
     if (brief) {
       fs.mkdirSync(join(path, '.que'), { recursive: true })
@@ -397,16 +483,21 @@ export class WorkspaceManager {
       await excludeQueDir(path)
     }
 
+    return base
+  }
+
+  /** Stores the new workspace in `preparing` and announces it. */
+  private insertWorkspace(w: NewWorkspace, baseRef: string, preparation?: Preparation): Workspace {
     const now = new Date().toISOString()
 
     const ws: Workspace = {
-      id,
-      projectId: project.id,
-      name: slug,
-      branch,
-      branches: [branch],
-      path,
-      baseRef: base,
+      id: newId('ws_'),
+      projectId: w.project.id,
+      name: w.name,
+      branch: w.branch,
+      branches: [w.branch],
+      path: w.path,
+      baseRef,
       status: 'preparing',
       statusReason: null,
       statusAt: now,
@@ -422,19 +513,165 @@ export class WorkspaceManager {
       backgroundTasks: []
     }
 
-    if (title) ws.title = title
+    if (w.title) ws.title = w.title
 
-    if (brief) ws.brief = brief
+    if (w.brief) ws.brief = w.brief
 
-    if (titleSource) ws.titleSource = titleSource
+    if (w.titleSource) ws.titleSource = w.titleSource
+
+    if (preparation) ws.preparation = preparation
 
     this.opts.store.insertWorkspace(ws)
-    this.log(`workspace ${ws.id} created at ${path} on ${branch} from ${base}`)
+    this.log(
+      `workspace ${ws.id} created at ${w.path} on ${w.branch}${baseRef && ` from ${baseRef}`}`
+    )
     this.opts.emit('workspace.created', ws)
     this.opts.status.begin(ws)
-    this.runSetup(ws, repo.setup)
 
     return ws
+  }
+
+  /** Starts running a stored preparation in the background. */
+  private beginPreparation(id: string, resumed = false): void {
+    const stop = new AbortController()
+
+    this.preparations.set(id, {
+      stop,
+      done: this.runPreparation(id, stop.signal, resumed).finally(() =>
+        this.preparations.delete(id)
+      )
+    })
+  }
+
+  /**
+   * Runs the planned steps from the current one, announcing each result (which starts the next
+   * step's clock). A step that fails stops the rest, except setup: claude starts after a failed
+   * setup, as it does in a workspace that was created and started. The workspace leaves
+   * `preparing` only when the steps end. Stops where it is when the daemon shuts down, to be
+   * resumed by start(), and when the workspace is being removed.
+   */
+  private async runPreparation(id: string, signal: AbortSignal, resumed: boolean): Promise<void> {
+    try {
+      const ws = this.opts.store.getWorkspace(id)
+
+      if (!ws?.preparation) return
+      let preparation = ws.preparation
+
+      for (const step of preparation.plan.slice(preparation.done.length)) {
+        const started = Date.now()
+
+        // A step a child still holds (a stuck fetch's helper, say) must not hold up a removal.
+        const error = await Promise.race([
+          this.runPreparationStep(step, ws, signal, resumed),
+          whenAborted(signal)
+        ])
+
+        if (this.closed || signal.aborted) return
+        const result: PreparationResult = { step, ms: Date.now() - started }
+
+        if (error) {
+          result.error = error
+          this.log(`workspace ${id} preparation: ${step} failed: ${error}`)
+        }
+
+        preparation = withResult(preparation, result)
+
+        if (error && step !== 'setup') {
+          this.opts.store.setWorkspacePreparation(id, preparation)
+          // The engine commits `stuck` and announces the row, the failed step included.
+          this.opts.status.apply(id, { kind: 'preparation_failed' })
+
+          return
+        }
+
+        if (preparation.done.length < preparation.plan.length) {
+          this.savePreparation(id, preparation)
+        }
+      }
+
+      this.finishPreparation(id, preparation)
+    } catch (err) {
+      if (!this.closed) this.log(`workspace ${id} preparation stopped: ${errorMessage(err)}`)
+    }
+  }
+
+  /** Runs one preparation step; returns why it failed, or undefined. Never throws. */
+  private async runPreparationStep(
+    step: PreparationStep,
+    ws: Workspace,
+    signal: AbortSignal,
+    resumed: boolean
+  ): Promise<string | undefined> {
+    try {
+      const project = this.project(ws.projectId)
+
+      switch (step) {
+        case 'fetch':
+          await this.fetchOrigin(project, signal)
+
+          return undefined
+        case 'worktree': {
+          const repo = this.repoConfig(project.path)
+          const { branch, path, brief } = ws
+          const asked = ws.baseRef || undefined
+          const opts = { resumed, signal }
+          const made = { project, repo, branch, path, brief }
+
+          this.opts.store.setWorkspaceBaseRef(ws.id, await this.addWorktree(made, asked, opts))
+
+          return undefined
+        }
+
+        case 'setup': {
+          // Read now, not when it was planned: que.toml may have changed since, a restart apart.
+          const command = this.repoConfig(project.path).setup
+
+          return command ? await this.runSetup(ws, command, signal) : undefined
+        }
+
+        case 'claude':
+          this.opts.startClaude(ws.id)
+
+          return undefined
+      }
+    } catch (err) {
+      return errorMessage(err)
+    }
+  }
+
+  /** Stores where the preparation stands and announces the row with workspace.updated. */
+  private savePreparation(id: string, preparation: Preparation): void {
+    this.opts.store.setWorkspacePreparation(id, preparation)
+    const ws = this.opts.store.getWorkspace(id)
+
+    if (ws) this.opts.emit('workspace.updated', ws)
+  }
+
+  /**
+   * Every step has run: the workspace leaves `preparing`, which is what starts claude typing, and
+   * the row says so once. A failed setup stays on it, so the reason can still be shown.
+   */
+  private finishPreparation(id: string, preparation: Preparation): void {
+    const failed = preparationFailure(preparation) !== null
+    this.opts.store.setWorkspacePreparation(id, failed ? preparation : null)
+    const stillPreparing = this.opts.store.getWorkspace(id)?.status === 'preparing'
+    this.opts.status.apply(id, { kind: failed ? 'setup_failed' : 'setup_done' })
+    this.log(`workspace ${id} prepared${failed ? ' (setup failed)' : ''}`)
+
+    // Moved on already, the engine has nothing to announce.
+    if (stillPreparing) return
+    const ws = this.opts.store.getWorkspace(id)
+
+    if (ws) this.opts.emit('workspace.updated', ws)
+  }
+
+  /** Refuses what needs a finished worktree on a workspace still being prepared, or stopped by a failed step. */
+  requireWorktree(id: string): void {
+    const ws = this.get(id)
+
+    if (preparationUnfinished(ws)) {
+      throw conflict(`workspace ${ws.name} is not ready: its preparation has not finished`)
+    }
   }
 
   /** Why this name, branch, or path cannot be used, or '' (archived rows holding it are dropped). */
@@ -513,6 +750,8 @@ export class WorkspaceManager {
     const branch = p.branch?.trim()
 
     if (branch !== undefined && branch !== ws.branch) {
+      this.requireWorktree(ws.id)
+
       if (!(await validBranch(ws.path, branch))) {
         throw badRequest(`invalid branch name ${JSON.stringify(branch)}`)
       }
@@ -554,24 +793,42 @@ export class WorkspaceManager {
     this.opts.emit('workspace.updated', this.get(id))
   }
 
-  private runSetup(ws: Workspace, command: string | undefined): void {
+  /** Runs a created workspace's setup in the background; the status follows its end. */
+  private startSetup(ws: Workspace, command: string | undefined): void {
     if (!command) {
       this.opts.status.apply(ws.id, { kind: 'setup_done' })
 
       return
     }
 
-    const child = this.runInWorktree(ws, 'setup', command)
+    void this.runSetup(ws, command).then((error) =>
+      this.opts.status.apply(ws.id, { kind: error ? 'setup_failed' : 'setup_done' })
+    )
+  }
+
+  /** Runs the repo's setup command to its end; returns why it failed, or undefined. Never throws. */
+  private async runSetup(
+    ws: Workspace,
+    command: string,
+    signal?: AbortSignal
+  ): Promise<string | undefined> {
+    let child: ChildProcess
+
+    try {
+      child = this.runInWorktree(ws, 'setup', command)
+    } catch (err) {
+      return errorMessage(err)
+    }
+
     this.setups.set(ws.id, child)
+    signal?.addEventListener('abort', () => killGroup(child), { once: true })
+    const { code, error } = await exited(child)
 
-    void exited(child).then(({ code, error }) => {
-      const ok = code === 0 && error === undefined
+    if (this.setups.get(ws.id) === child) this.setups.delete(ws.id)
+    const failure = error ?? (code === 0 ? undefined : `exited with code ${code ?? 'null'}`)
+    this.log(`workspace ${ws.id} setup ${failure ? 'failed' : 'finished'}`)
 
-      if (this.setups.get(ws.id) === child) this.setups.delete(ws.id)
-      this.log(`workspace ${ws.id} setup ${ok ? 'finished' : 'failed'}`)
-
-      this.opts.status.apply(ws.id, { kind: ok ? 'setup_done' : 'setup_failed' })
-    })
+    return failure
   }
 
   /** Runs a que.toml command in the worktree via /bin/sh, logging to logs/workspaces/. */
@@ -600,12 +857,16 @@ export class WorkspaceManager {
     const ws = this.get(p.id)
 
     if (ws.status === 'removing' || this.removals.has(ws.id)) return
+    // A preparation still running stops here, and is gone before the first removal step.
+    const preparing = this.preparations.get(ws.id)
+    preparing?.stop.abort()
     const marked = this.markRemoving(ws.id, p.deleteBranch)
 
     // Held from the first await, so a second remove of the same workspace finds it.
     this.removals.set(
       ws.id,
       marked
+        .then(() => preparing?.done)
         .then(() => this.runRemoval(ws.id))
         .catch(() => {})
         .finally(() => this.removals.delete(ws.id))
@@ -614,10 +875,12 @@ export class WorkspaceManager {
   }
 
   /**
-   * Resumes the removals a previous daemon left unfinished, from the step each one was on,
-   * and empties the trash in the background.
+   * Resumes the preparations and the removals a previous daemon left unfinished, from the step
+   * each one was on, and empties the trash in the background.
    */
   start(): void {
+    this.resumePreparations()
+
     for (const id of this.opts.store.listWorkspaceIdsByStatus('removing')) {
       if (this.removals.has(id)) continue
       const ws = this.opts.store.getWorkspace(id)
@@ -641,13 +904,44 @@ export class WorkspaceManager {
       .catch(() => {})
   }
 
+  /**
+   * A workspace the last daemon left `preparing` goes on from its step. One from workspace.create
+   * has no steps: it got that far with its setup running, and the daemon's stop ended that.
+   */
+  private resumePreparations(): void {
+    for (const id of this.opts.store.listWorkspaceIdsByStatus('preparing')) {
+      const ws = this.opts.store.getWorkspace(id)
+      const project = ws && this.opts.store.getProject(ws.projectId)
+
+      if (!ws || !project) continue
+
+      if (!ws.preparation) {
+        this.log(`workspace ${id} setup runs again`)
+        this.startSetup(ws, this.repoCommand(project, 'setup'))
+        continue
+      }
+
+      this.log(
+        `workspace ${id} preparation resumes at ${preparationStep(ws.preparation) ?? 'the end'}`
+      )
+      this.savePreparation(id, { ...ws.preparation, since: new Date().toISOString() })
+      this.beginPreparation(id, true)
+    }
+  }
+
   /** Records the branch it has checked out, plans the steps, and moves it to `removing`. */
   private async markRemoving(id: string, deleteBranch: boolean): Promise<void> {
     const ws = await this.syncBranch(id)
     const project = this.opts.store.getProject(ws.projectId)
     const plan: RemovalStep[] = ['terminals']
 
-    if (project && fs.existsSync(ws.path) && this.teardownCommand(project)) plan.push('teardown')
+    // Teardown undoes setup: a workspace whose worktree step never finished has nothing to undo.
+    const made =
+      !ws.preparation || ws.preparation.done.some((r) => r.step === 'worktree' && !r.error)
+
+    if (project && made && fs.existsSync(ws.path) && this.repoCommand(project, 'teardown')) {
+      plan.push('teardown')
+    }
 
     if (project) plan.push('worktree')
 
@@ -658,10 +952,11 @@ export class WorkspaceManager {
     this.log(`workspace ${ws.id} removing: ${plan.join(', ')}`)
   }
 
-  private teardownCommand(project: Project): string | undefined {
+  /** The repo's setup or teardown command; none when que.toml has none or cannot be read. */
+  private repoCommand(project: Project, kind: 'setup' | 'teardown'): string | undefined {
     const r = loadRepoConfig(project.path)
 
-    return r.ok ? r.config.teardown : undefined
+    return r.ok ? r.config[kind] : undefined
   }
 
   /** Stores where the removal stands and announces the row with workspace.updated. */
@@ -736,6 +1031,12 @@ export class WorkspaceManager {
           return project ? await this.removeWorktree(ws, project) : 'its project is gone'
         case 'branch': {
           if (!project) return 'its project is gone'
+
+          // Removed before its worktree step made the branch.
+          if (ws.preparation && !(await refExists(project.path, `refs/heads/${ws.branch}`))) {
+            return undefined
+          }
+
           const deleted = await git(project.path, ['branch', '-D', ws.branch])
 
           return deleted.ok ? undefined : `git branch -D ${ws.branch} failed: ${deleted.stderr}`
@@ -759,7 +1060,7 @@ export class WorkspaceManager {
 
   /** The repo's teardown hook, killed after teardown_timeout_seconds; skipped when the worktree is gone. */
   private async teardown(ws: Workspace, project: Project): Promise<string | undefined> {
-    const command = this.teardownCommand(project)
+    const command = this.repoCommand(project, 'teardown')
 
     if (!command || !fs.existsSync(ws.path)) return undefined
     const seconds = this.configOrDefaults().teardownTimeoutSeconds
@@ -846,9 +1147,11 @@ export class WorkspaceManager {
     return join(this.configOrDefaults().worktreeRoot, '.trash')
   }
 
-  /** Stops setup and teardown commands still running (daemon shutdown); removals resume at the next start. */
+  /** Stops preparations and setup and teardown commands still running (daemon shutdown); preparations and removals resume at the next start. */
   close(): void {
     this.closed = true
+
+    for (const { stop } of this.preparations.values()) stop.abort()
 
     for (const child of this.setups.values()) killGroup(child)
 
@@ -861,6 +1164,22 @@ export class WorkspaceManager {
 /** A removal at the first of its planned steps, starting now. */
 function newRemoval(plan: RemovalStep[]): Removal {
   return { plan, since: new Date().toISOString(), done: [] }
+}
+
+/** The preparation with one more step done, and the next step's clock starting now. */
+function withResult(preparation: Preparation, result: PreparationResult): Preparation {
+  return {
+    ...preparation,
+    done: [...preparation.done, result],
+    since: new Date().toISOString()
+  }
+}
+
+/** Settles when `signal` aborts, and never otherwise. */
+function whenAborted(signal: AbortSignal): Promise<undefined> {
+  return new Promise((resolve) => {
+    signal.addEventListener('abort', () => resolve(undefined), { once: true })
+  })
 }
 
 /** The child's exit: its code, or the spawn error's message. */

@@ -6,6 +6,20 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- One click to a Claude session. The `+` on a project is now Claude Code's character: it makes a workspace with a generated name and the default base, starts Claude there and puts the keyboard in its terminal, so you speak or type your first prompt in Claude's own input. "New workspace…" in the project's ⋯ menu is still there for setting a name or a base ref, or for leaving a brief and walking away.
+- A new workspace appears in the sidebar the moment you ask for it. Its row and the main pane show each step with a clock (fetching origin, creating worktree, running setup, starting Claude), with a button to open the setup log. A step that fails says which one and why, and you can remove the workspace from there. Quitting or restarting the background service partway picks up from the step it was on.
+
+### Changed
+
+- The brief in the New workspace dialog is optional, and its checkbox now reads "Start Claude". With no brief, Claude waits for your first prompt.
+- A workspace with no brief now starts a plain `claude` even when `start_prompt` is set, so Claude doesn't start working before you've said anything. A workspace with a brief uses `start_prompt` as before.
+
+### Fixed
+
+- A workspace left preparing when the background service stopped no longer stays that way: its setup runs again when the service starts.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

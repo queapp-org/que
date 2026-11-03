@@ -12,19 +12,22 @@ import { isObj, num, objects, str, strings } from '../shared/json.decode'
 import type {
   BackgroundTask,
   JsonValue,
+  Preparation,
+  PreparationStep,
   Project,
   PullRequest,
   QuietKind,
   QuietUnlock,
   Removal,
-  RemovalResult,
   RemovalStep,
+  StepResult,
+  StepRun,
   Ticket,
   TitleSource,
   Workspace,
   WorkspaceStatus
 } from '../shared/types'
-import { REMOVAL_STEPS, TITLE_SOURCES } from '../shared/types'
+import { PREPARATION_STEPS, REMOVAL_STEPS, TITLE_SOURCES } from '../shared/types'
 import { appendNew } from './branch-history'
 import { currentPullRequest } from './pr-state'
 
@@ -154,7 +157,8 @@ export const MIGRATIONS: readonly string[] = [
   `ALTER TABLE workspaces ADD COLUMN removal_json TEXT;`,
   `ALTER TABLE workspaces ADD COLUMN pr_urls_json TEXT;
    UPDATE workspaces SET pr_urls_json = json_array(pr_url) WHERE pr_url IS NOT NULL;
-   ALTER TABLE workspaces ADD COLUMN branches_json TEXT;`
+   ALTER TABLE workspaces ADD COLUMN branches_json TEXT;`,
+  `ALTER TABLE workspaces ADD COLUMN preparation_json TEXT;`
 ]
 
 const STATUS_LOG_RETENTION_MS = 30 * 24 * 3_600_000
@@ -267,6 +271,7 @@ interface WorkspaceRow {
   seen_at: string | null
   background_json: string | null
   removal_json: string | null
+  preparation_json: string | null
   pr_urls_json: string | null
   branches_json: string | null
 }
@@ -350,8 +355,14 @@ function readBackgroundTasks(json: string | null): BackgroundTask[] {
 const isRemovalStep = (v: unknown): v is RemovalStep =>
   (REMOVAL_STEPS as readonly unknown[]).includes(v)
 
-/** The stored removal (removal_json); undefined when missing or not one. */
-function readRemoval(json: string | null): Removal | undefined {
+const isPreparationStep = (v: unknown): v is PreparationStep =>
+  (PREPARATION_STEPS as readonly unknown[]).includes(v)
+
+/** A stored run of steps (removal_json, preparation_json); undefined when missing or not one. */
+function readSteps<S extends string>(
+  json: string | null,
+  isStep: (v: unknown) => v is S
+): StepRun<S> | undefined {
   const v = parseStored(json)
 
   if (!isObj(v)) return undefined
@@ -359,16 +370,16 @@ function readRemoval(json: string | null): Removal | undefined {
 
   if (!since) return undefined
 
-  const done = objects(v.done).flatMap((d): RemovalResult[] => {
+  const done = objects(v.done).flatMap((d): StepResult<S>[] => {
     const ms = num(d.ms)
     const error = str(d.error)
 
-    if (!isRemovalStep(d.step) || ms === undefined) return []
+    if (!isStep(d.step) || ms === undefined) return []
 
     return [error === undefined ? { step: d.step, ms } : { step: d.step, ms, error }]
   })
 
-  return { plan: strings(v.plan).filter(isRemovalStep), since, done }
+  return { plan: strings(v.plan).filter(isStep), since, done }
 }
 
 function toWorkspace(r: WorkspaceRow): Workspace {
@@ -401,9 +412,13 @@ function toWorkspace(r: WorkspaceRow): Workspace {
 
   if (r.brief) ws.brief = r.brief
 
-  const removal = readRemoval(r.removal_json ?? null)
+  const removal = readSteps(r.removal_json ?? null, isRemovalStep)
 
   if (removal) ws.removal = removal
+
+  const preparation = readSteps(r.preparation_json ?? null, isPreparationStep)
+
+  if (preparation) ws.preparation = preparation
 
   const source = titleSourceOf(r.title_source)
 
@@ -550,8 +565,9 @@ export class Store {
     this.run(
       `INSERT INTO workspaces (id, project_id, name, branch, path, base_ref, status, status_reason,
            status_at, last_activity_at, session_id, created_at, archived_at, pr_urls_json, pr_json,
-           prs_json, title, brief, title_source, finished_at, seen_at, removal_json, branches_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           prs_json, title, brief, title_source, finished_at, seen_at, removal_json, branches_json,
+           preparation_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       w.id,
       w.projectId,
       w.name,
@@ -575,7 +591,8 @@ export class Store {
       w.finishedAt,
       w.seenAt,
       w.removal ? JSON.stringify(w.removal) : null,
-      JSON.stringify(w.branches)
+      JSON.stringify(w.branches),
+      w.preparation ? JSON.stringify(w.preparation) : null
     )
   }
 
@@ -678,6 +695,20 @@ export class Store {
       removal ? JSON.stringify(removal) : null,
       id
     )
+  }
+
+  /** Where the workspace's preparation stands; null clears it. */
+  setWorkspacePreparation(id: string, preparation: Preparation | null): void {
+    this.run(
+      'UPDATE workspaces SET preparation_json = ? WHERE id = ?',
+      preparation ? JSON.stringify(preparation) : null,
+      id
+    )
+  }
+
+  /** The ref the worktree was made from, once a preparation has resolved it. */
+  setWorkspaceBaseRef(id: string, baseRef: string): void {
+    this.run('UPDATE workspaces SET base_ref = ? WHERE id = ?', baseRef, id)
   }
 
   archiveWorkspace(id: string, at: string): void {

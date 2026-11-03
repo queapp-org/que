@@ -29,7 +29,7 @@ import type {
   TermInfo,
   TermListParams,
   TermSnapshotResult,
-  WorkspaceCreateParams,
+  WorkspacePrepareParams,
   WorkspaceDiff,
   WorkspaceDiffFile,
   WorkspaceDiffFileParams,
@@ -44,9 +44,7 @@ import type {
   WorkspaceListParams,
   WorkspaceOpenTerminalParams,
   WorkspaceRemoveParams,
-  WorkspaceRenameParams,
-  WorkspaceStartParams,
-  WorkspaceStartResult
+  WorkspaceRenameParams
 } from '../shared/protocol'
 import type {
   DaemonState,
@@ -145,6 +143,8 @@ export interface AppApi {
   openFolder(): Promise<string | null>
   /** Opens a folder in a new editor window (`code -n <path>`); fire-and-forget. */
   openInEditor(params: { path: string }): Promise<{ ok: true }>
+  /** Opens a workspace's setup log in the system's viewer for it. */
+  openSetupLog(params: { id: string }): Promise<{ ok: true }>
   /** The menu-bar title. Answers only when the app was launched with QUE_E2E=1. */
   trayTitle(): Promise<string>
   /** What the update check last said, and what this build is. */
@@ -200,14 +200,14 @@ export type WorkspaceEvents = Pick<Events, WorkspaceEventName>
 
 /** Mirrors the daemon's workspace.* methods and events. */
 export interface WorkspaceApi {
-  create(params: WorkspaceCreateParams): Promise<Workspace>
+  /** Answers with the row before the fetch and the worktree; the steps then run in the daemon. */
+  prepare(params: WorkspacePrepareParams): Promise<Workspace>
   list(params?: WorkspaceListParams): Promise<Workspace[]>
   get(params: { id: string }): Promise<Workspace>
   remove(params: WorkspaceRemoveParams): Promise<{ ok: true }>
   /** Opens a terminal in the worktree with the hooks wrapper on PATH. */
   openTerminal(params: WorkspaceOpenTerminalParams): Promise<TermInfo>
   /** Types claude with the start prompt into the workspace's first terminal (opened when none) once setup is done. */
-  start(params: WorkspaceStartParams): Promise<WorkspaceStartResult>
   /** Sets the title, and renames the branch when asked and allowed. */
   rename(params: WorkspaceRenameParams): Promise<Workspace>
   /** Whether rename may also rename the branch (it was never pushed). */

@@ -88,12 +88,11 @@ const api: QueApi = {
     set: (p) => call('instructions.set', p)
   },
   workspace: {
-    create: (p) => call('workspace.create', p),
+    prepare: (p) => call('workspace.prepare', p),
     list: (p) => call('workspace.list', p),
     get: (p) => call('workspace.get', p),
     remove: (p) => call('workspace.remove', p),
     openTerminal: (p) => call('workspace.openTerminal', p),
-    start: (p) => call('workspace.start', p),
     rename: (p) => call('workspace.rename', p),
     canRenameBranch: (p) => call('workspace.canRenameBranch', p),
     seen: (p) => call('workspace.seen', p),
@@ -121,6 +120,7 @@ const api: QueApi = {
     homedir: () => ipcRenderer.invoke('app:homedir'),
     openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
     openInEditor: (p) => ipcRenderer.invoke('app:openInEditor', p.path),
+    openSetupLog: (p) => unwrap(ipcRenderer.invoke('app:openSetupLog', p.id)),
     trayTitle: () => ipcRenderer.invoke('app:trayTitle'),
     updateStatus: () => ipcRenderer.invoke('app:updateStatus'),
     onUpdateStatus: (cb) => {

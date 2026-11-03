@@ -55,8 +55,7 @@ export function NewWorkspaceDialog({
   const { busy, error, run } = useSubmit()
   const slug = workspaceSlug(name)
   const id = 'dialog-new-workspace'
-  // Claude needs something to read; a plain workspace does not.
-  const canSubmit = !!slug && (!start || brief.trim() !== '') && !busy && connected
+  const canSubmit = !!slug && !busy && connected
 
   const submit = (e?: FormEvent): void => {
     e?.preventDefault()
@@ -78,7 +77,7 @@ export function NewWorkspaceDialog({
     <Dialog title="New workspace" testId={id} onClose={onClose}>
       <form onSubmit={submit}>
         <label>
-          What are you doing?
+          What are you doing? (optional)
           <textarea
             data-testid={`${id}-brief`}
             value={brief}
@@ -129,7 +128,7 @@ export function NewWorkspaceDialog({
             checked={start}
             onChange={(e) => setStart(e.target.checked)}
           />
-          Start Claude with this brief
+          Start Claude
         </label>
         <details className="dialog-advanced">
           <summary>Advanced</summary>

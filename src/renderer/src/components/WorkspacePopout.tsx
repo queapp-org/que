@@ -6,16 +6,16 @@ import {
   formatStepDuration,
   removalStepLabel
 } from '../../../shared/format'
-import type { Removal } from '../../../shared/types'
 import { prBadge, statusBadge } from '../format'
 import { useStore } from '../store'
-import { NOW_SECONDS_INTERVAL_MS, useNow } from '../useNow'
+import { useNow } from '../useNow'
 import { useDismiss } from '../useDismiss'
 import { useFloatingPlace } from '../useFloatingPlace'
 import { firstFailingCheck, removalLines, tildePath } from '../workspace-popout'
 import { CopyIcon, EditorIcon, ExternalLinkIcon } from './icons'
+import PreparationSteps, { SetupLogButton } from './PreparationSteps'
 import { LineCounts } from './ReviewParts'
-import WorkingMark from './WorkingMark'
+import StepLines from './StepLines'
 
 /** The open card: which workspace, and the row it hangs off. */
 export interface PopoutAnchor {
@@ -162,55 +162,10 @@ function PullRequestRow({ ws, pr }: { ws: Workspace; pr: PullRequest }): React.J
 }
 
 /**
- * The `[ REMOVING ]` lines: one per step in the plan, a dot (or the neutral working mark on
- * the step running now) in an 8px column, the step's words, and at the right its duration,
- * its failure, or the clock since it started.
- */
-function RemovalSteps({
-  id,
-  removal,
-  now
-}: {
-  id: string
-  removal: Removal
-  now: number
-}): React.JSX.Element {
-  return (
-    <ul className="popout-removal" data-testid={`${id}-removal`}>
-      {removalLines(removal).map((line) => (
-        <li
-          key={line.step}
-          className={`removal-step ${line.state}`}
-          data-testid={`${id}-removal-${line.step}`}
-          data-state={line.state}
-        >
-          <span className="removal-mark" aria-hidden="true">
-            {line.state === 'current' ? (
-              <WorkingMark tone="neutral" />
-            ) : (
-              <span className="removal-dot" />
-            )}
-          </span>
-          <span className="removal-words">{removalStepLabel(line.step)}</span>
-          <span
-            className="removal-right"
-            data-testid={`${id}-removal-${line.step}-right`}
-            title={line.state === 'failed' ? line.error : undefined}
-          >
-            {line.state === 'done' && formatStepDuration(line.ms)}
-            {line.state === 'failed' && line.error}
-            {line.state === 'current' && formatAge(removal.since, now)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/**
  * The card beside a sidebar workspace row: the name, the worktree and its branch, the status,
  * the shells, monitors and subagents running in the background (or, while it is being
- * removed, where the removal stands), and every pull request opened from it. It holds no destructive action; Remove… stays in the row's ⋯ menu. Escape or a press
+ * removed, where the removal stands), where its preparation stands while one runs or a step of
+ * it failed, and every pull request opened from it. It holds no destructive action; Remove… stays in the row's ⋯ menu. Escape or a press
  * outside the row and the card closes it.
  */
 export default function WorkspacePopout({
@@ -224,8 +179,8 @@ export default function WorkspacePopout({
   onClose: () => void
 }): React.JSX.Element {
   const store = useStore()
-  // A removal's clock reads in seconds; everything else here reads in minutes.
-  const now = useNow(ws.removal ? NOW_SECONDS_INTERVAL_MS : undefined)
+  // Everything here reads in minutes; the clock of a step running now ticks on its own.
+  const now = useNow()
   const ref = useRef<HTMLElement>(null)
   const [home, setHome] = useState<string | null>(null)
 
@@ -335,7 +290,24 @@ export default function WorkspacePopout({
       {ws.removal && (
         <>
           <span className="label">Removing</span>
-          <RemovalSteps id={id} removal={ws.removal} now={now} />
+          <StepLines
+            testId={`${id}-removal`}
+            lines={removalLines(ws.removal)}
+            label={removalStepLabel}
+            took={formatStepDuration}
+            since={ws.removal.since}
+          />
+        </>
+      )}
+      {ws.preparation && !ws.removal && (
+        <>
+          <span className="label">Preparing</span>
+          <PreparationSteps
+            preparation={ws.preparation}
+            brief={ws.brief}
+            testId={`${id}-preparation`}
+          />
+          <SetupLogButton ws={ws} testId={`${id}-setup-log`} />
         </>
       )}
       <hr />

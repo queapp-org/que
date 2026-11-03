@@ -14,6 +14,7 @@
 // And workspace.checkPrs: one workspace checked now, failing with gh's message when a call fails.
 import type { UserConfig } from '../shared/config'
 import { firstLine, run } from '../shared/exec'
+import { preparationUnfinished } from '../shared/preparation'
 import type { HookEvent } from '../shared/protocol'
 import type { JsonValue, PrThread, PullRequest, Workspace } from '../shared/types'
 import { ghFailed, notFound } from './errors'
@@ -208,7 +209,8 @@ export class PrService {
     try {
       const n = this.tickCount++
       const due = n % SETTLED_EVERY === 0
-      const listed = this.opts.store.listWorkspaces()
+      // A workspace still being prepared has no worktree to ask in yet.
+      const listed = this.opts.store.listWorkspaces().filter((ws) => !preparationUnfinished(ws))
       const checked = listed.filter((ws) => due || ws.pr === null || !isSettled(ws.pr))
       const byProject = new Map<string, Workspace[]>()
 

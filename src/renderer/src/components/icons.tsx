@@ -13,6 +13,25 @@ const base = {
   focusable: false
 } as const
 
+/**
+ * Claude Code's 8-bit character, 16×10, filled in its own colour (`.claude-code-mark`): the one
+ * drawing here that is neither a line nor in the current text colour. docs/design.md "Accent and tones".
+ */
+export function ClaudeCodeIcon(): React.JSX.Element {
+  return (
+    <svg
+      className="claude-code-mark"
+      width={16}
+      height={10}
+      viewBox="1 0 16 10"
+      focusable={false}
+      aria-hidden="true"
+    >
+      <path d="M3 0h12v2H3zM3 2h2v2H3zM6 2h6v2H6zM13 2h2v2h-2zM1 4h16v2H1zM3 6h12v2H3zM4 8h1v2H4zM6 8h1v2H6zM11 8h1v2h-1zM13 8h1v2h-1z" />
+    </svg>
+  )
+}
+
 /** A folder: a project in the sidebar. */
 export function FolderIcon(): React.JSX.Element {
   return (

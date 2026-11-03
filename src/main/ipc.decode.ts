@@ -6,3 +6,8 @@
 export function decodeAbsolutePath(v: unknown): string | null {
   return typeof v === 'string' && v.startsWith('/') ? v : null
 }
+
+/** The workspace `app:openSetupLog` names: a daemon workspace id, or null for anything else. */
+export function decodeWorkspaceId(v: unknown): string | null {
+  return typeof v === 'string' && /^ws_[a-z2-7]+$/.test(v) ? v : null
+}

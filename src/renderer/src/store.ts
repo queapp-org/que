@@ -47,7 +47,8 @@ import { keyOf } from './keys'
 import { buildTree, newlyChanged } from './files'
 import { chime, shouldChime } from './sound'
 import { errorCode, errorMessage } from '../../shared/errors.decode'
-import { removalStepLabel } from '../../shared/format'
+import { preparationStepLabel, removalStepLabel } from '../../shared/format'
+import { preparationFailure, preparationUnfinished } from '../../shared/preparation'
 import type { RemovalFailure } from '../../shared/types'
 import {
   decodeDiffBases,
@@ -74,6 +75,15 @@ export const SCRATCH = ''
 /** The key is a workspace's (not the loose sessions', nor one gone from the list). */
 export function isWorkspace(s: QueState, key: string | null): boolean {
   return key !== null && key !== SCRATCH && key in s.workspaces
+}
+
+const RESTART_TO_CREATE = "Restart que's background service to create a workspace"
+
+/** The key is a workspace still being prepared, or stopped by a failed step: no terminals or worktree to show yet. */
+export function isPreparing(s: QueState, key: string | null): boolean {
+  const ws = key === null ? undefined : s.workspaces[key]
+
+  return ws !== undefined && preparationUnfinished(ws)
 }
 
 export interface TermTab {
@@ -763,10 +773,15 @@ export class QueStore {
       this.api.app.onUpdateStatus((updateStatus) => this.set({ updateStatus })),
       workspace.on('workspace.created', (ws) => this.upsertWorkspace(ws)),
       workspace.on('workspace.updated', (ws) => {
-        const prev = this.state.workspaces[ws.id]?.status
+        const before = this.state.workspaces[ws.id]
+        const prev = before?.status
         this.upsertWorkspace(ws)
 
         if (prev !== ws.status) this.maybeChime({ state: ws.status, prev })
+
+        if (before && preparationUnfinished(before) && !preparationUnfinished(ws)) {
+          this.preparationEnded(ws)
+        }
       }),
       workspace.on('workspace.changed', ({ id }) => this.followChange(id)),
       workspace.on('workspace.diffSettled', ({ id }) => this.followDiffSettled(id)),
@@ -837,6 +852,28 @@ export class QueStore {
         () => {}
       )
     }
+  }
+
+  /**
+   * A preparation has ended: what the daemon refused without a worktree is asked for again. A
+   * setup that failed is said on the error line, since Claude's terminal takes the place of the
+   * steps.
+   */
+  private preparationEnded(ws: SentWorkspace): void {
+    const failure = ws.preparation ? preparationFailure(ws.preparation) : null
+
+    if (failure) {
+      const what = `${preparationStepLabel(failure.step)} failed, ${failure.error}`
+      this.set({ error: `Preparing ${ws.title ?? ws.name}: ${what}` })
+    }
+
+    this.autoOpened.delete(ws.id)
+
+    if (this.currentKey() !== ws.id) return
+    this.watchedKey = null
+    this.watchShown()
+    void this.visit(ws.id)
+    void this.refetchShown(ws.id)
   }
 
   /** Adds the tab for a terminal the daemon reported, unless it already has one (the reply and the event both bring it). */
@@ -1208,6 +1245,9 @@ export class QueStore {
         }))
       } catch (err) {
         if (!current()) return
+
+        // Refused: its preparation has not finished, so there is nothing yet. Its end asks again.
+        if (errorCode(err) === 'conflict') return
         const error = errorMessage(err)
 
         this.setWith((s) =>
@@ -1720,6 +1760,8 @@ export class QueStore {
    * tab appears, so it never mounts in the wrong pane (see `creating`).
    */
   private async openIn(key: string, place: (id: string) => void): Promise<void> {
+    // Not until its preparation has finished, whose end visits it again.
+    if (isPreparing(this.state, key)) return
     this.creating++
 
     try {
@@ -1860,47 +1902,38 @@ export class QueStore {
   }
 
   /**
-   * Creates a workspace and shows it, which opens its first terminal. With `start`, the daemon
-   * opens that terminal and types claude on the start prompt into it once setup is done; its tab
-   * is added before the view shows, so the view does not open a second one. Throws for the dialog.
+   * Creates a workspace and shows it. The daemon answers with its row before the slow steps; a
+   * refused name throws, for the dialog. The steps run in the daemon: with `start` the last of
+   * them opens the terminal and starts Claude; without it, the preparation's end opens a shell.
    */
   async createWorkspace(p: {
     projectId: string
-    brief: string
-    /** The workspace, branch and folder name. */
-    name: string
+    brief?: string
+    /** The workspace, branch and folder name; drawn by the daemon when left out. */
+    name?: string
     baseRef?: string
     start?: boolean
   }): Promise<void> {
-    const { start, ...params } = p
-    const ws = await this.api.workspace.create(params)
-    this.upsertWorkspace(ws)
-
-    if (!start) {
-      this.showTerminals(ws.id)
-
-      return
-    }
-
-    // The workspace exists now: a failure to start goes to the banner, not back to the dialog.
-    let terminal: TermInfo
+    let ws: Workspace
 
     try {
-      ;({ terminal } = await this.api.workspace.start({
-        id: ws.id,
-        cols: DEFAULT_COLS,
-        rows: DEFAULT_ROWS
-      }))
+      ws = await this.api.workspace.prepare(p)
     } catch (err) {
-      this.set({ error: errorMessage(err) })
-      this.showTerminals(ws.id)
-
-      return
+      // An app newer than its background service, until Restart.
+      throw errorCode(err) === 'unknown_method' ? new Error(RESTART_TO_CREATE) : err
     }
 
-    this.addTab(terminal)
+    // Its workspace.created may have come first, and later steps after it: this is no newer.
+    if (!(ws.id in this.state.workspaces)) this.upsertWorkspace(ws)
     this.showTerminals(ws.id)
-    this.selectTerminal(ws.id, terminal.id)
+  }
+
+  /**
+   * One click on a project's character: a workspace with a generated name and the default base,
+   * running a bare Claude that waits for its first prompt. A failure goes to the error line.
+   */
+  startClaudeWorkspace(projectId: string): Promise<void> {
+    return this.guard(() => this.createWorkspace({ projectId, start: true }))
   }
 
   /** Whether a rename may also rename the workspace's branch (it was never pushed). */
@@ -1946,6 +1979,13 @@ export class QueStore {
   openInEditor(path: string): Promise<void> {
     return this.guard(async () => {
       await this.api.app.openInEditor({ path })
+    })
+  }
+
+  /** Opens a workspace's setup log in the system's viewer for it. */
+  openSetupLog(id: string): Promise<void> {
+    return this.guard(async () => {
+      await this.api.app.openSetupLog({ id })
     })
   }
 

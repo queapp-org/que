@@ -28,6 +28,9 @@
   --inverse: #e6e6e6;
   --inverse-fg: #111111;
 
+  /* Claude Code's character keeps its own colour, the one exception to "nothing is tinted" */
+  --clay: #d97757;
+
   /* status tones: a dot and a word, never a filled pill */
   --tone-neutral: #7a7a7a;
   --tone-busy: #4f8cf5;
@@ -293,6 +296,7 @@ h2 {
 .report-body h2::before,
 .settings legend::before,
 .quiet-board-label::before,
+.preparing .label::before,
 .floating-card .label::before {
   content: '[ ';
 }
@@ -301,6 +305,7 @@ h2 {
 .report-body h2::after,
 .settings legend::after,
 .quiet-board-label::after,
+.preparing .label::after,
 .floating-card .label::after {
   content: ' ]';
 }
@@ -512,12 +517,22 @@ h2 {
   margin-left: 6px;
 }
 
-/* A workspace being removed: its step and the clock since it started, always shown where
- * `›_` sits; the name gives way (ellipsis) before the word does. The row's button is
- * disabled but keeps its look (the neutral mark and the faint name say it), and lets the
- * pointer through to the row, so the row still reads as hovered and its card opens. */
+/* A workspace being prepared or removed: its step and the clock since it started, always shown
+ * where `›_` sits; the name gives way (ellipsis) before the word does. Being removed, the row's
+ * button is disabled but keeps its look (the neutral mark and the faint name say it), and lets
+ * the pointer through to the row, so the row still reads as hovered and its card opens. */
 .sidebar .step-word {
   flex: none;
+}
+
+/* A preparation step that failed, and why: the reason can run long, so here the word gives way too. */
+.sidebar .step-word.failed {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tone-bad);
 }
 
 .sidebar .row-button:disabled {
@@ -613,12 +628,12 @@ h2 {
 }
 
 /* Status at rest: a 5px dot in its tone, centred in the icon column. A pull request
- * check's dot, a dim row's dot and a removal step's dot are the same, taking their tone
+ * check's dot, a dim row's dot and a removal or preparation step's dot are the same, taking their tone
  * from their row. */
 .status-dot,
 .pr-dot,
 .dot-row-dot,
-.removal-dot {
+.step-line-dot {
   flex: none;
   width: 5px;
   height: 5px;
@@ -659,7 +674,7 @@ h2 {
   animation-delay: 0.24s;
 }
 
-/* The same mark in the neutral tone: a workspace being removed. */
+/* The same mark in the neutral tone: a workspace being prepared or removed. */
 .working-mark.neutral i {
   background: var(--tone-neutral);
 }
@@ -707,6 +722,7 @@ h2 {
 }
 
 .project-head:hover .disclosure,
+.project-head:has(:focus-visible) .disclosure,
 .project-head:has([aria-haspopup][aria-expanded='true']) .disclosure {
   background: var(--bg-hover);
   color: var(--fg-secondary);
@@ -731,9 +747,41 @@ h2 {
   display: block;
 }
 
+/* Painted on the head's hover background behind a fade, as `.reveal` is, so a long name goes under
+ * it; only its buttons take the pointer, so a click on the fade still folds the head. */
 .project-head .head-actions {
   position: absolute;
+  top: 0;
   right: 4px;
+  bottom: 0;
+  padding-left: 16px;
+  background: linear-gradient(to right, transparent, var(--bg-hover) 14px);
+  pointer-events: none;
+}
+
+.project-head .head-actions button {
+  pointer-events: auto;
+}
+
+/* The button that starts a workspace running Claude Code: the character, nothing else. */
+button.ghost.start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 4px;
+}
+
+button.ghost.start:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.claude-code-mark {
+  display: block;
+  width: 16px;
+  height: 10px;
+  fill: var(--clay);
+  shape-rendering: crispEdges;
 }
 
 .project-head .count {
@@ -1436,6 +1484,53 @@ body.resizing {
   align-items: center;
   justify-content: center;
   color: var(--fg-faint);
+}
+
+/* A new workspace before its first terminal: its steps in the middle of the pane. A failed step's
+ * reason takes a line of its own under its words, whole, since it can run long. */
+.preparing {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preparing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+}
+
+.preparing h2 {
+  margin: 0;
+}
+
+.preparing .step-lines {
+  gap: 6px;
+}
+
+.preparing .step-line {
+  line-height: 16px;
+}
+
+.preparing .step-line.done {
+  color: var(--fg-muted);
+}
+
+.preparing .step-line.failed .step-line-right {
+  grid-column: 2 / -1;
+  max-width: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.preparing-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: -9px;
 }
 
 /* ---- report ------------------------------------------------------------- */
@@ -3572,9 +3667,9 @@ button.pr-row.settled .pr-row-number {
   color: var(--fg-faint);
 }
 
-/* The popout's lists: background tasks and a removal's steps. */
+/* The popout's list of background tasks, and a removal's or a preparation's steps anywhere. */
 .workspace-popout .popout-tasks,
-.workspace-popout .popout-removal {
+.step-lines {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -3604,10 +3699,10 @@ button.pr-row.settled .pr-row-number {
   font-variant-numeric: tabular-nums;
 }
 
-/* A removal under way: one line per step, its dot (or the neutral working mark on the step
- * running now) in an 8px column so the 5px dots and the 8px mark line up, the step's words,
- * and at the right its duration, its failure, or the clock since it started. */
-.workspace-popout .removal-step {
+/* Steps under way: one line per step, its dot (or the neutral working mark on the step running
+ * now) in an 8px column so the 5px dots and the 8px mark line up, the step's words, and at the
+ * right its duration, its failure, or the clock since it started. */
+.step-line {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
   column-gap: 8px;
@@ -3616,7 +3711,7 @@ button.pr-row.settled .pr-row-number {
   color: var(--fg-faint);
 }
 
-.workspace-popout .removal-mark {
+.step-line-mark {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3624,33 +3719,33 @@ button.pr-row.settled .pr-row-number {
   height: 8px;
 }
 
-.workspace-popout .removal-dot {
+.step-line-dot {
   --tone: var(--tone-muted);
 }
 
-.workspace-popout .removal-step.pending .removal-dot {
+.step-line.pending .step-line-dot {
   box-sizing: border-box;
   border: 1px solid var(--tone-muted);
   background: transparent;
 }
 
-.workspace-popout .removal-step.failed .removal-dot {
+.step-line.failed .step-line-dot {
   --tone: var(--tone-bad);
 }
 
-.workspace-popout .removal-step.current,
-.workspace-popout .removal-step.failed {
+.step-line.current,
+.step-line.failed {
   color: var(--fg-secondary);
 }
 
-.workspace-popout .removal-words {
+.step-line-words {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workspace-popout .removal-right {
+.step-line-right {
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3660,8 +3755,19 @@ button.pr-row.settled .pr-row-number {
   color: var(--fg-faint);
 }
 
-.workspace-popout .removal-step.failed .removal-right {
+.step-line.failed .step-line-right {
   color: var(--tone-bad);
+}
+
+/* A plain mono action under a list of steps: Open setup log, Remove…. */
+button.ghost.step-action {
+  align-self: flex-start;
+  font: 400 11px / 16px var(--mono);
+  color: var(--fg-muted);
+}
+
+.workspace-popout button.ghost.step-action {
+  margin-left: -9px;
 }
 
 .workspace-popout .popout-empty {

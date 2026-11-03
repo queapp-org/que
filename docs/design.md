@@ -4,7 +4,8 @@ que is a tool you look at all day and glance at all night, so it is drawn like a
 technical drawing: black and dark grey surfaces, hairline borders, dashed guide
 lines between regions, small mono labels in brackets, and one cool accent.
 Nothing shouts, and nothing is tinted: the greys are neutral. Status is a dot and
-a word, not a coloured block.
+a word, not a coloured block. One thing keeps a colour of its own: Claude Code's
+character (see Accent and tones).
 
 The tokens live in `src/renderer/src/styles.css` under `:root`. Components use
 them; nothing sets a colour, font, or radius inline.
@@ -50,13 +51,14 @@ so the DOM keeps the plain word.
 | ------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--accent`         | `#3fcdb4` | Links, the active tab's underline, focus rings, the cursor, the unlock countdown, the working mark (sidebar and quiet board).                      |
 | `--accent-hover`   | `#6adcc7` | The accent under the pointer.                                                                                                                      |
+| `--clay`           | `#d97757` | Claude Code's 8-bit character on a project head, and nothing else.                                                                                 |
 | `--inverse`        | `#e6e6e6` | The one primary button on a screen, light on dark.                                                                                                 |
-| `--tone-busy`      | `#4f8cf5` | working, preparing, as a still dot or badge: status badges, the popout, the report. The sidebar and the quiet board draw the working mark instead. |
+| `--tone-busy`      | `#4f8cf5` | working, as a still dot or badge: status badges, the popout, the report. The sidebar and the quiet board draw the working mark instead.            |
 | `--tone-attention` | `#f99c00` | needs input; a Claude usage window at 80% and over.                                                                                                |
 | `--tone-bad`       | `#fb2c36` | stuck, exited badly; the danger button; a Claude usage window at 100%.                                                                             |
 | `--tone-good`      | `#34c26b` | idle after work: a sidebar row that finished since you last looked at it.                                                                          |
-| `--tone-neutral`   | `#7a7a7a` | idle; the working mark while a workspace is being removed (sidebar and card).                                                                      |
-| `--tone-muted`     | `#5a5a5a` | exited.                                                                                                                                            |
+| `--tone-neutral`   | `#7a7a7a` | idle; the working mark while a workspace is being prepared or removed (sidebar, card and preparing pane).                                          |
+| `--tone-muted`     | `#5a5a5a` | exited; preparing and removing as a still dot or badge (the popout, the report). The sidebar draws the neutral working mark for those two instead. |
 
 The accent is a teal, apart in hue from both the done green and the working
 blue, and it is used sparingly, so it keeps meaning "this is the thing" (the
@@ -68,6 +70,11 @@ badge (`.status.tone-*`) is a 5px dot and a mono word, tinted at 12% with a
 32% border of its tone. It never fills with colour: at a glance the dot tells
 the story, and a wall of filled pills is exactly the noise que exists to
 remove. The quiet board uses the same tones on a dot or a word, never a badge.
+
+Claude Code's character keeps its own colour, `--clay`. It is the one exception to
+"nothing is tinted": it is that product's mark rather than a state of ours, and its
+colour is not ours to change. It appears only as the button on a project head and
+never stands for a status.
 
 ## Syntax
 
@@ -102,7 +109,8 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
 - Dialogs carry four small corner points, the marks of a drawing's frame.
 - Icons are 16px line drawings at a 1.5px stroke, inline SVG from
   `components/icons.tsx`, drawn in the current text colour: faint in a ghost
-  button, bright on hover. The button carries the accessible name. No icon
+  button, bright on hover (the one exception is Claude Code's character, a filled
+  16×10 pixel drawing in `--clay`). The button carries the accessible name. No icon
   font or library. `button.icon` is 22px square; `button.icon.sm` is the 18px one
   for a row's own controls. A refresh icon turns, bright, while its work runs (one
   turn in 0.8s) and finishes the turn it is on when the work ends; under reduced
@@ -251,6 +259,25 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   page icon and the name): the path in mono `--fg-faint` above the text in mono 12px
   with faint line numbers, unwrapped, scrolling both ways. Nothing replaces or hides
   the terminals.
+- A new workspace has no tab and no terminal until Claude's, or a shell when Start
+  Claude is off. The main pane shows its steps in the middle, in a 300px column:
+  `[ PREPARING ]`, then a line per step, `fetching origin`, `creating worktree`, `running
+  setup` (only with a setup command) and `starting Claude` (`starting Claude with your
+  brief` when there is one, and only when asked), mono 11px/16px with 6px between them. A
+  done step has a filled `--tone-muted` dot, its words in `--fg-muted` and its whole seconds
+  at the right; the step running now the working mark in `--tone-neutral`, its words in
+  `--fg-secondary` and its clock at the right, ticking each second; a step still to come a
+  hollow dot (a 1px `--tone-muted` ring) and its words in `--fg-faint`. Under them, a plain
+  mono 11px ghost button, Open setup log, opens the log in the system's viewer through the
+  main process; it is there only with a setup command and is disabled until setup starts.
+  The `+` and the split buttons are disabled meanwhile, and the review pane, open, says
+  `Nothing to review yet.`. A failed step has a `--tone-bad` dot and its words in
+  `--fg-secondary`, its reason in `--tone-bad` on a line of its own under them, whole; the
+  steps after it stay hollow, and Remove… joins the button. When Claude's terminal appears
+  its tab is selected and it has the keyboard, if the user is still on that workspace and
+  not typing in a field or a dialog; anywhere else, nothing moves. A setup that failed does
+  not stop Claude, so its terminal takes the place of the steps and the error line above the
+  tab strip says which step failed and why.
 - Row actions (the ⋯ button) show on hover, focus, or while their menu is open.
 - The window has no native title bar. The traffic lights sit in the 40px strip
   above the sidebar's content; that strip, the tab row's empty space and the review
@@ -311,9 +338,22 @@ only under the pointer.
   `›_` in mono 11px `--fg-faint` at its right end (the session glyph: something is
   still running there); the overlay under the pointer covers it, and a working row
   never shows it, since the ripple already says so.
+- **Being prepared.** A new workspace has its row from the click, before the fetch and
+  the worktree. Its mark is the working mark in `--tone-neutral`, as for a removal (below),
+  and where `›_` would sit, always shown, is the step it is on with its verb and a clock
+  since the step started: `fetching origin 1s`, `creating worktree 0s`, `running setup 12s`,
+  `starting Claude 0s`, mono 11px `--fg-faint` with tabular numbers, ticking every second.
+  Unlike a removal it can be selected, which shows its steps in the main pane, and its name
+  follows the usual weights. Its ⋯ menu holds only Remove…, which stops the preparation.
+  Under the pointer the overlay shows the same word, then ⋯. A step that failed turns the
+  mark into the row's `--tone-bad` dot and the word into the step and its reason, `creating
+  worktree failed: unknown base ref v9`, in `--tone-bad`: it takes at most 70% of the row, cut
+  with an ellipsis, with the whole text as its tooltip; under the pointer the overlay reads
+  `creating worktree failed`. A failed setup reads the same until the session's first hook
+  moves the row on. The quiet board shows a row only once it has a terminal.
 - **Being removed.** A workspace keeps its row until the daemon has removed it. Its
   mark is the working mark drawn in `--tone-neutral` (the one other place the mark
-  appears, and the one time it is not the accent: the ripple says something is moving,
+  appears, and the only times it is not the accent: the ripple says something is moving,
   the grey says it is not a session), its name reads `--fg-faint`, and it is never
   painted as unseen. Where `›_` would sit, always shown, is the step it is on with its
   verb and a clock since the step started: `killing terminals 1s`, `running teardown
@@ -340,10 +380,16 @@ only under the pointer.
   ⋯. For a fresh finish the word is the age, `done · 12m ago`. An idle row with background work names its kinds,
   `idle · shell`, `idle · monitor`, or `idle · shell · monitor`. The overlay covers the end of a long name rather
   than reflowing it, so nothing jumps. A project head under the pointer turns its
-  folder into its chevron and shows `+` and ⋯, which stay at opacity 0 until the head
-  is under the pointer, holds the keyboard focus, or has its menu open; the section
+  folder into its chevron and shows Claude Code's character and ⋯, which stay at opacity 0
+  until the head is under the pointer, holds the keyboard focus, or has its menu open,
+  behind a fade like the row overlay's, so a long name goes under them; the section
   heads' buttons (Sessions `+`, Projects add and sort) always show, since the two heads
-  are the way in. Clicking anywhere on a project head folds it. An exited session reads faint, with `exited` as its word.
+  are the way in. The character is a ghost button, 16×10 with 4px beside it, on `--bg-active`
+  under the pointer, with no plus and no text and the tooltip `New workspace running Claude
+  Code`. One click makes a workspace with a generated name and the default base running a
+  bare Claude, and shows it. New workspace…, in the head's ⋯ menu, is the way to set a name
+  or a base ref, or to leave a brief and walk away. Clicking anywhere else on a project
+  head folds it. An exited session reads faint, with `exited` as its word.
 - **The card.** When the pointer rests on a workspace row for 500ms (or on ⌘I for the
   selected one) a 340px card opens beside it, over the main area, its top level with the
   row's: `--bg-raised`, a 1px `--border-strong`, `--radius` and the menu's shadow. It
@@ -358,7 +404,8 @@ only under the pointer.
   the kind in `--fg-faint`, the description in `--fg-secondary`, and its age at the right
   (a working row lists its subagents here); while the workspace is being removed (the
   status line reads `removing`, and there is no background, since its terminals are gone),
-  `[ REMOVING ]` and a line per step it runs, mono 11px, the dot in an 8px column so the
+  `[ REMOVING ]` (or, for a preparation under way or a step of it that failed, `[ PREPARING ]`
+  and the setup log button under its lines) and a line per step it runs, mono 11px, the dot in an 8px column so the
   dots and the mark line up: a done step's filled `--tone-muted` dot, its words in
   `--fg-faint` and its time at the right (`0.1s`, `12s`); a failed step's `--tone-bad` dot,
   its words in `--fg-secondary` and the reason at the right in `--tone-bad`; the step
