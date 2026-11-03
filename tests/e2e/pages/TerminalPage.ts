@@ -127,6 +127,30 @@ export class TerminalPage {
     return this.page.evaluate((id) => window.__que?.screenTextOf(id) ?? '', termId)
   }
 
+  /**
+   * Drops real files on a point of the window, as the operating system would: Chromium builds the
+   * File objects from the paths, so the app reads them as it reads a real drop.
+   */
+  async dropFiles(paths: string[], at: { x: number; y: number }): Promise<void> {
+    const session = await this.page.context().newCDPSession(this.page)
+    const data = { items: [], files: paths, dragOperationsMask: 1 }
+
+    for (const type of ['dragEnter', 'dragOver', 'drop'] as const) {
+      await session.send('Input.dispatchDragEvent', { type, ...at, data })
+    }
+
+    await session.detach()
+  }
+
+  /** The middle of the first pane's terminal, in window coordinates. */
+  async viewportCenter(): Promise<{ x: number; y: number }> {
+    const box = await this.viewport.boundingBox()
+
+    if (!box) throw new Error('the terminal is not on screen')
+
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  }
+
   /** Where text last appears on a terminal's screen, in window coordinates; waits for it. */
   async pointOf(termId: string, text: string): Promise<{ x: number; y: number }> {
     const read = () =>

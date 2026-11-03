@@ -99,4 +99,58 @@ describe('Terminal', () => {
       expect(field()).toHaveProperty('selectionEnd', 'retry'.length)
     })
   })
+
+  describe('drop', () => {
+    /** A drag event as the browser fires it. userEvent has no drag and drop, so it is dispatched. */
+    function drag(type: 'dragover' | 'drop', files: File[], types = ['Files']): Event {
+      const event = Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+        dataTransfer: { files, types, dropEffect: 'none' }
+      })
+
+      screen.getByTestId('terminal-viewport').dispatchEvent(event)
+
+      return event
+    }
+
+    const shot = new File(['png'], 'my shot.png')
+    const quote = new File(['text'], "it's here.txt")
+
+    it('pastes the quoted paths, separated by a space, with no Enter', async () => {
+      await mount()
+      fakeBridge.seedFilePath(shot, '/Users/dev/Desktop/my shot.png')
+      fakeBridge.seedFilePath(quote, "/Users/dev/Desktop/it's here.txt")
+
+      const event = drag('drop', [shot, quote])
+
+      await waitFor(() => {
+        expect(fakeBridge.getTerminal(session.id)?.input).toBe(
+          `'/Users/dev/Desktop/my shot.png' '/Users/dev/Desktop/it'\\''s here.txt'`
+        )
+      })
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('does nothing with a drop that holds no file on disk, and still keeps the default away', async () => {
+      await mount()
+
+      const text = drag('drop', [], ['text/plain'])
+      const memory = drag('drop', [new File(['made in memory'], 'memory.txt')])
+      // A file on disk after them shows anything those two sent would be there too.
+      fakeBridge.seedFilePath(shot, '/Users/dev/shot.png')
+      drag('drop', [shot])
+
+      await waitFor(() => {
+        expect(fakeBridge.getTerminal(session.id)?.input).toBe(`'/Users/dev/shot.png'`)
+      })
+      expect(text.defaultPrevented).toBe(true)
+      expect(memory.defaultPrevented).toBe(true)
+    })
+
+    it('offers to take a dragged file, and leaves any other drag to refuse itself', async () => {
+      await mount()
+
+      expect(drag('dragover', []).defaultPrevented).toBe(true)
+      expect(drag('dragover', [], ['text/plain']).defaultPrevented).toBe(false)
+    })
+  })
 })

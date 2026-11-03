@@ -141,6 +141,8 @@ export type TermEventName =
 
 export interface AppApi {
   homedir(): Promise<string>
+  /** Where a File from a drop lives on disk; '' for one that is not on disk. */
+  pathForFile(file: File): string
   /** Shows a native folder picker; resolves to the chosen path or null. */
   openFolder(): Promise<string | null>
   /** Opens a folder in a new editor window (`code -n <path>`); fire-and-forget. */

@@ -8,6 +8,7 @@ All notable changes to que are recorded here. The format follows
 
 ### Added
 
+- Dropping files on a terminal pastes their shell-quoted paths at the cursor without pressing Enter, so Claude Code takes a dropped image as an attachment.
 - Cmd+F finds text in a terminal's scrollback: a small control at the top right of the focused terminal, with the number of matches, previous and next. Enter and Shift+Enter step through the matches, and Escape closes it and returns you to the terminal.
 - Option acts as Meta in a terminal, so Claude Code's Option shortcuts and a shell's Alt+B, F, D and Y work. If your keyboard needs Option to type characters such as `#` and `@`, turn it off under Settings > Terminal or with `terminal.option_as_meta = false`; open terminals follow the change.
 - Cmd+Backspace clears to the start of the line in a terminal, and Cmd+Left and Cmd+Right go to its start and end.

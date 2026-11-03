@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { appExecutable, cliScriptFrom, packagedResourcesDir } from '../shared/packaged'
 import { HOOK_EVENT_NAMES } from '../shared/protocol'
+import { shQuote } from '../shared/sh-quote'
 import type { QuePaths } from '../shared/paths'
 import { QUE_STATUSLINE_COMMAND } from '../shared/statusline'
 import { writeFileAtomic } from './atomic-write'
@@ -21,11 +22,6 @@ export interface WrapperOptions {
   runAsNode?: boolean
   /** The bundled CLI (out/cli/index.js). */
   cliScript: string
-}
-
-/** Single-quotes a string for POSIX sh. */
-export function shQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`
 }
 
 /** What is typed into a terminal to start an interactive claude on a first prompt. */
