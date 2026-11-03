@@ -325,6 +325,11 @@ export interface QueTestHook {
   screenTextOf(termId: string): string
   /** The tray's current title, from the main process. */
   trayTitle(): Promise<string>
+  /**
+   * Where text last appears on an attached terminal's screen, in window coordinates (the
+   * middle of its first character), or null when it is not on screen.
+   */
+  pointOf(termId: string, text: string): { x: number; y: number } | null
   /** The chimes the app would have played, in order (recorded, never played, under e2e). */
   chimes(): ChimeKind[]
 }

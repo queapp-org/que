@@ -54,6 +54,31 @@ function textOf(term: Terminal): string {
   return lines.join('\n')
 }
 
+/** The middle of the first character of the last place `text` is on screen, in window coordinates. */
+function pointOf(term: Terminal, text: string): { x: number; y: number } | null {
+  const screen = term.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+
+  if (!screen) return null
+  const buf = term.buffer.active
+
+  for (let row = term.rows - 1; row >= 0; row--) {
+    const col =
+      buf
+        .getLine(buf.viewportY + row)
+        ?.translateToString(true)
+        .lastIndexOf(text) ?? -1
+
+    if (col === -1) continue
+
+    return {
+      x: screen.left + ((col + 0.5) * screen.width) / term.cols,
+      y: screen.top + ((row + 0.5) * screen.height) / term.rows
+    }
+  }
+
+  return null
+}
+
 /**
  * Installs window.__que, only when the app was launched with QUE_E2E=1. Call
  * it before the store subscribes to daemon events: under e2e the chimes are
@@ -92,6 +117,11 @@ export function installTestHook(): void {
     },
     screenTextOf,
     trayTitle: () => window.que.app.trayTitle(),
+    pointOf: (termId, text) => {
+      const term = mounted.get(termId)
+
+      return term ? pointOf(term, text) : null
+    },
     chimes: () => [...chimes]
   }
 }

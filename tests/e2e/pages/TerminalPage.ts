@@ -23,6 +23,8 @@ export class TerminalPage {
   tabExited: (id: string) => Locator
   // The program (or name) a tab reads.
   tabReattached: (id: string) => Locator
+  // Under the pointer a link underlines and takes the hand; xterm marks that with this class.
+  linkUnderPointer: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -36,6 +38,7 @@ export class TerminalPage {
     this.tabClose = (id: string) => page.getByTestId(`terminal-tab-${id}-close`)
     this.tabExited = (id: string) => page.getByTestId(`terminal-tab-${id}-exited`)
     this.tabReattached = (id: string) => page.getByTestId(`terminal-tab-${id}-reattached`)
+    this.linkUnderPointer = first.viewport.locator('.xterm-cursor-pointer')
   }
 
   // One pane: its container, its tab strip (a row of the main column) and the split and
@@ -103,6 +106,19 @@ export class TerminalPage {
   /** The xterm buffer of one mounted terminal, by id; '' until it is attached. */
   async screenTextOf(termId: string): Promise<string> {
     return this.page.evaluate((id) => window.__que?.screenTextOf(id) ?? '', termId)
+  }
+
+  /** Where text last appears on a terminal's screen, in window coordinates; waits for it. */
+  async pointOf(termId: string, text: string): Promise<{ x: number; y: number }> {
+    const read = () =>
+      this.page.evaluate(([id, t]) => window.__que?.pointOf(id, t) ?? null, [termId, text])
+
+    await expect.poll(read, { message: `"${text}" is not on screen` }).not.toBeNull()
+    const point = await read()
+
+    if (!point) throw new Error(`"${text}" left the screen`)
+
+    return point
   }
 
   // Waits until a terminal is attached and on screen, and returns its id.

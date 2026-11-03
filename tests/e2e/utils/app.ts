@@ -25,6 +25,8 @@ export interface LaunchedApp {
   claudeCalls(): string[][]
   /** argv of every fake `code` call, in order. */
   codeCalls(): string[][]
+  /** The links the main process would have opened in the browser, in order. */
+  externalOpens(): Promise<string[]>
   /** Quits the app, stops the test daemon, and checks its process is gone. */
   close(): Promise<void>
 }
@@ -107,6 +109,7 @@ export async function launchApp(
     ghCalls: () => argvOf(join(queHome, 'fake-gh.log')),
     claudeCalls: () => argvOf(join(queHome, 'fake-claude.log')),
     codeCalls: () => argvOf(join(queHome, 'fake-code.log')),
+    externalOpens: () => app.evaluate(() => globalThis.queExternalOpens ?? []),
     close: async () => {
       // The app first, so it cannot reconnect and respawn a daemon.
       await app.close().catch(() => {})

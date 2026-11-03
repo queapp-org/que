@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Links in a terminal work. Cmd+click opens a URL in your browser, whether it is plain text or an OSC 8 hyperlink; a plain click does nothing, and a link underlines under the pointer. Only http and https links open.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

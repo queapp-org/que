@@ -38,6 +38,11 @@ let connecting: Promise<DaemonClient> | null = null
 let tray: QueTray | null = null
 const e2e = process.env.QUE_E2E === '1'
 
+declare global {
+  /** Under e2e, the links that would have opened in the browser, in order; specs read it from here. */
+  var queExternalOpens: string[] | undefined
+}
+
 /** Quiet hours are on and no unlock is running; false until the state arrives. */
 function locked(): boolean {
   return quiet?.locked ?? false
@@ -284,9 +289,13 @@ function createWindow(): void {
     mainWindow = null
   })
 
-  // Links (pull requests) open in the browser, never inside the app window.
+  // Links (pull requests, a terminal's links) open in the browser, never inside the app window.
+  // Under e2e nothing opens: the link is recorded, for a spec to read back.
   const external = (url: string): void => {
-    if (!e2e && /^https?:\/\//.test(url)) void shell.openExternal(url)
+    if (!/^https?:\/\//.test(url)) return
+
+    if (e2e) (globalThis.queExternalOpens ??= []).push(url)
+    else void shell.openExternal(url)
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
