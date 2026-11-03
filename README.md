@@ -42,7 +42,7 @@ For more, see the [overview](https://queapp.org/guides/overview/) on queapp.org.
 
 Download the DMG from the [install page](https://queapp.org/guides/install/) on queapp.org, or from
 [Releases](https://github.com/queapp-org/que/releases). que needs macOS on Apple Silicon. Builds
-are unsigned for now; the install page has the steps for the first launch.
+are signed and notarized by Apple; the install page has the steps for the first launch.
 
 ## Documentation
 
