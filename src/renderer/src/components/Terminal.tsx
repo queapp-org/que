@@ -1,11 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { FIND_LIMIT } from '../terminal-find'
 import { lineEditSequence } from '../terminal-keys'
 import { openTerminalLink } from '../terminal-links'
 import { clearActiveTerminal, setActiveTerminal } from '../testHook'
+import TerminalFind from './TerminalFind'
 
 interface Props {
   /** Daemon terminal id to attach to. */
@@ -27,6 +30,8 @@ export default function Terminal({
   const termRef = useRef<XTerm | null>(null)
   const focusedRef = useRef(focused)
   const optionAsMetaRef = useRef(optionAsMeta)
+  // The find control while it is open: the addon it drives, and the ⌘Fs since it opened.
+  const [find, setFind] = useState<{ search: SearchAddon; request: number } | null>(null)
 
   useEffect(() => {
     focusedRef.current = focused
@@ -53,6 +58,8 @@ export default function Terminal({
       fontSize: 13,
       cursorBlink: true,
       scrollback: 10000,
+      // The search addon highlights matches with decorations, a proposed API.
+      allowProposedApi: true,
       macOptionIsMeta: optionAsMetaRef.current,
       // OSC 8 hyperlinks. xterm itself drops those that are not http or https.
       linkHandler: { activate: openTerminalLink },
@@ -70,6 +77,8 @@ export default function Terminal({
     term.loadAddon(fit)
     // Plain URLs in the output.
     term.loadAddon(new WebLinksAddon(openTerminalLink))
+    const search = new SearchAddon({ highlightLimit: FIND_LIMIT })
+    term.loadAddon(search)
     term.open(host)
 
     // Prefer the GPU renderer; fall back to xterm's default DOM renderer if
@@ -107,6 +116,13 @@ export default function Terminal({
 
       if (edit !== null) {
         term.input(edit)
+        ev.preventDefault()
+
+        return false
+      }
+
+      if (ev.key.toLowerCase() === 'f' && !ev.ctrlKey && !ev.altKey && !ev.shiftKey) {
+        setFind((open) => ({ search, request: (open?.request ?? 0) + 1 }))
         ev.preventDefault()
 
         return false
@@ -196,5 +212,20 @@ export default function Terminal({
     }
   }, [id])
 
-  return <div className="terminal" ref={hostRef} data-testid="terminal-viewport" />
+  return (
+    <div className="terminal-frame">
+      <div className="terminal" ref={hostRef} data-testid="terminal-viewport" />
+      {find && (
+        <TerminalFind
+          id={id}
+          search={find.search}
+          focusRequest={find.request}
+          onClose={() => {
+            setFind(null)
+            termRef.current?.focus()
+          }}
+        />
+      )}
+    </div>
+  )
 }
