@@ -313,7 +313,7 @@ describe('Sidebar', () => {
     const start = (name = 'uploader'): Promise<HTMLElement> =>
       screen.findByRole('button', { name: `New workspace running Claude Code in ${name}` })
 
-    it('is the 8-bit character alone, with no plus and no text, and says what it does', async () => {
+    it('is a plus with no text, and says what it does', async () => {
       seed()
       render(<App />)
 
@@ -322,11 +322,7 @@ describe('Sidebar', () => {
       expect(button).toHaveAttribute('title', 'New workspace running Claude Code')
       expect(button).toHaveTextContent('')
       expect(button.closest('.project-head .head-actions')).not.toBeNull()
-      const svg = button.querySelector('svg')
-      expect(svg).toHaveAttribute('viewBox', '1 0 16 10')
-      expect(svg).toHaveAttribute('width', '16')
-      expect(svg).toHaveAttribute('height', '10')
-      expect(svg).toHaveClass('claude-code-mark')
+      expect(button.querySelector('svg path')).toHaveAttribute('d', 'M8 3.25v9.5M3.25 8h9.5')
     })
 
     it('makes a workspace with a generated name, starting Claude, and shows it at once', async () => {

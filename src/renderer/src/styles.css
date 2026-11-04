@@ -28,9 +28,6 @@
   --inverse: #e6e6e6;
   --inverse-fg: #111111;
 
-  /* Claude Code's character keeps its own colour, the one exception to "nothing is tinted" */
-  --clay: #d97757;
-
   /* status tones: a dot and a word, never a filled pill */
   --tone-neutral: #7a7a7a;
   --tone-busy: #4f8cf5;
@@ -761,27 +758,6 @@ h2 {
 
 .project-head .head-actions button {
   pointer-events: auto;
-}
-
-/* The button that starts a workspace running Claude Code: the character, nothing else. */
-button.ghost.start {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 22px;
-  padding: 0 4px;
-}
-
-button.ghost.start:hover:not(:disabled) {
-  background: var(--bg-active);
-}
-
-.claude-code-mark {
-  display: block;
-  width: 16px;
-  height: 10px;
-  fill: var(--clay);
-  shape-rendering: crispEdges;
 }
 
 .project-head .count {

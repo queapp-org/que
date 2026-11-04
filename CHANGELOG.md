@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The `+` is back on a project, in place of Claude Code's character. It does the same thing: one click makes a workspace and starts Claude there.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added

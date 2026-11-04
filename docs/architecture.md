@@ -224,7 +224,7 @@ blocks: it fetches and adds the worktree, inserts the row and announces it with
 `workspace.created`, then answers with setup running in the background; a
 refusal at any point leaves nothing behind. `que work`, `tickets.start` and the
 other callers use it. `workspace.prepare`, the app's path for the project head's
-character and the New workspace dialog, inserts the row first: it refuses a bad
+`+` and the New workspace dialog, inserts the row first: it refuses a bad
 or taken name at once, announces the row, answers, and runs the steps in the
 background. `Workspace.preparation` holds the plan, the steps done with their
 durations and failures (the step running now is the first one not done), and

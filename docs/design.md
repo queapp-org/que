@@ -4,8 +4,7 @@ que is a tool you look at all day and glance at all night, so it is drawn like a
 technical drawing: black and dark grey surfaces, hairline borders, dashed guide
 lines between regions, small mono labels in brackets, and one cool accent.
 Nothing shouts, and nothing is tinted: the greys are neutral. Status is a dot and
-a word, not a coloured block. One thing keeps a colour of its own: Claude Code's
-character (see Accent and tones).
+a word, not a coloured block.
 
 The tokens live in `src/renderer/src/styles.css` under `:root`. Components use
 them; nothing sets a colour, font, or radius inline.
@@ -51,7 +50,6 @@ so the DOM keeps the plain word.
 | ------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--accent`         | `#3fcdb4` | Links, the active tab's underline, focus rings, the cursor, the unlock countdown, the working mark (sidebar and quiet board).                      |
 | `--accent-hover`   | `#6adcc7` | The accent under the pointer.                                                                                                                      |
-| `--clay`           | `#d97757` | Claude Code's 8-bit character on a project head, and nothing else.                                                                                 |
 | `--inverse`        | `#e6e6e6` | The one primary button on a screen, light on dark.                                                                                                 |
 | `--tone-busy`      | `#4f8cf5` | working, as a still dot or badge: status badges, the popout, the report. The sidebar and the quiet board draw the working mark instead.            |
 | `--tone-attention` | `#f99c00` | needs input; a Claude usage window at 80% and over.                                                                                                |
@@ -70,11 +68,6 @@ badge (`.status.tone-*`) is a 5px dot and a mono word, tinted at 12% with a
 32% border of its tone. It never fills with colour: at a glance the dot tells
 the story, and a wall of filled pills is exactly the noise que exists to
 remove. The quiet board uses the same tones on a dot or a word, never a badge.
-
-Claude Code's character keeps its own colour, `--clay`. It is the one exception to
-"nothing is tinted": it is that product's mark rather than a state of ours, and its
-colour is not ours to change. It appears only as the button on a project head and
-never stands for a status.
 
 ## Syntax
 
@@ -109,8 +102,7 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
 - Dialogs carry four small corner points, the marks of a drawing's frame.
 - Icons are 16px line drawings at a 1.5px stroke, inline SVG from
   `components/icons.tsx`, drawn in the current text colour: faint in a ghost
-  button, bright on hover (the one exception is Claude Code's character, a filled
-  16×10 pixel drawing in `--clay`). The button carries the accessible name. No icon
+  button, bright on hover. The button carries the accessible name. No icon
   font or library. `button.icon` is 22px square; `button.icon.sm` is the 18px one
   for a row's own controls. A refresh icon turns, bright, while its work runs (one
   turn in 0.8s) and finishes the turn it is on when the work ends; under reduced
@@ -389,14 +381,13 @@ only under the pointer.
   ⋯. For a fresh finish the word is the age, `done · 12m ago`. An idle row with background work names its kinds,
   `idle · shell`, `idle · monitor`, or `idle · shell · monitor`. The overlay covers the end of a long name rather
   than reflowing it, so nothing jumps. A project head under the pointer turns its
-  folder into its chevron and shows Claude Code's character and ⋯, which stay at opacity 0
+  folder into its chevron and shows `+` and ⋯, which stay at opacity 0
   until the head is under the pointer, holds the keyboard focus, or has its menu open,
   behind a fade like the row overlay's, so a long name goes under them; the section
   heads' buttons (Sessions `+`, Projects add and sort) always show, since the two heads
-  are the way in. The character is a ghost button, 16×10 with 4px beside it, on `--bg-active`
-  under the pointer, with no plus and no text and the tooltip `New workspace running Claude
-  Code`. One click makes a workspace with a generated name and the default base running a
-  bare Claude, and shows it. New workspace…, in the head's ⋯ menu, is the way to set a name
+  are the way in. The `+` has the tooltip `New workspace running Claude Code`. One click
+  makes a workspace with a generated name and the default base running a bare Claude, and
+  shows it. New workspace…, in the head's ⋯ menu, is the way to set a name
   or a base ref, or to leave a brief and walk away. Clicking anywhere else on a project
   head folds it. An exited session reads faint, with `exited` as its word.
 - **The card.** When the pointer rests on a workspace row for 500ms (or on ⌘I for the

@@ -59,7 +59,7 @@ test('the character on a project head makes a workspace, shows its steps, and la
     await expect(sidebar.newWorkspaceDialog).toHaveCount(0)
   })
 
-  await test.step('Under the pointer the head shows the character', async () => {
+  await test.step('Under the pointer the head shows the plus', async () => {
     await retryPointer(async () => {
       await sidebar.projectToggle(project.id).hover()
       await expect(sidebar.projectActions(project.id)).toHaveCSS('opacity', '1', { timeout: 1_000 })
