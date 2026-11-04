@@ -332,6 +332,8 @@ export interface QueTestHook {
    * middle of its first character), or null when it is not on screen.
    */
   pointOf(termId: string, text: string): { x: number; y: number } | null
+  /** The cursor's cell on an attached terminal's screen, or null when it is not on screen. */
+  cursorOf(termId: string): { col: number; row: number } | null
   /** The chimes the app would have played, in order (recorded, never played, under e2e). */
   chimes(): ChimeKind[]
 }

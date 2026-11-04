@@ -164,6 +164,11 @@ export class TerminalPage {
     return point
   }
 
+  /** The column the cursor stands in on a terminal's screen; null until it is attached. */
+  async cursorColumn(termId: string): Promise<number | null> {
+    return this.page.evaluate((id) => window.__que?.cursorOf(id)?.col ?? null, termId)
+  }
+
   // Waits until a terminal is attached and on screen, and returns its id.
   async waitForActiveTerminal(timeout = 20_000): Promise<string> {
     await this.viewport.waitFor({ state: 'visible', timeout })

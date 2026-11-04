@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { applyUnicodeWidths } from '../../../shared/unicode-width'
 import { droppedText, isFileDrag } from '../terminal-drop'
 import { FIND_LIMIT } from '../terminal-find'
 import { lineEditSequence } from '../terminal-keys'
@@ -59,7 +60,7 @@ export default function Terminal({
       fontSize: 13,
       cursorBlink: true,
       scrollback: 10000,
-      // The search addon highlights matches with decorations, a proposed API.
+      // Decorations (the search addon's highlights) and Unicode widths are proposed APIs.
       allowProposedApi: true,
       macOptionIsMeta: optionAsMetaRef.current,
       // OSC 8 hyperlinks. xterm itself drops those that are not http or https.
@@ -73,6 +74,9 @@ export default function Terminal({
         selectionBackground: '#363636'
       }
     })
+
+    // Before anything is written, and the same as the daemon's mirror: its snapshots lay out alike.
+    applyUnicodeWidths(term)
 
     const fit = new FitAddon()
     term.loadAddon(fit)
