@@ -130,7 +130,7 @@ export class SidebarPage {
     this.project = (id: string) => page.getByTestId(`sidebar-project-${id}`)
     this.projectToggle = (id: string) => page.getByTestId(`sidebar-project-${id}-toggle`)
     this.projectMenuRemove = (id: string) => page.getByTestId(`sidebar-project-${id}-menu-remove`)
-    // The head's buttons, under the pointer: the character (one click to a Claude session) and ⋯.
+    // The head's buttons, under the pointer: + (one click to a Claude session) and ⋯.
     this.projectActions = (id: string) => page.getByTestId(`sidebar-project-${id}-actions`)
     this.projectStart = (id: string) => page.getByTestId(`sidebar-project-${id}-start`)
     this.projectMenu = (id: string) => page.getByTestId(`sidebar-project-${id}-menu`)

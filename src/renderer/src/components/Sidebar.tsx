@@ -12,7 +12,6 @@ import { useUnlockCountdown } from '../useUnlockCountdown'
 import UpdateChip from './UpdateChip'
 import {
   ChevronIcon,
-  ClaudeCodeIcon,
   FolderIcon,
   FolderPlusIcon,
   GearIcon,
@@ -388,7 +387,7 @@ function ProjectList(): React.JSX.Element {
               <div className="head-actions" data-testid={`sidebar-project-${p.id}-actions`}>
                 <button
                   type="button"
-                  className="ghost start"
+                  className="ghost icon"
                   data-testid={`sidebar-project-${p.id}-start`}
                   aria-label={`New workspace running Claude Code in ${p.name}`}
                   title="New workspace running Claude Code"
@@ -398,7 +397,7 @@ function ProjectList(): React.JSX.Element {
                     if (e.detail <= 1) void store.startClaudeWorkspace(p.id)
                   }}
                 >
-                  <ClaudeCodeIcon />
+                  <PlusIcon />
                 </button>
                 <button
                   type="button"

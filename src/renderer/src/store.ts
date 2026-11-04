@@ -1967,7 +1967,7 @@ export class QueStore {
   }
 
   /**
-   * One click on a project's character: a workspace with a generated name and the default base,
+   * One click on a project's `+`: a workspace with a generated name and the default base,
    * running a bare Claude that waits for its first prompt. A failure goes to the error line.
    */
   startClaudeWorkspace(projectId: string): Promise<void> {

@@ -10,6 +10,10 @@ All notable changes to que are recorded here. The format follows
 
 - que updates itself. Click `Update` and the release downloads in the background, with the chip showing `Updating 42%`. When it's ready the chip reads `Restart`: one click installs it, reopens que on the new version, and hands your terminals to the new background service, all still running, with no second `Restart`. Nothing downloads until you click, and nothing installs until you click `Restart`, including when you quit. If a download or install fails, the chip goes back to `Update`, the error line says what went wrong, and que stays on the version you have. Settings > Updates shows the same state and action, plus a button for the release page. The first update this way starts from the release that includes it, so that one still installs by hand.
 
+### Changed
+
+- The `+` is back on a project, in place of Claude Code's character. It does the same thing: one click makes a workspace and starts Claude there.
+
 ### Fixed
 
 - Cmd+F's matches are easy to see in a terminal: every match has a brighter fill, and the current one is teal.
