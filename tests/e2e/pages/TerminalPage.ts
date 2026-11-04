@@ -56,6 +56,7 @@ export class TerminalPage {
     count: Locator
     previous: Locator
     next: Locator
+    current: Locator
   } {
     const at = (element: string) => this.page.getByTestId(`terminal-${id}-find${element}`)
 
@@ -64,7 +65,11 @@ export class TerminalPage {
       input: at('-input'),
       count: at('-count'),
       previous: at('-previous'),
-      next: at('-next')
+      next: at('-next'),
+      // xterm draws this and doesn't mark which match is current, beyond outlining it in the accent.
+      current: this.page
+        .getByTestId('terminal-viewport')
+        .locator('.xterm-find-result-decoration[style*="rgb(63, 205, 180)"]')
     }
   }
 

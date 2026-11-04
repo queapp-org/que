@@ -8,7 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { applyUnicodeWidths } from '../../../shared/unicode-width'
 import { decodeOsc52 } from '../osc52'
 import { droppedText, isFileDrag } from '../terminal-drop'
-import { FIND_LIMIT } from '../terminal-find'
+import { FIND_LIMIT, token } from '../terminal-find'
 import { lineEditSequence } from '../terminal-keys'
 import { openTerminalLink } from '../terminal-links'
 import { sanitizePaste } from '../terminal-paste'
@@ -32,6 +32,15 @@ function copyToClipboard(text: string): void {
   navigator.clipboard.writeText(text).catch((err: Error) => {
     console.warn('Could not write to the clipboard', err)
   })
+}
+
+// The app's surface colours (styles.css); the cursor takes the accent.
+const THEME = {
+  background: '#181818',
+  foreground: '#eeeeee',
+  cursor: '#3fcdb4',
+  cursorAccent: '#181818',
+  selectionBackground: '#363636'
 }
 
 export default function Terminal({
@@ -59,6 +68,18 @@ export default function Terminal({
   })
 
   // The setting applies to a terminal already open.
+  // The current match is xterm's selection, which it paints over the match's own fill, so the
+  // selection takes that fill while find is open.
+  const finding = find !== null
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.theme = finding
+        ? { ...THEME, selectionBackground: token('--accent-fill') }
+        : THEME
+    }
+  }, [finding])
+
   useEffect(() => {
     if (termRef.current) termRef.current.options.macOptionIsMeta = optionAsMeta
   }, [optionAsMeta])
@@ -85,14 +106,7 @@ export default function Terminal({
       rightClickSelectsWord: false,
       // OSC 8 hyperlinks. xterm itself drops those that are not http or https.
       linkHandler: { activate: openTerminalLink },
-      // The app's surface colours (styles.css); the cursor takes the accent.
-      theme: {
-        background: '#181818',
-        foreground: '#eeeeee',
-        cursor: '#3fcdb4',
-        cursorAccent: '#181818',
-        selectionBackground: '#363636'
-      }
+      theme: THEME
     })
 
     // Before anything is written, and the same as the daemon's mirror: its snapshots lay out alike.
