@@ -55,6 +55,7 @@ import type {
   QuietState,
   QuietUnlock,
   UpdateInfo,
+  UpdateInstall,
   UpdateStatus,
   Usage,
   UsageWindow,
@@ -95,6 +96,7 @@ export type {
   TermInfo,
   TermSnapshotResult,
   UpdateInfo,
+  UpdateInstall,
   UpdateStatus,
   Workspace,
   WorkspaceDiff,
@@ -149,14 +151,24 @@ export interface AppApi {
   openSetupLog(params: { id: string }): Promise<{ ok: true }>
   /** The menu-bar title. Answers only when the app was launched with QUE_E2E=1. */
   trayTitle(): Promise<string>
-  /** What the update check last said, and what this build is. */
+  /** What the update check last said, where an install has got to, and what this build is. */
   updateStatus(): Promise<UpdateStatus>
-  /** Fires whenever a check finishes, in the background or asked for. */
+  /** Fires whenever a check finishes (in the background or asked for), and as an install moves. */
   onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
   /** Asks for the latest release now, past the interval. A local build never asks and answers as it stands. */
   checkForUpdate(): Promise<UpdateStatus>
   /** Opens the newer release's page in the browser. */
   openUpdate(): Promise<{ ok: true }>
+  /**
+   * Downloads the newer release in the background. Only a release build with a release to
+   * fetch does anything; progress and any failure arrive through onUpdateStatus.
+   */
+  installUpdate(): Promise<UpdateStatus>
+  /**
+   * Installs the downloaded release and relaunches, which also hands the terminals to a new
+   * daemon at launch. Refused until the download is ready; a failure arrives through onUpdateStatus.
+   */
+  restartToInstall(): Promise<UpdateStatus>
   /** True only when the app was launched with QUE_E2E=1. */
   e2e: boolean
 }

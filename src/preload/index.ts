@@ -132,6 +132,8 @@ const api: QueApi = {
     },
     checkForUpdate: () => ipcRenderer.invoke('app:checkForUpdate'),
     openUpdate: () => ipcRenderer.invoke('app:openUpdate'),
+    installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+    restartToInstall: () => ipcRenderer.invoke('app:restartToInstall'),
     e2e: process.argv.includes('--que-e2e')
   },
   daemon: {

@@ -127,6 +127,11 @@ jobs:
           fi
           npm run dist
 
+      # Without it the published app can't update itself. Only the dmg and zip targets write
+      # it, so the packaged smoke check, on `npm run package`'s build, can't see it there.
+      - name: Check the update config is in the bundle
+        run: test -s release/mac-*/que.app/Contents/Resources/app-update.yml
+
       # gh instead of a third-party release action: only GitHub-official actions are used here.
       # The version and the commit reach the shell as environment variables, never interpolated
       # into the script.
