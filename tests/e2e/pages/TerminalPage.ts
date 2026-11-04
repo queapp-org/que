@@ -41,6 +41,14 @@ export class TerminalPage {
     this.linkUnderPointer = first.viewport.locator('.xterm-cursor-pointer')
   }
 
+  // A terminal's right-click menu.
+  menu(id: string): { copy: Locator; paste: Locator } {
+    return {
+      copy: this.page.getByTestId(`terminal-${id}-menu-copy`),
+      paste: this.page.getByTestId(`terminal-${id}-menu-paste`)
+    }
+  }
+
   // A terminal's find control (⌘F).
   find(id: string): {
     root: Locator
@@ -140,6 +148,20 @@ export class TerminalPage {
     }
 
     await session.detach()
+  }
+
+  /** Fires a paste event as Cmd+V does, holding text or an image, without the real pasteboard. */
+  async firePaste(content: { text: string } | { imageName: string }): Promise<void> {
+    await this.input.evaluate((field, c) => {
+      const clipboardData = new DataTransfer()
+
+      if ('text' in c) clipboardData.setData('text/plain', c.text)
+      else clipboardData.items.add(new File(['png'], c.imageName, { type: 'image/png' }))
+
+      field.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true })
+      )
+    }, content)
   }
 
   /** The middle of the first pane's terminal, in window coordinates. */
