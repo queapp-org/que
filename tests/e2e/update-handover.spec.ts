@@ -63,7 +63,7 @@ test('the Restart that installed an update hands the terminals over at launch', 
   })
 
   await test.step('With the marker a clicked Restart leaves: handed over, no second Restart', async () => {
-    writeRestartMarker(restartMarkerPath(queHome), { at: Date.now() })
+    writeRestartMarker(restartMarkerPath(queHome))
 
     launched = await launchApp({ queHome })
     const appShell = new AppShellPage(launched.window)

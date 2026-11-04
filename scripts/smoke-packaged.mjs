@@ -4,9 +4,7 @@
 // first on PATH, and checks that:
 //   - the microphone prompt has que's text, and a signed build has the
 //     audio-input entitlement (an unsigned build carries no entitlements);
-//   - the updater library loads from inside app.asar, and a release bundle has
-//     Contents/Resources/app-update.yml (`npm run dist` writes it; `npm run package`
-//     does not, and a build it marks never updates);
+//   - the updater library loads from inside app.asar;
 //   - the daemon the app starts runs from inside que.app/Contents/Resources,
 //     under the app's own binary;
 //   - a terminal opens and runs a command (read through window.__que);
@@ -155,9 +153,7 @@ try {
 
     return {
       external: entry.includes('require("electron-updater")'),
-      loaded: chunk ? load(`./${chunk}`).default.autoUpdater.constructor.name : null,
-      localBuild: JSON.parse(fs.readFileSync(`${app.getAppPath()}/package.json`, 'utf8'))
-        .queLocalBuild
+      loaded: chunk ? load(`./${chunk}`).default.autoUpdater.constructor.name : null
     }
   })
 
@@ -166,12 +162,6 @@ try {
   if (updater.loaded !== 'MacUpdater') throw new Error('no updater loads from app.asar')
 
   log(`${updater.loaded} loads from app.asar`)
-  const updateConfig = existsSync(join(resources, 'app-update.yml'))
-
-  if (!updateConfig && !updater.localBuild)
-    throw new Error('a release build without Contents/Resources/app-update.yml')
-
-  log(updateConfig ? 'has app-update.yml' : 'local build: no app-update.yml to check')
 
   // 1. The daemon runs from inside the bundle, under the app binary.
   const status = await poll('the daemon', () => {

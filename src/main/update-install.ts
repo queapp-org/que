@@ -12,9 +12,6 @@ import fs from 'node:fs'
 import { dirname, join } from 'node:path'
 import { errorMessage } from '../shared/errors.decode'
 import type { UpdateInstall } from '../shared/types'
-import { decodeRestartMarker, type RestartMarker } from './update-install.decode'
-
-export type { RestartMarker }
 
 /** How long a marker stands: an install takes a minute or two, not an afternoon. */
 export const RESTART_MARKER_MAX_AGE_MS = 10 * 60 * 1000
@@ -44,19 +41,18 @@ export interface UpdateInstallerOptions {
   onChange: (install: UpdateInstall) => void
   /** The updater found nothing to download although the check knew of a release. */
   onNoUpdate?: () => void
-  now?: () => number
 }
 
 /** Where a clicked Restart leaves its marker. */
 export function restartMarkerPath(home: string): string {
-  return join(home, 'state', 'update-restart.json')
+  return join(home, 'state', 'update-restart')
 }
 
 /** Writes the marker. A failure is not worth stopping the install: the Restart chip remains. */
-export function writeRestartMarker(path: string, marker: RestartMarker): void {
+export function writeRestartMarker(path: string): void {
   try {
     fs.mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-    fs.writeFileSync(path, `${JSON.stringify(marker)}\n`)
+    fs.writeFileSync(path, '')
   } catch (err) {
     console.error('could not write the restart marker:', err)
   }
@@ -70,10 +66,10 @@ function removeRestartMarker(path: string): void {
   }
 }
 
-/** Reads the marker and removes it, whatever it says; null without a usable one. */
-export function takeRestartMarker(path: string): RestartMarker | null {
+/** When the marker was written, removing it; null without one. An empty file: its time is all it says. */
+export function takeRestartMarker(path: string): number | null {
   try {
-    return decodeRestartMarker(JSON.parse(fs.readFileSync(path, 'utf8')))
+    return fs.statSync(path).mtimeMs
   } catch {
     return null
   } finally {
@@ -83,12 +79,12 @@ export function takeRestartMarker(path: string): RestartMarker | null {
 
 /** Whether a launch hands the terminals over: a recent clicked Restart, and a daemon on an older build. */
 export function shouldHandOffAtLaunch(
-  marker: RestartMarker | null,
+  markedAt: number | null,
   now: number,
   stale: boolean
 ): boolean {
-  if (!marker || !stale) return false
-  const age = now - marker.at
+  if (markedAt === null || !stale) return false
+  const age = now - markedAt
 
   return age >= 0 && age <= RESTART_MARKER_MAX_AGE_MS
 }
@@ -155,7 +151,7 @@ export class UpdateInstaller {
   restart(): void {
     if (this.current.phase !== 'ready' || !this.updater) return
     this.set({ phase: 'installing', version: this.current.version })
-    writeRestartMarker(this.o.markerPath, { at: (this.o.now ?? Date.now)() })
+    writeRestartMarker(this.o.markerPath)
 
     try {
       this.updater.quitAndInstall()

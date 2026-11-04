@@ -23,7 +23,6 @@ import { installMenu } from './menu'
 import { createTray, type QueTray, quietTitle } from './tray'
 import { CHECK_TICK_MS, checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
 import {
-  type RestartMarker,
   restartMarkerPath,
   shouldHandOffAtLaunch,
   takeRestartMarker,
@@ -207,8 +206,8 @@ function upgradeDaemon(): Promise<DaemonState> {
  * A failure goes to the error line through the status, and the stale daemon's Restart stays
  * for another try.
  */
-async function finishRestart(marker: RestartMarker | null): Promise<void> {
-  if (!shouldHandOffAtLaunch(marker, Date.now(), daemon?.stale ?? false)) return
+async function finishRestart(markedAt: number | null): Promise<void> {
+  if (!shouldHandOffAtLaunch(markedAt, Date.now(), daemon?.stale ?? false)) return
 
   const handoff = upgradeDaemon().then(
     () => {},
@@ -538,7 +537,7 @@ function registerIpc(): void {
 
 app.whenReady().then(async () => {
   // Gone from here on, whatever the rest of this launch does.
-  const restartMarker = takeRestartMarker(restartMarkerPath(queHome()))
+  const restartMarkedAt = takeRestartMarker(restartMarkerPath(queHome()))
 
   // A Finder launch has launchd's PATH; the daemon and editors inherit ours,
   // so resolve the login shell's once, before the first daemon start.
@@ -572,7 +571,7 @@ app.whenReady().then(async () => {
   try {
     const c = await getClient()
     applyQuiet(await c.request('quiet.state'))
-    await finishRestart(restartMarker)
+    await finishRestart(restartMarkedAt)
   } catch (err) {
     console.error('failed to reach que daemon:', err)
   }

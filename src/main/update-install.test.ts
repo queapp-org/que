@@ -79,7 +79,7 @@ afterEach(() => {
 
 function installerWith(
   updater: Updater,
-  opts: { now?: () => number; markerPath?: string; onNoUpdate?: () => void } = {}
+  opts: { markerPath?: string; onNoUpdate?: () => void } = {}
 ): { installer: UpdateInstaller; changes: UpdateInstall[] } {
   const changes: UpdateInstall[] = []
 
@@ -96,7 +96,7 @@ function installerWith(
 /** An installer whose release is downloaded and waiting for Restart. */
 async function readyInstaller(
   updater: FakeUpdater,
-  opts: { now?: () => number; markerPath?: string } = {}
+  opts: { markerPath?: string } = {}
 ): Promise<{ installer: UpdateInstaller; changes: UpdateInstall[] }> {
   const made = installerWith(updater, opts)
   await made.installer.start()
@@ -316,20 +316,19 @@ describe('UpdateInstaller', () => {
     })
 
     it('has the marker on disk by the time it installs', async () => {
-      const at = new Date(2026, 10, 3, 14, 20).getTime()
-      let markerAtInstall: unknown = null
+      let markerAtInstall = false
 
       const updater = new FakeUpdater({
         install: () => {
-          markerAtInstall = JSON.parse(fs.readFileSync(markerPath, 'utf8'))
+          markerAtInstall = fs.existsSync(markerPath)
         }
       })
 
-      const { installer } = await readyInstaller(updater, { now: () => at })
+      const { installer } = await readyInstaller(updater)
 
       installer.restart()
 
-      expect(markerAtInstall).toEqual({ at })
+      expect(markerAtInstall).toBe(true)
       expect(updater.installs).toBe(1)
       expect(installer.state).toEqual({ phase: 'installing', version: '0.5.0' })
     })
@@ -402,7 +401,7 @@ describe('shouldHandOffAtLaunch', () => {
   const NOW = new Date(2026, 10, 3, 14, 20).getTime()
 
   it('hands off after a recent clicked Restart with the daemon on an older build', () => {
-    expect(shouldHandOffAtLaunch({ at: NOW - 60_000 }, NOW, true)).toBe(true)
+    expect(shouldHandOffAtLaunch(NOW - 60_000, NOW, true)).toBe(true)
   })
 
   it('leaves an upgrade installed by hand to its own Restart: no marker', () => {
@@ -410,41 +409,31 @@ describe('shouldHandOffAtLaunch', () => {
   })
 
   it('has nothing to do when the daemon already runs this build', () => {
-    expect(shouldHandOffAtLaunch({ at: NOW - 60_000 }, NOW, false)).toBe(false)
+    expect(shouldHandOffAtLaunch(NOW - 60_000, NOW, false)).toBe(false)
   })
 
   it('stands for ten minutes and no longer', () => {
-    expect(shouldHandOffAtLaunch({ at: NOW - RESTART_MARKER_MAX_AGE_MS }, NOW, true)).toBe(true)
-    expect(shouldHandOffAtLaunch({ at: NOW - RESTART_MARKER_MAX_AGE_MS - 1 }, NOW, true)).toBe(
-      false
-    )
+    expect(shouldHandOffAtLaunch(NOW - RESTART_MARKER_MAX_AGE_MS, NOW, true)).toBe(true)
+    expect(shouldHandOffAtLaunch(NOW - RESTART_MARKER_MAX_AGE_MS - 1, NOW, true)).toBe(false)
   })
 
   it('ignores a marker from the future: the clock moved, so the age means nothing', () => {
-    expect(shouldHandOffAtLaunch({ at: NOW + 1 }, NOW, true)).toBe(false)
+    expect(shouldHandOffAtLaunch(NOW + 1, NOW, true)).toBe(false)
   })
 })
 
 describe('takeRestartMarker', () => {
-  it('reads the marker and removes it', () => {
-    writeRestartMarker(markerPath, { at: 1_700_000_000_000 })
+  it('answers when the marker was written and removes it', () => {
+    const seconds = 1_700_000_000
 
-    expect(takeRestartMarker(markerPath)).toEqual({ at: 1_700_000_000_000 })
+    writeRestartMarker(markerPath)
+    fs.utimesSync(markerPath, seconds, seconds)
+
+    expect(takeRestartMarker(markerPath)).toBe(seconds * 1000)
     expect(fs.existsSync(markerPath)).toBe(false)
   })
 
   it('answers null without one', () => {
     expect(takeRestartMarker(markerPath)).toBeNull()
-  })
-
-  it.each([
-    ['not JSON', 'nonsense'],
-    ['no time', '{"version":"0.5.0"}']
-  ])('removes a marker that is %s, and answers null', (_, content) => {
-    fs.mkdirSync(join(home, 'state'))
-    fs.writeFileSync(markerPath, content)
-
-    expect(takeRestartMarker(markerPath)).toBeNull()
-    expect(fs.existsSync(markerPath)).toBe(false)
   })
 })

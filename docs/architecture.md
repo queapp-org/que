@@ -125,7 +125,7 @@ which reports a failure as an answer, not a throw, and puts what it means into
 words for both surfaces (`handOffFailedText`).
 
 The app also asks by itself once: at the launch after a Restart that installed
-an update. That click writes `QUE_HOME/state/update-restart.json` just before
+an update. That click writes `QUE_HOME/state/update-restart` just before
 installing, and every launch removes the file whatever happens. If it was there
 and under ten minutes old, and the daemon is stale, the main process calls the
 same hand-off before opening its window, so one click takes both steps
