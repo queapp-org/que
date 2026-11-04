@@ -132,7 +132,9 @@ const opts = parseArgs(process.argv.slice(2))
 const settings = loadSettings(opts.settings)
 const hooks = (settings && typeof settings.hooks === 'object' && settings.hooks) || {}
 const cwd = process.cwd()
-if (process.env.QUE_FAKE_CLAUDE_LOG) {
+// The daemon's status poll runs `agents` on its own clock, so logging it would race every test
+// that reads this log.
+if (process.env.QUE_FAKE_CLAUDE_LOG && opts.positionals[0] !== 'agents') {
   const call = {
     argv: process.argv.slice(2),
     cwd,

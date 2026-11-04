@@ -160,6 +160,15 @@ describe('fake claude', () => {
       expect((await run(CLAUDE, ['--version'])).stdout).toMatch(/^\d+\.\d+\.\d+ \(Claude Code\)/)
       expect(JSON.parse((await run(CLAUDE, ['agents', '--json'])).stdout)).toEqual([])
     }, 20_000)
+
+    it('logs a call but not the status poll, which runs on its own clock', async () => {
+      const log = join(dir, 'claude.log')
+
+      await run(CLAUDE, ['--version'], { QUE_FAKE_CLAUDE_LOG: log })
+      await run(CLAUDE, ['agents', '--json'], { QUE_FAKE_CLAUDE_LOG: log })
+
+      expect(readFakeLog(log).map((c) => c.argv)).toEqual([['--version']])
+    }, 20_000)
   })
 })
 
