@@ -25,10 +25,10 @@ describe('findDecorations', () => {
     const colours = findDecorations((name) => `token(${name})`)
 
     expect(colours).toEqual({
-      matchBackground: 'token(--bg-active)',
+      matchBackground: 'token(--tone-muted)',
       matchBorder: 'token(--fg-faint)',
       matchOverviewRuler: 'token(--border-strong)',
-      activeMatchBackground: 'token(--bg-active)',
+      activeMatchBackground: 'token(--accent-fill)',
       activeMatchBorder: 'token(--accent)',
       activeMatchColorOverviewRuler: 'token(--accent)'
     })
