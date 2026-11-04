@@ -6,6 +6,8 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
 ### Added
 
 - One click to a Claude session. The `+` on a project is now Claude Code's character: it makes a workspace with a generated name and the default base, starts Claude there and puts the keyboard in its terminal, so you speak or type your first prompt in Claude's own input. "New workspace…" in the project's ⋯ menu is still there for setting a name or a base ref, or for leaving a brief and walking away.
@@ -196,7 +198,8 @@ Built and used locally; never published.
   node-pty outside the asar, an "Install 'que' command in PATH" menu item, and
   a daily check for a newer release.
 
-[Unreleased]: https://github.com/queapp-org/que/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/queapp-org/que/compare/v0.4.0...HEAD
 [0.1.0]: https://github.com/queapp-org/que/tree/afc5c9f345c965a15703283dc36e1fd7256ff010
+[0.4.0]: https://github.com/queapp-org/que/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/queapp-org/que/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/queapp-org/que/compare/afc5c9f345c965a15703283dc36e1fd7256ff010...v0.2.0
