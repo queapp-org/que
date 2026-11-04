@@ -41,6 +41,25 @@ export class TerminalPage {
     this.linkUnderPointer = first.viewport.locator('.xterm-cursor-pointer')
   }
 
+  // A terminal's find control (⌘F).
+  find(id: string): {
+    root: Locator
+    input: Locator
+    count: Locator
+    previous: Locator
+    next: Locator
+  } {
+    const at = (element: string) => this.page.getByTestId(`terminal-${id}-find${element}`)
+
+    return {
+      root: at(''),
+      input: at('-input'),
+      count: at('-count'),
+      previous: at('-previous'),
+      next: at('-next')
+    }
+  }
+
   // One pane: its container, its tab strip (a row of the main column) and the split and
   // review controls when that strip is the top-right one, terminal viewport, xterm input,
   // + button, and its diff tabs.

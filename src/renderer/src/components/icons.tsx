@@ -205,6 +205,24 @@ export function ChevronIcon({ open = false }: { open?: boolean }): React.JSX.Ele
   )
 }
 
+/** A chevron pointing up: the previous match. */
+export function ChevronUpIcon(): React.JSX.Element {
+  return (
+    <svg {...base} aria-hidden="true">
+      <path d="M4.5 10 8 6.5l3.5 3.5" />
+    </svg>
+  )
+}
+
+/** A chevron pointing down: the next match. */
+export function ChevronDownIcon(): React.JSX.Element {
+  return (
+    <svg {...base} aria-hidden="true">
+      <path d="M4.5 6.5 8 10l3.5-3.5" />
+    </svg>
+  )
+}
+
 /** A page with a folded corner: a file of the worktree. */
 export function FileIcon(): React.JSX.Element {
   return (
