@@ -382,7 +382,19 @@ export interface UpdateInfo {
   url: string
 }
 
-/** The update check as the app reports it. */
+/** Where installing a newer release from inside the app has got to (see update-install.ts). */
+export type UpdateInstall =
+  | { phase: 'idle' }
+  /** Asking for and fetching the release; `percent` is a whole number from 0 to 100. */
+  | { phase: 'downloading'; percent: number }
+  /** Downloaded; a click on Restart installs it. */
+  | { phase: 'ready'; version: string }
+  /** Restart was clicked: the app quits as soon as the system has taken the update. */
+  | { phase: 'installing'; version: string }
+  /** The last try failed, in words for the error line. This version keeps running. */
+  | { phase: 'failed'; message: string }
+
+/** The update check and the install as the app reports them. */
 export interface UpdateStatus {
   /** The running app's version. */
   version: string
@@ -394,6 +406,10 @@ export interface UpdateStatus {
   checkedAt: number | null
   /** The last attempt got no usable answer. */
   failed: boolean
+  /** The install of a newer release, separate from the check that found it. */
+  install: UpdateInstall
+  /** Why the hand-off a clicked Restart asked for at launch failed, until one succeeds. */
+  handoffError: string | null
 }
 
 /** What the daemon says about quiet hours (quiet.state and the quiet.changed event). */

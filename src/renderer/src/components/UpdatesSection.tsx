@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { UpdateStatus } from '../../../preload/index.d'
 import { hhmm } from '../../../shared/format'
 import { useQueSelector, useStore } from '../store'
+import { useUpdateAction } from '../useUpdateAction'
 
 interface Answer {
   className: string
@@ -9,12 +10,34 @@ interface Answer {
   role?: 'alert'
 }
 
-/** The last answer, the first that holds of: a local build, a newer release, a failure, up to date. */
-function answerOf({ releaseBuild, update, failed, checkedAt }: UpdateStatus): Answer | null {
+/**
+ * The last answer, the first that holds of: a local build, an install under way or ready, a
+ * failed install with the release still there (the error line has already announced it, so no
+ * alert), a newer release, a failed check, up to date.
+ */
+function answerOf({
+  releaseBuild,
+  update,
+  failed,
+  checkedAt,
+  install
+}: UpdateStatus): Answer | null {
   const at = checkedAt === null ? null : hhmm(checkedAt)
 
   if (!releaseBuild) {
     return { className: 'hint', text: "Local build: que doesn't check for releases." }
+  }
+
+  if (install.phase === 'installing') {
+    return { className: 'updates-news', text: `Installing que ${install.version}.` }
+  }
+
+  if (install.phase === 'ready') {
+    return { className: 'updates-news', text: `que ${install.version} is ready to install.` }
+  }
+
+  if (update && install.phase === 'failed') {
+    return { className: 'form-error', text: install.message }
   }
 
   if (update) return { className: 'updates-news', text: `que ${update.version} is available.` }
@@ -33,13 +56,15 @@ function answerOf({ releaseBuild, update, failed, checkedAt }: UpdateStatus): An
 }
 
 /**
- * Settings' last section: the running version, the update check's last answer, and asking
- * again by hand. It is never disabled with the daemon gone, since the check runs in the main
- * process. The chip in the Quiet row reads the same status, so the two never disagree.
+ * Settings' last section: the running version, the update check's last answer, asking again
+ * by hand, the same update action as the chip in the Quiet row, and the release page for
+ * installing by hand. It is never disabled with the daemon gone, since the check and the
+ * install run in the main process.
  */
 export default function UpdatesSection(): React.JSX.Element | null {
   const store = useStore()
   const status = useQueSelector((s) => s.updateStatus)
+  const action = useUpdateAction()
   const [checking, setChecking] = useState(false)
 
   if (!status) return null
@@ -76,13 +101,26 @@ export default function UpdatesSection(): React.JSX.Element | null {
             >
               {checking ? 'Checking…' : 'Check for updates'}
             </button>
+            {action && (
+              <button
+                type="button"
+                className="updates-install"
+                data-testid="settings-install-update"
+                data-state={action.state}
+                title={action.title}
+                disabled={action.disabled}
+                onClick={action.run}
+              >
+                {action.label}
+              </button>
+            )}
             {status.update && (
               <button
                 type="button"
                 data-testid="settings-download-update"
                 onClick={() => store.openUpdate()}
               >
-                Download
+                Release page
               </button>
             )}
           </span>

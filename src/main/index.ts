@@ -22,6 +22,12 @@ import { decodeAbsolutePath, decodeWorkspaceId } from './ipc.decode'
 import { installMenu } from './menu'
 import { createTray, type QueTray, quietTitle } from './tray'
 import { CHECK_TICK_MS, checkForUpdate, isReleaseBuild, readLocalBuild } from './update-check'
+import {
+  restartMarkerPath,
+  shouldHandOffAtLaunch,
+  takeRestartMarker,
+  UpdateInstaller
+} from './update-install'
 import { errorCode, errorMessage } from '../shared/errors.decode'
 
 // The daemon owns every terminal and workspace. This process only proxies the
@@ -52,17 +58,31 @@ function locked(): boolean {
 // storage, caches) included, so a test QUE_HOME isolates all of it.
 app.setPath('userData', join(queHome(), 'app'))
 
-/** What the update check last said, and what this build is. */
+/** What the update check last said, where an install has got to, and what this build is. */
 let updateStatus: UpdateStatus = {
   version: app.getVersion(),
   releaseBuild: isReleaseBuild(app.isPackaged, readLocalBuild(app.getAppPath())),
   update: null,
   checkedAt: null,
-  failed: false
+  failed: false,
+  install: { phase: 'idle' },
+  handoffError: null
 }
 
 /** The check in flight: a click during a tick's request shares its answer. */
 let updateChecking: Promise<UpdateStatus> | null = null
+
+/** The install. The updater library loads on the first click, which only a release build takes. */
+const installer = new UpdateInstaller({
+  load: async () => (await import('electron-updater')).autoUpdater,
+  markerPath: restartMarkerPath(queHome()),
+  onChange: (install) => setUpdateStatus({ install }),
+  // The release it knew of may be gone: let the check say so, and the chip goes with it.
+  onNoUpdate: () => void runUpdateCheck(true)
+})
+
+/** How long the first window waits for the hand-off a clicked Restart asked for. */
+const HANDOFF_WINDOW_WAIT_MS = 5_000
 
 /** The daemon as last seen after a connect (see refreshDaemon). */
 let daemon: DaemonState | null = null
@@ -151,7 +171,9 @@ async function connect(): Promise<DaemonClient> {
  * stay the same, and nothing is killed. The connection to the old daemon closes
  * as it exits; the next one reaches the successor, and `daemon.reconnected`
  * fires as after a restart. A failed hand-off rejects with what it means (the
- * old daemon still serves). Only ever the user's click.
+ * old daemon still serves). Only ever the user's click: on the Restart that shows
+ * while the daemon is stale, or on the one that installed this build, which asked
+ * for it at launch (see finishRestart).
  */
 function upgradeDaemon(): Promise<DaemonState> {
   upgrading ??= (async () => {
@@ -168,12 +190,33 @@ function upgradeDaemon(): Promise<DaemonState> {
     exitingPid = null
     const next = await getClient()
 
+    if (updateStatus.handoffError) setUpdateStatus({ handoffError: null })
+
     return daemon && daemonPid === outcome.pid ? daemon : await refreshDaemon(next)
   })().finally(() => {
     upgrading = null
   })
 
   return upgrading
+}
+
+/**
+ * The launch after a clicked Restart installed this build: hands the terminals over without a
+ * second click, once the marker, the clock and the daemon's build say so (shouldHandOffAtLaunch).
+ * A failure goes to the error line through the status, and the stale daemon's Restart stays
+ * for another try.
+ */
+async function finishRestart(markedAt: number | null): Promise<void> {
+  if (!shouldHandOffAtLaunch(markedAt, Date.now(), daemon?.stale ?? false)) return
+
+  const handoff = upgradeDaemon().then(
+    () => {},
+    (err: Error) => setUpdateStatus({ handoffError: errorMessage(err) })
+  )
+
+  // The window waits so it never draws the old daemon, but not for long: a slow hand-off
+  // finishes behind it, as one from the chip does.
+  await Promise.race([handoff, delay(HANDOFF_WINDOW_WAIT_MS)])
 }
 
 /** A lower-case clause as the error line's sentence. */
@@ -341,12 +384,22 @@ function runUpdateCheck(force: boolean): Promise<UpdateStatus> {
     statePath: join(queHome(), 'state', 'update-check.json'),
     force
   }).then((result) => {
-    updateStatus = { ...updateStatus, ...result }
     updateChecking = null
-    sendToRenderer('que:updateStatus', updateStatus)
+    setUpdateStatus(result)
 
     return updateStatus
   }))
+}
+
+/** Records what changed in the status and tells the windows. */
+function setUpdateStatus(patch: Partial<UpdateStatus>): void {
+  updateStatus = { ...updateStatus, ...patch }
+  sendToRenderer('que:updateStatus', updateStatus)
+}
+
+/** Only a release build installs; a spec never reaches the updater, whatever it runs. */
+function canInstall(): boolean {
+  return updateStatus.releaseBuild && !e2e
 }
 
 /**
@@ -434,6 +487,21 @@ function registerIpc(): void {
     return { ok: true }
   })
 
+  // Downloads the release the check found: the renderer passes nothing, and nothing happens
+  // without one. Progress and the outcome arrive as que:updateStatus.
+  ipcMain.handle('app:installUpdate', () => {
+    if (canInstall() && updateStatus.update) void installer.start()
+
+    return updateStatus
+  })
+
+  // Installs what was downloaded and relaunches; refused until it is ready.
+  ipcMain.handle('app:restartToInstall', () => {
+    if (canInstall()) installer.restart()
+
+    return updateStatus
+  })
+
   ipcMain.handle('daemon:state', () => reply(daemonState))
   ipcMain.handle('daemon:upgrade', () => reply(upgradeDaemon))
 
@@ -468,6 +536,9 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(async () => {
+  // Gone from here on, whatever the rest of this launch does.
+  const restartMarkedAt = takeRestartMarker(restartMarkerPath(queHome()))
+
   // A Finder launch has launchd's PATH; the daemon and editors inherit ours,
   // so resolve the login shell's once, before the first daemon start.
   if (!e2e) {
@@ -500,6 +571,7 @@ app.whenReady().then(async () => {
   try {
     const c = await getClient()
     applyQuiet(await c.request('quiet.state'))
+    await finishRestart(restartMarkedAt)
   } catch (err) {
     console.error('failed to reach que daemon:', err)
   }

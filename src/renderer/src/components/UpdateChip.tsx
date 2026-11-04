@@ -1,59 +1,29 @@
-import { useState } from 'react'
-import { useQueSelector, useStore } from '../store'
-
-const RESTART_TITLE =
-  'que was updated. The background service still runs the previous build. Restart it on this build; every terminal keeps running.'
+import { useUpdateAction } from '../useUpdateAction'
 
 /**
- * A small control at the Quiet row's right end (after `lock now` during an unlock), in one
- * of two states, and absent with neither:
- * - Restart, while the background service runs an older build than this app. Its click
- *   hands every terminal to this build in place (see QueStore.upgradeDaemon), and on
- *   success it goes away with the stale state.
- * - Update, while the service runs this build and the release check found a newer
- *   release. Its click opens that release's download page; que cannot install itself
- *   yet (#91).
- * Restart wins when both hold, since it can be done now; Update follows once it is.
+ * A small control at the Quiet row's right end (after `lock now` during an unlock), absent
+ * with nothing to do; useUpdateAction says what it reads and does. Restarting the background
+ * service for a stale build keeps its own test id from the app's own update.
  */
 export default function UpdateChip(): React.JSX.Element | null {
-  const store = useStore()
-  const stale = useQueSelector((s) => s.daemon?.stale ?? false)
-  const release = useQueSelector((s) => s.updateStatus?.update ?? null)
-  const [busy, setBusy] = useState(false)
+  const action = useUpdateAction()
 
-  if (stale) {
-    const restart = (): void => {
-      setBusy(true)
-      void store.upgradeDaemon().finally(() => setBusy(false))
-    }
+  if (!action) return null
 
-    return (
-      <button
-        type="button"
-        className="update-chip"
-        data-testid="sidebar-daemon-update"
-        title={RESTART_TITLE}
-        disabled={busy}
-        onClick={restart}
-      >
-        <span className="status-dot" aria-hidden="true" />
-        {busy ? 'Restarting…' : 'Restart'}
-      </button>
-    )
-  }
-
-  if (!release) return null
+  const service = action.state === 'stale' || action.state === 'restarting'
 
   return (
     <button
       type="button"
       className="update-chip"
-      data-testid="sidebar-app-update"
-      title={`que ${release.version} has been released. Opens its download page.`}
-      onClick={() => store.openUpdate()}
+      data-testid={service ? 'sidebar-daemon-update' : 'sidebar-app-update'}
+      data-state={action.state}
+      title={action.title}
+      disabled={action.disabled}
+      onClick={action.run}
     >
       <span className="status-dot" aria-hidden="true" />
-      Update
+      {action.label}
     </button>
   )
 }

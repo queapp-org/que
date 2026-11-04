@@ -322,8 +322,9 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   window stays up.
 - Settings' last fieldset, `[ UPDATES ]`, is one wrapping row: `que 0.3.0` in mono `--fg`,
   the last answer (a hint, a new release in `--fg`, or a form error), and plain buttons at
-  the right end, Check for updates and, with a release, Download. It alone stays enabled
-  without the daemon, because the check runs in the main process.
+  the right end: Check for updates; the same action as the Quiet row's chip, in the same
+  words, when it has one; and, with a release, Release page. It alone stays enabled
+  without the daemon, because the check and the install run in the main process.
 
 ## Sidebar
 
@@ -441,14 +442,17 @@ only under the pointer.
   window is in progress. A 20px control sits at the Quiet row's right end, so it never
   pushes the icons around: the 5px status dot in `--accent` and one word in 11px
   `--fg-muted`, hairline-bordered, `--fg` under the pointer, its tooltip saying why it is
-  there. It has two states and shows one at a time. Restart, while the background service
-  runs an older build than the app: it hands every terminal to this build, reads
-  Restarting… at 0.4 opacity while that runs, and a failed restart goes to the error line
-  above the tab strip. Update, while the service runs this build and a newer release is
-  published: it opens the release's download page, since que cannot install itself yet,
-  and stays until the update is taken; there is no dismiss. When both hold, Restart
-  shows, because it can be done now, and Update follows once the service is current. With
-  neither, the control is absent. During an unlock the unlock row takes the Quiet row's
+  there. It shows one state at a time, the first that holds. Restart, with a release
+  downloaded: it installs it and relaunches, reads Restarting… at 0.4 opacity until the
+  app quits, and the new app hands the terminals over at launch, so a stale service needs
+  no second click. Restart, while the background service runs an older build than the
+  app: it hands every terminal to this build, reads Restarting… at 0.4 opacity while that
+  runs, and a failed restart goes to the error line above the tab strip. `Updating 42%`,
+  while a release downloads in the background: disabled, at full opacity so the percent
+  can be read, its numbers tabular. Update, while a newer release is published: it starts
+  the download, and stays until the update is taken; there is no dismiss. A failed download
+  or install goes to the error line and back to Update. With none of these, the control is
+  absent. During an unlock the unlock row takes the Quiet row's
   place: the open lock at 12px and `m:ss left` in mono 11px `--accent`, and `lock now` in
   mono 11px `--fg-faint` at its right end (`--fg-muted` under the pointer), always visible:
   locking again is the behaviour we want. The row is a `role="status"` region, and Restart

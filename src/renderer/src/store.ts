@@ -431,6 +431,18 @@ function withFacts(tabs: TermTab[], info: TermInfo): TermTab[] {
   return tabs.map((t) => (t === tab ? { ...t, title: info.title, process: info.process } : t))
 }
 
+/** What the error line should say because of this status: a failure the last one did not report. */
+function newUpdateFailure(prev: UpdateStatus | null, next: UpdateStatus): string | null {
+  if (next.handoffError && next.handoffError !== prev?.handoffError) return next.handoffError
+
+  if (next.install.phase !== 'failed') return null
+  const before = prev?.install
+
+  return before?.phase === 'failed' && before.message === next.install.message
+    ? null
+    : next.install.message
+}
+
 /** A load the board can do without: its fallback when the daemon cannot answer. */
 function optional<T>(call: Promise<T>, fallback: T): Promise<T> {
   return call.catch(() => fallback)
@@ -540,6 +552,32 @@ export class QueStore {
   /** Opens the newer release's page in the browser. */
   openUpdate = (): void => {
     void this.api.app.openUpdate().catch(() => {})
+  }
+
+  /**
+   * Downloads the newer release. Progress and any failure arrive as the status event, and
+   * this try replaces the last one's line.
+   */
+  installUpdate(): Promise<void> {
+    const { updateStatus, error } = this.state
+
+    if (updateStatus?.install.phase === 'failed' && updateStatus.install.message === error) {
+      this.set({ error: null })
+    }
+
+    return this.guard(async () => void (await this.api.app.installUpdate()))
+  }
+
+  /** Installs the downloaded release and relaunches; a failure arrives as the status event. */
+  restartToInstall(): Promise<void> {
+    return this.guard(async () => void (await this.api.app.restartToInstall()))
+  }
+
+  /** Takes the main process's status. A failure it newly reports goes to the error line. */
+  private takeUpdateStatus(updateStatus: UpdateStatus): void {
+    const failure = newUpdateFailure(this.state.updateStatus, updateStatus)
+
+    this.set(failure ? { updateStatus, error: failure } : { updateStatus })
   }
 
   // ---- the daemon's build and the connection --------------------------------
@@ -656,7 +694,7 @@ export class QueStore {
     if (!this.boot) {
       this.boot = this.load()
       this.api.app.updateStatus().then(
-        (updateStatus) => this.set({ updateStatus }),
+        (updateStatus) => this.takeUpdateStatus(updateStatus),
         () => {}
       )
 
@@ -770,7 +808,7 @@ export class QueStore {
         this.reconnect()
       }),
       this.api.daemon.onReconnected((daemon) => void this.recover(daemon)),
-      this.api.app.onUpdateStatus((updateStatus) => this.set({ updateStatus })),
+      this.api.app.onUpdateStatus((updateStatus) => this.takeUpdateStatus(updateStatus)),
       workspace.on('workspace.created', (ws) => this.upsertWorkspace(ws)),
       workspace.on('workspace.updated', (ws) => {
         const before = this.state.workspaces[ws.id]
