@@ -90,7 +90,13 @@ mac:
   # keychain. Notarization needs APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and
   # APPLE_TEAM_ID; without them electron-builder skips it with a warning.
   notarize: true
-  # What Electron needs under the hardened runtime. node-pty's pty.node and
-  # spawn-helper are signed with the bundle's identity, so library validation stays on.
+  # What Electron needs under the hardened runtime, plus the microphone: the daemon
+  # runs as this binary and owns every terminal, so macOS holds que responsible for
+  # what runs in them, and without audio-input denies it the mic with no prompt.
+  # node-pty's pty.node and spawn-helper are signed with the bundle's identity, so
+  # library validation stays on.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # The text on macOS's permission prompt, in place of Electron's default.
+  extendInfo:
+    NSMicrophoneUsageDescription: "Programs you run in que's terminals, such as Claude Code's dictation, use your microphone."

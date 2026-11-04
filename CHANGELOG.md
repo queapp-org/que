@@ -20,6 +20,7 @@ All notable changes to que are recorded here. The format follows
 
 - Text pasted into a terminal has its control characters taken out, by Cmd+V and the menu's Paste alike, so pasted text can't end a bracketed paste early and run what comes after it. Tabs and line ends stay, and pasting an image works as before.
 - Emoji such as ✅, 🚀 and 🧠 take two cells in a terminal, so the text after them no longer sits wrong or overlaps. Sequences that join several emoji into one, and symbols turned into emoji by a variation selector (⚠️), can still sit off by a cell.
+- Programs in a que terminal can use the microphone, so Claude Code's dictation works. macOS asks once, the first time one tries. 0.3.0 denied it without asking.
 
 ## [0.3.0] - 2026-11-02
 
