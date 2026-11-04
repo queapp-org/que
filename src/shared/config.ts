@@ -14,6 +14,7 @@ import {
   type PermissionMode,
   type QuietHoursConfig,
   type QuietWindow,
+  type TerminalConfig,
   type UserConfig,
   type Weekday
 } from './types'
@@ -21,7 +22,8 @@ import {
   configDefaults,
   defaultJira,
   defaultNotifications,
-  defaultQuietHours
+  defaultQuietHours,
+  defaultTerminal
 } from './config-defaults'
 import { errorCode, errorMessage } from './errors.decode'
 
@@ -31,7 +33,8 @@ export {
   DEFAULT_START_PROMPT,
   defaultJira,
   defaultNotifications,
-  defaultQuietHours
+  defaultQuietHours,
+  defaultTerminal
 } from './config-defaults'
 
 import { patchPathOf } from './config-keys.decode'
@@ -326,6 +329,21 @@ function parseNotifications(v: unknown, errors: ConfigError[]): NotificationsCon
   return n
 }
 
+function parseTerminal(v: unknown, errors: ConfigError[]): TerminalConfig {
+  const c = defaultTerminal()
+
+  if (v === undefined) return c
+  const t = table(v, 'terminal', errors)
+
+  if (!t) return c
+  const sub: ConfigError[] = []
+  c.optionAsMeta = optionalBool(t, 'option_as_meta', sub) ?? c.optionAsMeta
+
+  prefixed(sub, 'terminal.', errors)
+
+  return c
+}
+
 function expandHome(p: string): string {
   return p === '~' || p.startsWith('~/') ? join(os.homedir(), p.slice(1)) : p
 }
@@ -360,6 +378,7 @@ export function parseConfig(text: string, env: ConfigEnv): ConfigResult<UserConf
 
   config.quietHours = parseQuietHours(t.quiet_hours, errors)
   config.notifications = parseNotifications(t.notifications, errors)
+  config.terminal = parseTerminal(t.terminal, errors)
   config.jira = parseJira(t.jira, errors)
   const startPrompt = t.start_prompt
 

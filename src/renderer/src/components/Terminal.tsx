@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { lineEditSequence } from '../terminal-keys'
 import { openTerminalLink } from '../terminal-links'
 import { clearActiveTerminal, setActiveTerminal } from '../testHook'
 
@@ -11,18 +12,31 @@ interface Props {
   id: string
   /** Keyboard focus belongs here (the focused pane's terminal). Default true. */
   focused?: boolean
+  /** Option acts as Meta (the `terminal.option_as_meta` setting). Default true. */
+  optionAsMeta?: boolean
 }
 
 const isMac = navigator.userAgent.includes('Mac')
 
-export default function Terminal({ id, focused = true }: Props): React.JSX.Element {
+export default function Terminal({
+  id,
+  focused = true,
+  optionAsMeta = true
+}: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const focusedRef = useRef(focused)
+  const optionAsMetaRef = useRef(optionAsMeta)
 
   useEffect(() => {
     focusedRef.current = focused
+    optionAsMetaRef.current = optionAsMeta
   })
+
+  // The setting applies to a terminal already open.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.macOptionIsMeta = optionAsMeta
+  }, [optionAsMeta])
 
   // Moving focus between panes with the keyboard has to move the cursor too.
   useEffect(() => {
@@ -39,7 +53,7 @@ export default function Terminal({ id, focused = true }: Props): React.JSX.Eleme
       fontSize: 13,
       cursorBlink: true,
       scrollback: 10000,
-      macOptionIsMeta: false,
+      macOptionIsMeta: optionAsMetaRef.current,
       // OSC 8 hyperlinks. xterm itself drops those that are not http or https.
       linkHandler: { activate: openTerminalLink },
       // The app's surface colours (styles.css); the cursor takes the accent.
@@ -87,6 +101,16 @@ export default function Terminal({ id, focused = true }: Props): React.JSX.Eleme
       }
 
       if (!isMac || !ev.metaKey) return true
+
+      // Cmd+Backspace, Cmd+Left and Cmd+Right edit the line the way a Mac text field does.
+      const edit = lineEditSequence(ev)
+
+      if (edit !== null) {
+        term.input(edit)
+        ev.preventDefault()
+
+        return false
+      }
 
       if (ev.key.toLowerCase() === 'c' && term.hasSelection()) {
         void navigator.clipboard.writeText(term.getSelection())

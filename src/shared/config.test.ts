@@ -42,6 +42,7 @@ describe('parseConfig', () => {
           chimeInManualQuiet: false,
           morningSummary: false
         },
+        terminal: { optionAsMeta: true },
         jira: defaultJira(),
         startPrompt: ''
       }
@@ -61,6 +62,9 @@ protected_branches = ["main", "production"]
 start_prompt = "Read .que/brief.md and ask before editing."
 # A key from an older release: read without an error.
 summaries = false
+
+[terminal]
+option_as_meta = false
 
 [repos.uploader]
 path = "/Users/dev/code/uploader"
@@ -89,6 +93,7 @@ path = "/Users/dev/code/api"
         protectedBranches: ['main', 'production'],
         quietHours: expect.objectContaining({ enabled: true }),
         notifications: expect.objectContaining({ chimeOnComplete: true }),
+        terminal: { optionAsMeta: false },
         jira: defaultJira(),
         startPrompt: 'Read .que/brief.md and ask before editing.'
       }
@@ -156,6 +161,9 @@ unlock_minutes = 0
 
 [notifications]
 chime_on_complete = "yes"
+
+[terminal]
+option_as_meta = "no"
 `,
         env
       )
@@ -169,7 +177,8 @@ chime_on_complete = "yes"
           { key: 'quiet_hours.tuesday', message: 'start and end must differ' },
           { key: 'quiet_hours.wednesday', message: '25:00 is not a 24-hour HH:MM time' },
           { key: 'quiet_hours.thursday', message: 'must be ["HH:MM", "HH:MM"] (start, end)' },
-          { key: 'notifications.chime_on_complete', message: 'must be true or false' }
+          { key: 'notifications.chime_on_complete', message: 'must be true or false' },
+          { key: 'terminal.option_as_meta', message: 'must be true or false' }
         ]
       })
     })
@@ -429,6 +438,9 @@ describe('config patches', () => {
     })
     expect(parseConfigAssignment('notifications.chime_on_complete=false')).toEqual({
       notifications: { chimeOnComplete: false }
+    })
+    expect(parseConfigAssignment('terminal.option_as_meta=false')).toEqual({
+      terminal: { optionAsMeta: false }
     })
     expect(parseConfigAssignment('quiet_hours.unlock_minutes=0.5')).toEqual({
       quietHours: { unlockMinutes: 0.5 }

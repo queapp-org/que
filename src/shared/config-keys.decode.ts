@@ -68,6 +68,9 @@ const SCHEMA: Node = section<ConfigPatch>('', {
     chimeInManualQuiet: value('chime_in_manual_quiet'),
     morningSummary: value('morning_summary')
   }),
+  terminal: section<NonNullable<ConfigPatch['terminal']>>('terminal', {
+    optionAsMeta: value('option_as_meta')
+  }),
   jira: section<NonNullable<ConfigPatch['jira']>>('jira', {
     jql: value('jql'),
     pollMinutes: value('poll_minutes'),

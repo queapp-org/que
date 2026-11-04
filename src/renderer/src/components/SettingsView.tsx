@@ -10,6 +10,7 @@ import { SUGGESTED_START_PROMPT } from '../../../shared/brief'
 import { type ConfigPatch, HHMM, WEEKDAYS } from '../../../shared/types'
 import { errorMessage } from '../../../shared/errors.decode'
 import { useQue, useStore } from '../store'
+import { optionAsMeta } from '../terminal-keys'
 import UpdatesSection from './UpdatesSection'
 
 type DayMode = 'inherit' | 'custom' | 'none'
@@ -30,6 +31,7 @@ interface Form {
   chimeNeedsInput: boolean
   chimeManualQuiet: boolean
   morningSummary: boolean
+  optionAsMeta: boolean
   protectedBranches: string
   jql: string
   site: string
@@ -76,6 +78,7 @@ function toForm(c: UserConfig): Form {
     chimeNeedsInput: c.notifications.chimeOnNeedsInput,
     chimeManualQuiet: c.notifications.chimeInManualQuiet,
     morningSummary: c.notifications.morningSummary,
+    optionAsMeta: optionAsMeta(c),
     protectedBranches: c.protectedBranches.join(', '),
     jql: c.jira.jql,
     site: c.jira.site ?? '',
@@ -245,6 +248,10 @@ const SPECS = {
   'morning-summary': {
     take: own('morningSummary'),
     patch: (f) => ({ notifications: { morningSummary: f.morningSummary } })
+  },
+  'option-as-meta': {
+    take: own('optionAsMeta'),
+    patch: (f) => ({ terminal: { optionAsMeta: f.optionAsMeta } })
   },
   'tickets-jql': {
     take: own('jql'),
@@ -812,6 +819,20 @@ export default function SettingsView(): React.JSX.Element {
             {mark('morning-summary')}
           </label>
           {error('morning-summary')}
+        </fieldset>
+        <fieldset disabled={off}>
+          <legend>Terminal</legend>
+          <label className="check">
+            <input
+              type="checkbox"
+              data-testid="settings-option-as-meta"
+              checked={form.optionAsMeta}
+              onChange={(e) => now('option-as-meta', { optionAsMeta: e.target.checked })}
+            />
+            Use Option as Meta (turn off if your keyboard needs Option for characters like # or @)
+            {mark('option-as-meta')}
+          </label>
+          {error('option-as-meta')}
         </fieldset>
         <fieldset disabled={off}>
           <legend>Tickets</legend>

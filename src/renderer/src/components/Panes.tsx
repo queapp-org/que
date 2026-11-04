@@ -13,6 +13,7 @@ import {
   useStore
 } from '../store'
 import { tabLabel } from '../format'
+import { optionAsMeta } from '../terminal-keys'
 import { setPaneSource } from '../testHook'
 import DiffView from './DiffView'
 import FileView from './FileView'
@@ -208,6 +209,7 @@ function Pane({
   const activeFile = filePathOf(activeId)
   const prs = useQueSelector((s) => s.workspaces[termKey]?.prs)
   const focused = store.focusedPane(termKey) === index
+  const optionMeta = useQueSelector((s) => optionAsMeta(s.config?.config))
 
   return (
     <div
@@ -334,7 +336,12 @@ function Pane({
       ) : active ? (
         // An inactive tab's terminal is detached; it reattaches (and replays) when selected.
         // A reconnect (a new `connection`) attaches it again.
-        <Terminal key={`${active.id}:${connection}`} id={active.id} focused={focused} />
+        <Terminal
+          key={`${active.id}:${connection}`}
+          id={active.id}
+          focused={focused}
+          optionAsMeta={optionMeta}
+        />
       ) : (
         <div className="empty" data-testid="terminal-empty">
           {tabs.length === 0 && !error ? 'No terminals. Press + to open one.' : ''}
