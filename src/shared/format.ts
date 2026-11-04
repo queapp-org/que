@@ -1,6 +1,6 @@
 // Pure text formatters shared by the daemon, the CLI and the renderer: money,
 // lengths of time, ages, and wall-clock times. No Node imports.
-import type { RemovalStep } from './types'
+import type { PreparationStep, RemovalStep } from './types'
 
 /** `$0.42`; whole cents, never `$0.4200001`. */
 export function formatCost(usd: number): string {
@@ -166,6 +166,18 @@ const REMOVAL_STEP_LABELS: Record<RemovalStep, string> = {
 /** What a removal step is doing, as the app and the CLI say it: `running teardown`. */
 export function removalStepLabel(step: RemovalStep): string {
   return REMOVAL_STEP_LABELS[step]
+}
+
+const PREPARATION_STEP_LABELS: Record<PreparationStep, string> = {
+  fetch: 'fetching origin',
+  worktree: 'creating worktree',
+  setup: 'running setup',
+  claude: 'starting Claude'
+}
+
+/** What a preparation step is doing, as the app says it: `running setup`. */
+export function preparationStepLabel(step: PreparationStep): string {
+  return PREPARATION_STEP_LABELS[step]
 }
 
 /** How long a finished removal step took: tenths under ten seconds (`0.1s`, `2.4s`), else `12s`, `1m 05s`. */

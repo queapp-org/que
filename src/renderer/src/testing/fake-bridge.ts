@@ -37,14 +37,29 @@ import { mergeConfigPatch } from '../../../shared/config-patch.decode'
 import { randomWorkspaceName } from '../../../shared/names'
 import { keyOf } from '../keys'
 import {
+  preparationFailure,
+  preparationStep,
+  preparationStopped,
+  preparationUnfinished
+} from '../../../shared/preparation'
+import {
   ErrorCodes,
   QUIET_REFUSED_METHODS,
   type WorkspaceCreateParams,
+  type WorkspacePrepareParams,
   type WorkspaceRenameParams
 } from '../../../shared/protocol'
 import { removalStep } from '../../../shared/removal'
 import { workspaceSlug } from '../../../shared/slug'
-import type { RemovalFailure, RemovalResult, RemovalStep, Usage } from '../../../shared/types'
+import type {
+  Preparation,
+  PreparationResult,
+  PreparationStep,
+  RemovalFailure,
+  RemovalResult,
+  RemovalStep,
+  Usage
+} from '../../../shared/types'
 import {
   diffFileFromPatch,
   makeQuietState,
@@ -193,8 +208,10 @@ class FakeBridge {
   /** A test's hold on app.checkForUpdate. */
   private updateCheckGate = new Gate()
   private updateCheckAnswer: Partial<UpdateStatus> | null = null
-  private createCallLog: WorkspaceCreateParams[] = []
-  private startCallLog: string[] = []
+  private prepareCallLog: WorkspacePrepareParams[] = []
+  /** A test's refusal of workspace.prepare. */
+  private prepareGate = new Gate()
+  private setupLogCallLog: string[] = []
   private termListCalls = 0
   private attachCallLog: string[] = []
   private renameCallLog: WorkspaceRenameParams[] = []
@@ -414,6 +431,11 @@ class FakeBridge {
 
           return { ok: true }
         },
+        openSetupLog: async ({ id }) => {
+          this.setupLogCallLog.push(id)
+
+          return { ok: true }
+        },
         e2e: false
       },
       daemon: {
@@ -516,7 +538,7 @@ class FakeBridge {
           if (!target) return { kind: 'needs_project', projects: [...this.projects.values()] }
           this.ticketProjects.set(ticket.projectKey, target)
 
-          const ws = await this.api.workspace.create({
+          const ws = this.createElsewhere({
             projectId: target,
             name: `${key.toLowerCase()} ${ticket.summary}`
           })
@@ -540,60 +562,20 @@ class FakeBridge {
         }
       },
       workspace: {
-        create: async (p) => {
-          const { projectId, name, baseRef, branch } = p
-          this.createCallLog.push(structuredClone(p))
-          const project = this.projects.get(projectId)
+        prepare: async (p) => {
+          this.refuseIfUnknown('workspace.prepare')
+          this.refuseIfQuiet('workspace.prepare')
+          this.prepareCallLog.push(structuredClone(p))
+          const refusal = await this.prepareGate.pass()
 
-          if (!project) throw notFound('project', projectId)
-          const brief = p.brief?.trim() ? p.brief : undefined
-          const title = p.title?.trim() || (brief ? titleOf(brief) : '')
-          const titleSource = p.title?.trim() ? 'user' : 'brief'
-          const id = fakeId('ws_')
-          const s = name !== undefined ? workspaceSlug(name) : randomWorkspaceName()
+          if (refusal !== null) throw rpcError('bad_request', refusal)
+          const plan: PreparationStep[] = ['fetch', 'worktree']
 
-          if (!s) throw rpcError('bad_request', `invalid workspace name ${name ?? ''}`)
+          if (p.start) plan.push('claude')
 
-          const other = [...this.workspaces.values()].find(
-            (w) => w.projectId === projectId && w.name === s
+          return this.sent(
+            this.addWorkspace(p, { plan, since: new Date().toISOString(), done: [] })
           )
-
-          if (other) throw rpcError('conflict', `workspace ${s} already exists (${other.id})`)
-          const now = new Date().toISOString()
-
-          const ws: Workspace = {
-            id,
-            projectId,
-            name: s,
-            branch: branch ?? s,
-            branches: [branch ?? s],
-            path: `${this.home}/.que/worktrees/${project.name}/${s}`,
-            baseRef: baseRef ?? `origin/${project.defaultBranch}`,
-            status: 'preparing',
-            statusReason: null,
-            statusAt: now,
-            lastActivityAt: null,
-            sessionId: null,
-            createdAt: now,
-            archivedAt: null,
-            prUrls: [],
-            pr: null,
-            prs: [],
-            finishedAt: null,
-            seenAt: null,
-            backgroundTasks: []
-          }
-
-          if (title) {
-            ws.title = title
-            ws.titleSource = titleSource
-          }
-
-          if (brief) ws.brief = brief
-          this.workspaces.set(ws.id, ws)
-          this.emit('workspace.created', this.sent(ws))
-
-          return this.sent(ws)
         },
         list: async (p) =>
           [...this.workspaces.values()].flatMap((w) =>
@@ -608,13 +590,13 @@ class FakeBridge {
         },
         openTerminal: async ({ id, cols, rows }) => {
           this.refuseIfQuiet('workspace.openTerminal')
-          const ws = this.workspace(id)
+          const ws = this.withWorktree(id)
 
           return this.createTerminal({ cwd: ws.path, cols, rows, name: ws.name }, ws.id)
         },
         diff: async ({ id, base, head, commit }) => {
           this.refuseIfQuiet('workspace.diff')
-          const ws = this.workspace(id)
+          const ws = this.withWorktree(id)
 
           this.diffCallLog.push(
             head === undefined
@@ -648,7 +630,7 @@ class FakeBridge {
         },
         diffFile: async (params) => {
           this.refuseIfQuiet('workspace.diffFile')
-          const ws = this.workspace(params.id)
+          const ws = this.withWorktree(params.id)
           this.diffFileCallLog.push(structuredClone(params))
           const whitespace = params.whitespace ?? 'show'
           const seeded = this.diffFiles.get(keyOf(ws.id, params.path))
@@ -678,7 +660,7 @@ class FakeBridge {
         },
         files: async ({ id }) => {
           this.refuseIfQuiet('workspace.files')
-          const ws = this.workspace(id)
+          const ws = this.withWorktree(id)
           this.filesCallLog.push(id)
           const seeded = this.files.get(id)
 
@@ -693,7 +675,7 @@ class FakeBridge {
         },
         readFile: async ({ id, path }) => {
           this.refuseIfQuiet('workspace.readFile')
-          this.workspace(id)
+          this.withWorktree(id)
           this.readFileCallLog.push({ id, path })
           const seeded = this.fileContents.get(keyOf(id, path))
 
@@ -702,7 +684,7 @@ class FakeBridge {
           return structuredClone(seeded)
         },
         watch: async ({ id }) => {
-          this.workspace(id)
+          this.withWorktree(id)
           this.watchCallLog.push({ id, on: true })
           this.watchedIds.add(id)
 
@@ -716,7 +698,7 @@ class FakeBridge {
         },
         prThread: async ({ id, number, refresh }) => {
           this.refuseIfQuiet('workspace.prThread')
-          this.workspace(id)
+          this.withWorktree(id)
           this.prThreadCallLog.push({ id, number, refresh: refresh === true })
           const seeded = this.prThreads.get(keyOf(id, number))
 
@@ -724,7 +706,7 @@ class FakeBridge {
         },
         checkPrs: async ({ id }) => {
           this.refuseIfQuiet('workspace.checkPrs')
-          this.workspace(id)
+          this.withWorktree(id)
           this.checkPrsCallLog.push(id)
           const refusal = await this.checkPrsGate.pass()
 
@@ -739,21 +721,6 @@ class FakeBridge {
           }
 
           return this.sent(this.workspace(id))
-        },
-        start: async ({ id, cols, rows }) => {
-          this.refuseIfQuiet('workspace.start')
-          const ws = this.workspace(id)
-          this.startCallLog.push(id)
-          const first = [...this.terminals.values()].find((t) => t.workspaceId === id && t.alive)
-
-          const terminal = first
-            ? toInfo(first)
-            : this.createTerminal(
-                { cwd: ws.path, cols: cols ?? 120, rows: rows ?? 30, name: ws.name },
-                ws.id
-              )
-
-          return { terminal }
         },
         rename: async (p) => {
           const { id, title } = p
@@ -782,7 +749,7 @@ class FakeBridge {
           return this.sent(next)
         },
         canRenameBranch: async ({ id }) => {
-          this.workspace(id)
+          this.withWorktree(id)
 
           return { allowed: !this.pushedBranches.has(id) }
         },
@@ -1078,14 +1045,19 @@ class FakeBridge {
     return [...this.editorCalls]
   }
 
-  /** Every workspace.create call's params, in order. */
-  createWorkspaceCalls(): WorkspaceCreateParams[] {
-    return structuredClone(this.createCallLog)
+  /** Every workspace.prepare call's params, in order. */
+  prepareWorkspaceCalls(): WorkspacePrepareParams[] {
+    return structuredClone(this.prepareCallLog)
   }
 
-  /** The workspace id of every workspace.start call, in order. */
-  startCalls(): string[] {
-    return [...this.startCallLog]
+  /** The workspace id of every app.openSetupLog call, in order. */
+  openSetupLogCalls(): string[] {
+    return [...this.setupLogCallLog]
+  }
+
+  /** A workspace made elsewhere (`que work`), as the blocking workspace.create does it: no steps. */
+  createElsewhere(p: WorkspaceCreateParams): Workspace {
+    return this.sent(this.addWorkspace(p))
   }
 
   /** Every workspace.seen call's workspace id, in order. */
@@ -1167,6 +1139,11 @@ class FakeBridge {
   /** Makes the next daemon.upgrade reject with `message`, as a failed handoff does. */
   refuseUpgrade(message: string): void {
     this.upgradeGate.refuse(message)
+  }
+
+  /** Makes the next workspace.prepare reject with `message`, as a bad que.toml does. */
+  refusePrepare(message: string): void {
+    this.prepareGate.refuse(message)
   }
 
   /** Holds every daemon.upgrade until releaseUpgrade(), as a handoff in progress would. */
@@ -1434,8 +1411,9 @@ class FakeBridge {
     this.updateCheckCount = 0
     this.updateCheckGate.reset()
     this.updateCheckAnswer = null
-    this.createCallLog = []
-    this.startCallLog = []
+    this.prepareCallLog = []
+    this.prepareGate.reset()
+    this.setupLogCallLog = []
     this.termListCalls = 0
     this.renameCallLog = []
     this.seenCallLog = []
@@ -1521,6 +1499,124 @@ class FakeBridge {
   /** From now until reset, workspace.remove stops on its first step; advanceRemoval() walks it. */
   holdRemovals(): void {
     this.removalsHeld = true
+  }
+
+  /** Stores a new workspace in `preparing` and announces it, or refuses its name, as the daemon does. */
+  private addWorkspace(p: WorkspaceCreateParams, preparation?: Preparation): Workspace {
+    const { projectId, name, baseRef, branch } = p
+    const project = this.projects.get(projectId)
+
+    if (!project) throw notFound('project', projectId)
+    const brief = p.brief?.trim() ? p.brief : undefined
+    const title = p.title?.trim() || (brief ? titleOf(brief) : '')
+    const titleSource = p.title?.trim() ? 'user' : 'brief'
+    const id = fakeId('ws_')
+    const s = name !== undefined ? workspaceSlug(name) : randomWorkspaceName()
+
+    if (!s) throw rpcError('bad_request', `invalid workspace name ${name ?? ''}`)
+
+    const other = [...this.workspaces.values()].find(
+      (w) => w.projectId === projectId && w.name === s
+    )
+
+    if (other) throw rpcError('conflict', `workspace ${s} already exists (${other.id})`)
+    const now = new Date().toISOString()
+
+    const ws: Workspace = {
+      id,
+      projectId,
+      name: s,
+      branch: branch ?? s,
+      branches: [branch ?? s],
+      path: `${this.home}/.que/worktrees/${project.name}/${s}`,
+      baseRef: baseRef ?? `origin/${project.defaultBranch}`,
+      status: 'preparing',
+      statusReason: null,
+      statusAt: now,
+      lastActivityAt: null,
+      sessionId: null,
+      createdAt: now,
+      archivedAt: null,
+      prUrls: [],
+      pr: null,
+      prs: [],
+      finishedAt: null,
+      seenAt: null,
+      backgroundTasks: []
+    }
+
+    if (title) {
+      ws.title = title
+      ws.titleSource = titleSource
+    }
+
+    if (brief) ws.brief = brief
+
+    if (preparation) ws.preparation = preparation
+    this.workspaces.set(ws.id, ws)
+    this.emit('workspace.created', this.sent(ws))
+
+    return ws
+  }
+
+  /** The workspace, for a method marked needsWorktree: refused until its preparation has finished. */
+  private withWorktree(id: string): Workspace {
+    const ws = this.workspace(id)
+
+    if (preparationUnfinished(ws)) {
+      throw rpcError(
+        'conflict',
+        `workspace ${ws.name} is not ready: its preparation has not finished`
+      )
+    }
+
+    return ws
+  }
+
+  /**
+   * Finishes the preparation's current step (failed with `error` when given) and starts the next,
+   * emitting workspace.updated, as the daemon does. The `claude` step opens the terminal. A failed
+   * step stops the rest, except setup; past the last step the workspace leaves `preparing`.
+   */
+  advancePreparation(id: string, opts: { error?: string } = {}): void {
+    const ws = this.workspace(id)
+    const preparation = ws.preparation
+    const step = preparation ? preparationStep(preparation) : null
+
+    if (!preparation || !step) throw new Error(`workspace ${id} is not being prepared`)
+
+    if (step === 'claude' && !opts.error) {
+      this.createTerminal({ cwd: ws.path, cols: 120, rows: 30, name: ws.name }, ws.id)
+    }
+
+    const finished: PreparationResult = { step, ms: 1_200 }
+
+    if (opts.error) finished.error = opts.error
+    const at = new Date().toISOString()
+    const next = { ...preparation, since: at, done: [...preparation.done, finished] }
+
+    if (preparationStopped(next)) {
+      this.putWorkspace({
+        ...ws,
+        preparation: next,
+        status: 'stuck',
+        statusReason: 'preparation_failed',
+        statusAt: at
+      })
+    } else if (next.done.length < next.plan.length) {
+      this.putWorkspace({ ...ws, preparation: next })
+    } else if (preparationFailure(next)) {
+      this.putWorkspace({
+        ...ws,
+        preparation: next,
+        status: 'stuck',
+        statusReason: 'setup_failed',
+        statusAt: at
+      })
+    } else {
+      const { preparation: _gone, ...rest } = ws
+      this.putWorkspace({ ...rest, status: 'idle', statusReason: null, statusAt: at })
+    }
   }
 
   /**

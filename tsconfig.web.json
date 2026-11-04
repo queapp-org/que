@@ -34,6 +34,7 @@
     "src/shared/format.ts",
     "src/shared/json.decode.ts",
     "src/shared/pr-url.ts",
+    "src/shared/preparation.ts",
     "src/shared/protocol.ts",
     "src/shared/quiet-board.ts",
     "src/shared/removal.ts",

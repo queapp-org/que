@@ -398,6 +398,49 @@ describe('WorkspacePopout', () => {
       await waitFor(() => expect(right).toHaveTextContent('17s'), { timeout: 3_000 })
     })
 
+    it('lists a preparation’s steps under [ PREPARING ], with the way to the setup log', async () => {
+      const user = userEvent.setup()
+
+      const preparing = makeWorkspace({
+        id: 'ws_01hzx7q2n4ks',
+        name: 'quiet-amber-fern',
+        status: 'preparing',
+        preparation: {
+          plan: ['fetch', 'worktree', 'setup', 'claude'],
+          since: new Date(NOW - 12_000).toISOString(),
+          done: [
+            { step: 'fetch', ms: 1_200 },
+            { step: 'worktree', ms: 300 }
+          ]
+        }
+      })
+
+      fakeBridge.seedProject(uploader)
+      fakeBridge.seedWorkspace(preparing)
+      const store = new QueStore(window.que, { now: clock, popoutDelays: { open: 0, close: 0 } })
+      store.start()
+      render(
+        <StoreContext.Provider value={store}>
+          <Sidebar />
+        </StoreContext.Provider>
+      )
+      const popout = await hoverCard(user, preparing.id)
+      const id = `sidebar-workspace-${preparing.id}-popout`
+
+      expect(within(popout).getByText('Preparing')).toHaveClass('label')
+      expect(screen.getByTestId(`${id}-preparation-fetch-right`)).toHaveTextContent('1s')
+      expect(screen.getByTestId(`${id}-preparation-setup`)).toHaveAttribute('data-state', 'current')
+      expect(screen.getByTestId(`${id}-preparation-setup-right`)).toHaveTextContent('12s')
+      expect(screen.getByTestId(`${id}-preparation-claude`)).toHaveAttribute(
+        'data-state',
+        'pending'
+      )
+
+      await user.click(within(popout).getByRole('button', { name: 'Open setup log' }))
+
+      expect(fakeBridge.openSetupLogCalls()).toEqual([preparing.id])
+    })
+
     it('has no removal section while the workspace is not being removed', async () => {
       const user = userEvent.setup()
       renderSidebar()

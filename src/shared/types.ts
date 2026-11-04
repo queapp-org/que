@@ -30,30 +30,47 @@ export interface BackgroundTask {
   since: string
 }
 
+/** A finished step of a removal or a preparation: how long it took, and why it failed when it did. */
+export interface StepResult<S> {
+  step: S
+  ms: number
+  error?: string
+}
+
+/** Where a run of steps stands: the steps it runs, since when the current one runs, and those done. */
+export interface StepRun<S> {
+  /** The steps this run takes, in order. */
+  plan: S[]
+  /** When the step running now started (ISO): the run was marked, or the previous step finished. */
+  since: string
+  /** The steps finished so far, with their durations and failures. */
+  done: StepResult<S>[]
+}
+
 /** The steps a removal runs, in this order. */
 export const REMOVAL_STEPS = ['terminals', 'teardown', 'worktree', 'branch'] as const
 
 export type RemovalStep = (typeof REMOVAL_STEPS)[number]
 
-/** A finished removal step: how long it took, and why it failed when it did. */
-export interface RemovalResult {
-  step: RemovalStep
-  ms: number
-  error?: string
-}
+/** A finished removal step. */
+export type RemovalResult = StepResult<RemovalStep>
 
 /** A removal step that failed: its result with the reason. */
 export type RemovalFailure = RemovalResult & { error: string }
 
-/** Where a removal stands: the steps it runs, since when the current one runs, and those done. */
-export interface Removal {
-  /** The steps this removal runs, in order. */
-  plan: RemovalStep[]
-  /** When the step running now started (ISO): the removal was marked, or the previous step finished. */
-  since: string
-  /** The steps finished so far, with their durations and failures. */
-  done: RemovalResult[]
-}
+/** Where a removal stands. */
+export type Removal = StepRun<RemovalStep>
+
+/** The steps a new workspace's preparation runs, in this order; `setup` only with a setup command, `claude` only when asked. */
+export const PREPARATION_STEPS = ['fetch', 'worktree', 'setup', 'claude'] as const
+
+export type PreparationStep = (typeof PREPARATION_STEPS)[number]
+
+/** A finished preparation step. */
+export type PreparationResult = StepResult<PreparationStep>
+
+/** Where a new workspace's preparation stands. */
+export type Preparation = StepRun<PreparationStep>
 
 /** A git worktree on its own branch, with its own terminals and status. */
 export interface Workspace {
@@ -68,9 +85,10 @@ export interface Workspace {
    */
   branches: string[]
   path: string
+  /** The ref the worktree was made from; empty until workspace.prepare has resolved the default. */
   baseRef: string
   status: WorkspaceStatus
-  /** Why it is stuck: `no_heartbeat`, `setup_failed`, `error:<kind>`. */
+  /** Why it is stuck: `no_heartbeat`, `setup_failed`, `preparation_failed`, `error:<kind>`. */
   statusReason: string | null
   statusAt: string
   lastActivityAt: string | null
@@ -101,6 +119,11 @@ export interface Workspace {
   backgroundTasks: BackgroundTask[]
   /** Where its removal stands; present only while it is `removing`. */
   removal?: Removal
+  /**
+   * Where its preparation stands (workspace.prepare): present from the row's first moment until
+   * its steps have run, and kept when a step failed, so that step's reason can be shown.
+   */
+  preparation?: Preparation
   /** What the work is, in a line (shown instead of the name); absent for a workspace made from a name. */
   title?: string
   /** The description the workspace was made from (written to `.que/brief.md`). */

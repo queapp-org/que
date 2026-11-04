@@ -4,6 +4,7 @@ import { clampRatio } from '../layout'
 import {
   diffOf,
   filePathOf,
+  isPreparing,
   prOfDiff,
   RATIO_DEFAULT,
   RATIO_MAX,
@@ -25,9 +26,43 @@ import {
   SplitBelowIcon,
   SplitBesideIcon
 } from './icons'
+import PreparingPane from './PreparingPane'
 import Terminal from './Terminal'
 
 const STEP = 0.05
+
+/**
+ * Whether a terminal appearing now leaves the keyboard where it is: it takes the place of the steps
+ * (still in the document as it first renders), so nobody asked for it this moment, and the user is
+ * typing in a field or a dialog.
+ */
+function leavesKeyboardAlone(): boolean {
+  const el = document.activeElement
+
+  if (!el || !document.querySelector('.preparing')) return false
+
+  return el.closest('[role="dialog"]') !== null || el.matches('input, textarea, select')
+}
+
+/**
+ * A pane's terminal. Mounting takes the keyboard while the pane has focus, unless that is decided
+ * against once, as it first appears; then it waits until the pane next gets focus.
+ */
+function PaneTerminal({
+  id,
+  focused,
+  optionMeta
+}: {
+  id: string
+  focused: boolean
+  optionMeta: boolean
+}): React.JSX.Element {
+  const [leftAlone, setLeftAlone] = useState(leavesKeyboardAlone)
+
+  if (leftAlone && !focused) setLeftAlone(false)
+
+  return <Terminal id={id} focused={focused && !leftAlone} optionAsMeta={optionMeta} />
+}
 
 /** The grid track sizes of a split at this ratio: first pane, divider, second pane. */
 function paneTemplate(ratio: number): string {
@@ -141,6 +176,7 @@ export function PaneDivider({
 function PaneControls({ termKey }: { termKey: string }): React.JSX.Element {
   const store = usePanes(termKey)
   const connected = useQueSelector((s) => s.connected)
+  const preparing = useQueSelector((s) => isPreparing(s, termKey))
   const split = Boolean(store.layout(termKey).split)
 
   return (
@@ -165,7 +201,7 @@ function PaneControls({ termKey }: { termKey: string }): React.JSX.Element {
             aria-label="Split beside"
             title="Split beside (⌘D)"
             data-testid="topbar-split-beside"
-            disabled={!connected}
+            disabled={!connected || preparing}
             onClick={() => void store.splitPane(termKey, 'row')}
           >
             <SplitBesideIcon />
@@ -176,7 +212,7 @@ function PaneControls({ termKey }: { termKey: string }): React.JSX.Element {
             aria-label="Split below"
             title="Split below (⌘⇧D)"
             data-testid="topbar-split-below"
-            disabled={!connected}
+            disabled={!connected || preparing}
             onClick={() => void store.splitPane(termKey, 'column')}
           >
             <SplitBelowIcon />
@@ -208,6 +244,7 @@ function Pane({
   const activeDiff = diffOf(activeId)
   const activeFile = filePathOf(activeId)
   const prs = useQueSelector((s) => s.workspaces[termKey]?.prs)
+  const preparing = useQueSelector((s) => isPreparing(s, termKey))
   const focused = store.focusedPane(termKey) === index
   const optionMeta = useQueSelector((s) => optionAsMeta(s.config?.config))
 
@@ -314,7 +351,7 @@ function Pane({
           aria-label="New terminal"
           title="New terminal (⌘T)"
           data-testid={`pane-${index}-new`}
-          disabled={!connected}
+          disabled={!connected || preparing}
           onClick={() => {
             store.focusPane(termKey, index)
             void store.newTerminal(termKey)
@@ -324,7 +361,9 @@ function Pane({
         </button>
         {controls && <PaneControls termKey={termKey} />}
       </div>
-      {activeDiff !== null ? (
+      {preparing ? (
+        <PreparingPane termKey={termKey} />
+      ) : activeDiff !== null ? (
         <DiffView
           key={activeId}
           termKey={termKey}
@@ -336,11 +375,11 @@ function Pane({
       ) : active ? (
         // An inactive tab's terminal is detached; it reattaches (and replays) when selected.
         // A reconnect (a new `connection`) attaches it again.
-        <Terminal
+        <PaneTerminal
           key={`${active.id}:${connection}`}
           id={active.id}
           focused={focused}
-          optionAsMeta={optionMeta}
+          optionMeta={optionMeta}
         />
       ) : (
         <div className="empty" data-testid="terminal-empty">

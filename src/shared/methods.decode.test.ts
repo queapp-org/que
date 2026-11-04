@@ -85,6 +85,8 @@ describe('method table', () => {
       'daemon.ping',
       'daemon.shutdown',
       'daemon.handoff',
+      'workspace.create',
+      'workspace.start',
       'hook.event',
       'usage.report'
     ])

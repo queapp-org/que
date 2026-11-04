@@ -156,6 +156,11 @@ export interface WorkspaceCreateParams {
   branch?: string
 }
 
+export interface WorkspacePrepareParams extends WorkspaceCreateParams {
+  /** Starts claude (on the brief, when there is one) as the last step. */
+  start?: boolean
+}
+
 export interface WorkspaceStartParams {
   id: string
   cols?: number
@@ -500,11 +505,17 @@ export interface Methods {
   'project.list': { params: Record<string, never> | undefined; result: Project[] }
   'project.remove': { params: ProjectRemoveParams; result: Ok }
   'workspace.create': { params: WorkspaceCreateParams; result: Workspace }
+  /**
+   * workspace.create without the wait: a refused name fails here, but the row exists and this
+   * answers before the fetch and the worktree. The steps then run in the background, each
+   * announced with workspace.updated (Workspace.preparation), and a failed one stays on the row.
+   */
+  'workspace.prepare': { params: WorkspacePrepareParams; result: Workspace }
   'workspace.list': { params: WorkspaceListParams | undefined; result: Workspace[] }
   'workspace.get': { params: { id: string }; result: Workspace }
   'workspace.remove': { params: WorkspaceRemoveParams; result: Ok }
   'workspace.openTerminal': { params: WorkspaceOpenTerminalParams; result: TermInfo }
-  /** Types `claude '<start_prompt>'` into the workspace's first terminal once setup is done. */
+  /** Types the command that starts claude into the workspace's first terminal once setup is done. */
   'workspace.start': { params: WorkspaceStartParams; result: WorkspaceStartResult }
   /** Sets the title (and, when allowed and asked, renames the branch); emits workspace.updated. */
   'workspace.rename': { params: WorkspaceRenameParams; result: Workspace }
@@ -582,9 +593,12 @@ export type ResultOf<M extends MethodName> = Methods[M]['result']
  * makes a missing or extra entry a compile error.
  *
  * - `renderer`: the app's window may call it (Electron main enforces this). False for
- *   the calls only the daemon's own tooling makes: ping, shutdown, handoff, and hook events.
+ *   the calls only the daemon's own tooling makes (ping, shutdown, handoff, and hook events) and
+ *   for the blocking `workspace.create` and `workspace.start`: the app uses `workspace.prepare`.
  * - `quiet`: refused with `quiet_hours` while quiet hours are on and not unlocked:
  *   every way to see a terminal, its output, or a report, or to start new work.
+ * - `needsWorktree`: refused with `conflict` while the workspace named by `id` has no finished
+ *   worktree (its preparation is running, or a step stopped it). Enforced once, in dispatch.
  *
  * The decoders for the params are the sibling table in `methods.decode.ts`, keyed the same way.
  */
@@ -592,6 +606,7 @@ export const METHODS: {
   [M in MethodName]: {
     renderer: boolean
     quiet: boolean
+    needsWorktree?: ParamsOf<M> extends { id: string } ? true : never
   }
 } = {
   'daemon.ping': { renderer: false, quiet: false },
@@ -612,45 +627,31 @@ export const METHODS: {
   'project.list': { renderer: true, quiet: false },
   'project.remove': { renderer: true, quiet: false },
   'workspace.create': {
-    renderer: true,
+    renderer: false,
     quiet: false
   },
+  'workspace.prepare': { renderer: true, quiet: true },
   'workspace.list': { renderer: true, quiet: false },
   'workspace.get': { renderer: true, quiet: false },
   'workspace.remove': {
     renderer: true,
     quiet: false
   },
-  'workspace.openTerminal': {
-    renderer: true,
-    quiet: true
-  },
-  'workspace.start': { renderer: true, quiet: true },
+  'workspace.openTerminal': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.start': { renderer: false, quiet: true, needsWorktree: true },
   'workspace.rename': {
     renderer: true,
     quiet: false
   },
-  'workspace.canRenameBranch': {
-    renderer: true,
-    quiet: false
-  },
+  'workspace.canRenameBranch': { renderer: true, quiet: false, needsWorktree: true },
   'workspace.seen': { renderer: true, quiet: false },
-  'workspace.diff': { renderer: true, quiet: true },
-  'workspace.diffFile': { renderer: true, quiet: true },
-  'workspace.prThread': {
-    renderer: true,
-    quiet: true
-  },
-  'workspace.checkPrs': { renderer: true, quiet: true },
-  'workspace.files': { renderer: true, quiet: true },
-  'workspace.readFile': {
-    renderer: true,
-    quiet: true
-  },
-  'workspace.watch': {
-    renderer: true,
-    quiet: false
-  },
+  'workspace.diff': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.diffFile': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.prThread': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.checkPrs': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.files': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.readFile': { renderer: true, quiet: true, needsWorktree: true },
+  'workspace.watch': { renderer: true, quiet: false, needsWorktree: true },
   'workspace.unwatch': {
     renderer: true,
     quiet: false

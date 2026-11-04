@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Project, Workspace } from '../../../preload/index.d'
 import { formatCountdown } from '../../../shared/format'
-import { tabLabel } from '../format'
+import { preparationUnfinished } from '../../../shared/preparation'
+import { statusBadge, tabLabel } from '../format'
 import { type QueStore, SCRATCH, usePanes, useQueSelector, useStore } from '../store'
 import { countOpenTickets } from '../ticket-tree'
 import { filterSidebar, matches, sortProjects, sortWorkspaces } from '../sidebar-order'
-import { hoverWord, type RowTone, rowTone } from '../sidebar-row'
+import { hoverWord, preparationFailedText, type RowTone, rowTone } from '../sidebar-row'
 import { NOW_SECONDS_INTERVAL_MS, useNow } from '../useNow'
 import { useUnlockCountdown } from '../useUnlockCountdown'
 import UpdateChip from './UpdateChip'
 import {
   ChevronIcon,
+  ClaudeCodeIcon,
   FolderIcon,
   FolderPlusIcon,
   GearIcon,
@@ -33,8 +35,8 @@ type OpenMenu = { kind: 'project' | 'workspace'; id: string; at?: Point }
 
 /**
  * A workspace's status at rest: a 5px dot in its tone, or, while it works, the working
- * mark (in the neutral tone while it is being removed). Its tooltip is the hover word, and why when the workspace is
- * stuck. It carries `data-status` and `data-unseen` for tests.
+ * mark (in the neutral tone while it is being prepared or removed). Its tooltip is the hover word, and why when the
+ * workspace is stuck. It carries `data-status` and `data-unseen` for tests.
  */
 function StatusMark({
   w,
@@ -45,22 +47,29 @@ function StatusMark({
   look: RowTone
   word: string
 }): React.JSX.Element {
+  const why = look.failed?.error ?? (look.status === w.status ? w.statusReason : null)
+
   const common = {
     'data-testid': `sidebar-workspace-${w.id}-status`,
     'data-status': look.status,
     'data-unseen': look.unseen ? 'true' : 'false',
-    title: w.statusReason && look.status === w.status ? `${word}: ${w.statusReason}` : word
+    title: why ? `${word}: ${why}` : word
   }
 
   if (look.working) {
     return <WorkingMark {...common} />
   }
 
-  if (look.removing) {
+  if (look.removing || look.preparing) {
     return <WorkingMark tone="neutral" {...common} />
   }
 
   return <span className={`status-dot tone-${look.tone}`} {...common} />
+}
+
+/** A preparing or removing row's word: its step and clock, ticking each second, so the list need not. */
+function StepWord({ w, look }: { w: Workspace; look: RowTone }): React.JSX.Element {
+  return <>{hoverWord(w, look, useNow(NOW_SECONDS_INTERVAL_MS)).word}</>
 }
 
 /** During an unlock: the countdown, and `lock now`, always shown. */
@@ -213,12 +222,12 @@ function ProjectList(): React.JSX.Element {
   const sort = useQueSelector((s) => s.sort)
   const locked = useQueSelector((s) => s.quiet?.locked ?? false)
   const dialog = useQueSelector((s) => s.dialog)
-  // A removal's step word counts seconds; everything else here reads in minutes.
-  const removing = Object.values(workspaces).some((w) => w.status === 'removing')
-  const now = useNow(removing ? NOW_SECONDS_INTERVAL_MS : undefined)
+  const now = useNow()
   // The workspace card: detail, so never while quiet hours lock the app.
   const popout = usePopout(!locked)
   const rows = useRef(new Map<string, HTMLLIElement>())
+  // What opened the menu that is open: the dialog gives the keyboard back to what had it.
+  const menuOpener = useRef<HTMLElement | null>(null)
   const showPopout = popout.show
   const filtering = filter.trim() !== ''
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
@@ -257,12 +266,22 @@ function ProjectList(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [dialog, selected, showPopout])
 
-  const toggleMenu = (kind: OpenMenu['kind'], id: string): void => {
+  const toggleMenu = (
+    e: React.MouseEvent<HTMLElement>,
+    kind: OpenMenu['kind'],
+    id: string
+  ): void => {
+    menuOpener.current = e.currentTarget
     popout.close()
     setMenu(menu?.kind === kind && menu.id === id && !menu.at ? null : { kind, id })
   }
 
-  const menuAtPointer = (e: React.MouseEvent, kind: OpenMenu['kind'], id: string): void => {
+  const menuAtPointer = (
+    e: React.MouseEvent<HTMLElement>,
+    kind: OpenMenu['kind'],
+    id: string
+  ): void => {
+    menuOpener.current = e.currentTarget
     e.preventDefault()
     e.stopPropagation()
     popout.close()
@@ -273,7 +292,11 @@ function ProjectList(): React.JSX.Element {
     {
       label: 'New workspace…',
       testId: 'new-workspace',
-      action: () => store.openDialog({ kind: 'new-workspace', projectId: p.id })
+      action: () => {
+        // The menu item is going, so the dialog would have nothing to give the keyboard back to.
+        menuOpener.current?.focus()
+        store.openDialog({ kind: 'new-workspace', projectId: p.id })
+      }
     },
     {
       label: 'Open in editor',
@@ -287,23 +310,30 @@ function ProjectList(): React.JSX.Element {
     }
   ]
 
-  const workspaceItems = (w: Workspace): MenuItem[] => [
-    {
-      label: 'Rename…',
-      testId: 'rename',
-      action: () => store.openDialog({ kind: 'rename-workspace', workspaceId: w.id })
-    },
-    {
-      label: 'Open in editor',
-      testId: 'open-editor',
-      action: () => void store.openInEditor(w.path)
-    },
-    {
+  const workspaceItems = (w: Workspace): MenuItem[] => {
+    const remove: MenuItem = {
       label: 'Remove…',
       testId: 'remove',
       action: () => store.openDialog({ kind: 'remove-workspace', workspaceId: w.id })
     }
-  ]
+
+    // Until its preparation has finished there is no worktree to act on: only removing it.
+    if (preparationUnfinished(w)) return [remove]
+
+    return [
+      {
+        label: 'Rename…',
+        testId: 'rename',
+        action: () => store.openDialog({ kind: 'rename-workspace', workspaceId: w.id })
+      },
+      {
+        label: 'Open in editor',
+        testId: 'open-editor',
+        action: () => void store.openInEditor(w.path)
+      },
+      remove
+    ]
+  }
 
   const menuFor = (kind: OpenMenu['kind'], id: string): OpenMenu | null =>
     menu?.kind === kind && menu.id === id ? menu : null
@@ -355,17 +385,20 @@ function ProjectList(): React.JSX.Element {
                   {looks.length}
                 </span>
               )}
-              <div className="head-actions">
+              <div className="head-actions" data-testid={`sidebar-project-${p.id}-actions`}>
                 <button
                   type="button"
-                  className="ghost icon"
-                  data-testid={`sidebar-project-${p.id}-add-workspace`}
-                  aria-label={`New workspace in ${p.name}`}
-                  title={`New workspace in ${p.name}`}
+                  className="ghost start"
+                  data-testid={`sidebar-project-${p.id}-start`}
+                  aria-label={`New workspace running Claude Code in ${p.name}`}
+                  title="New workspace running Claude Code"
                   disabled={!connected}
-                  onClick={() => store.openDialog({ kind: 'new-workspace', projectId: p.id })}
+                  onClick={(e) => {
+                    // The second click of a double click is not a second workspace.
+                    if (e.detail <= 1) void store.startClaudeWorkspace(p.id)
+                  }}
                 >
-                  <PlusIcon />
+                  <ClaudeCodeIcon />
                 </button>
                 <button
                   type="button"
@@ -374,7 +407,7 @@ function ProjectList(): React.JSX.Element {
                   aria-label={`More actions for ${p.name}`}
                   aria-haspopup="menu"
                   aria-expanded={projectMenu !== null}
-                  onClick={() => toggleMenu('project', p.id)}
+                  onClick={(e) => toggleMenu(e, 'project', p.id)}
                 >
                   ⋯
                 </button>
@@ -395,6 +428,8 @@ function ProjectList(): React.JSX.Element {
                   const look = looks[i]
                   const workspaceMenu = look.removing ? null : menuFor('workspace', w.id)
                   const word = hoverWord(w, look, now)
+                  const stepping = look.removing || look.preparing
+                  const failedText = look.failed && preparationFailedText(look.failed)
 
                   return (
                     <li
@@ -423,7 +458,11 @@ function ProjectList(): React.JSX.Element {
                         onClick={() => store.showTerminals(w.id)}
                       >
                         <span className="ico" aria-hidden="true">
-                          <StatusMark w={w} look={look} word={word.word} />
+                          <StatusMark
+                            w={w}
+                            look={look}
+                            word={stepping ? statusBadge(w.status).label : word.word}
+                          />
                         </span>
                         <span className="name" data-testid={`sidebar-workspace-${w.id}-name`}>
                           {w.title ?? w.name}
@@ -431,12 +470,13 @@ function ProjectList(): React.JSX.Element {
                         {look.background.length > 0 && (
                           <BackgroundMark data-testid={`sidebar-workspace-${w.id}-background`} />
                         )}
-                        {look.removing && (
+                        {(stepping || failedText) && (
                           <span
-                            className="step-word"
+                            className={failedText ? 'step-word failed' : 'step-word'}
                             data-testid={`sidebar-workspace-${w.id}-step`}
+                            title={failedText || undefined}
                           >
-                            {word.word}
+                            {failedText || <StepWord w={w} look={look} />}
                           </span>
                         )}
                       </button>
@@ -445,7 +485,7 @@ function ProjectList(): React.JSX.Element {
                           className={word.tone ? `word toned tone-${word.tone}` : 'word'}
                           data-testid={`sidebar-workspace-${w.id}-word`}
                         >
-                          {word.word}
+                          {stepping ? <StepWord w={w} look={look} /> : word.word}
                         </span>
                         {!look.removing && (
                           <button
@@ -455,7 +495,7 @@ function ProjectList(): React.JSX.Element {
                             aria-label={`More actions for ${w.title ?? w.name}`}
                             aria-haspopup="menu"
                             aria-expanded={workspaceMenu !== null}
-                            onClick={() => toggleMenu('workspace', w.id)}
+                            onClick={(e) => toggleMenu(e, 'workspace', w.id)}
                           >
                             ⋯
                           </button>

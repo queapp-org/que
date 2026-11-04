@@ -8,6 +8,8 @@ All notable changes to que are recorded here. The format follows
 
 ### Added
 
+- One click to a Claude session. The `+` on a project is now Claude Code's character: it makes a workspace with a generated name and the default base, starts Claude there and puts the keyboard in its terminal, so you speak or type your first prompt in Claude's own input. "New workspace…" in the project's ⋯ menu is still there for setting a name or a base ref, or for leaving a brief and walking away.
+- A new workspace appears in the sidebar the moment you ask for it. Its row and the main pane show each step with a clock (fetching origin, creating worktree, running setup, starting Claude), with a button to open the setup log. A step that fails says which one and why, and you can remove the workspace from there. Quitting or restarting the background service partway picks up from the step it was on.
 - Right-clicking a terminal shows a menu at the pointer: Copy when there is a selection, and Paste.
 - A program in a terminal can set the clipboard with OSC 52, including one running over ssh. It can only write: a program never reads the clipboard this way, and anything over 1 MiB is ignored. A program's earlier write does not repeat when you come back to its terminal, and one made while the terminal is not on screen is dropped.
 - Dropping files on a terminal pastes their shell-quoted paths at the cursor without pressing Enter, so Claude Code takes a dropped image as an attachment.
@@ -16,8 +18,14 @@ All notable changes to que are recorded here. The format follows
 - Cmd+Backspace clears to the start of the line in a terminal, and Cmd+Left and Cmd+Right go to its start and end.
 - Links in a terminal work. Cmd+click opens a URL in your browser, whether it is plain text or an OSC 8 hyperlink; a plain click does nothing, and a link underlines under the pointer. Only http and https links open.
 
+### Changed
+
+- The brief in the New workspace dialog is optional, and its checkbox now reads "Start Claude". With no brief, Claude waits for your first prompt.
+- A workspace with no brief now starts a plain `claude` even when `start_prompt` is set, so Claude doesn't start working before you've said anything. A workspace with a brief uses `start_prompt` as before.
+
 ### Fixed
 
+- A workspace left preparing when the background service stopped no longer stays that way: its setup runs again when the service starts.
 - Text pasted into a terminal has its control characters taken out, by Cmd+V and the menu's Paste alike, so pasted text can't end a bracketed paste early and run what comes after it. Tabs and line ends stay, and pasting an image works as before.
 - Emoji such as ✅, 🚀 and 🧠 take two cells in a terminal, so the text after them no longer sits wrong or overlaps. Sequences that join several emoji into one, and symbols turned into emoji by a variation selector (⚠️), can still sit off by a cell.
 - Programs in a que terminal can use the microphone, so Claude Code's dictation works. macOS asks once, the first time one tries. 0.3.0 denied it without asking.

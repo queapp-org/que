@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { makeBackgroundTask, makePullRequest, makeWorkspace } from '@renderer/testing/fixtures'
 import { minutesAgo } from '@renderer/testing/helpers'
-import type { RemovalStep } from '@shared/types'
-import { hoverWord, removalWord, rowTone, unseenDone } from './sidebar-row'
+import type { PreparationStep, RemovalStep } from '@shared/types'
+import {
+  hoverWord,
+  preparationFailedText,
+  preparationWord,
+  removalWord,
+  rowTone,
+  unseenDone
+} from './sidebar-row'
 
 const NOW = new Date(2026, 9, 17, 21, 30).getTime()
 
@@ -33,6 +40,8 @@ describe('rowTone', () => {
         tone: 'neutral',
         working: false,
         removing: false,
+        preparing: false,
+        failed: null,
         unseen: false,
         weight: 'faint',
         background: []
@@ -70,6 +79,8 @@ describe('rowTone', () => {
         tone: 'good',
         working: false,
         removing: false,
+        preparing: false,
+        failed: null,
         unseen: true,
         weight: 'fg',
         background: []
@@ -112,6 +123,8 @@ describe('rowTone', () => {
         tone: 'muted',
         working: false,
         removing: true,
+        preparing: false,
+        failed: null,
         unseen: false,
         weight: 'faint',
         background: []
@@ -281,5 +294,91 @@ describe('unseenDone', () => {
         })
       )
     ).toBe(false)
+  })
+})
+
+describe('a workspace being prepared', () => {
+  const since = new Date(NOW - 12_000).toISOString()
+
+  const preparing = {
+    ...idle,
+    status: 'preparing' as const,
+    preparation: {
+      plan: ['fetch', 'worktree', 'setup', 'claude'] as const satisfies PreparationStep[],
+      since,
+      done: [
+        { step: 'fetch' as const, ms: 900 },
+        { step: 'worktree' as const, ms: 200 }
+      ]
+    }
+  }
+
+  const stopped = {
+    ...idle,
+    status: 'stuck' as const,
+    statusReason: 'preparation_failed',
+    preparation: {
+      ...preparing.preparation,
+      done: [
+        { step: 'fetch' as const, ms: 900 },
+        { step: 'worktree' as const, ms: 40, error: 'unknown base ref v9' }
+      ]
+    }
+  }
+
+  it('draws the neutral mark, with no failure, and a faint name until selected', () => {
+    expect(rowTone(preparing)).toMatchObject({
+      status: 'preparing',
+      preparing: true,
+      failed: null,
+      working: false,
+      removing: false,
+      weight: 'faint'
+    })
+    expect(rowTone(preparing, true).weight).toBe('fg')
+  })
+
+  it('says the step and how long it has run, or just preparing with no steps to name', () => {
+    expect(preparationWord(preparing, NOW)).toBe('running setup 12s')
+    expect(preparationWord({}, NOW)).toBe('preparing')
+    expect(hoverWord(preparing, rowTone(preparing), NOW)).toEqual({
+      word: 'running setup 12s',
+      tone: null
+    })
+  })
+
+  it('reads a step that stopped it as stuck, in the bad tone, naming the step and why', () => {
+    const look = rowTone(stopped)
+
+    expect(look).toMatchObject({
+      tone: 'bad',
+      preparing: false,
+      weight: 'fg',
+      failed: { step: 'worktree', error: 'unknown base ref v9' }
+    })
+    expect(hoverWord(stopped, look, NOW)).toEqual({ word: 'creating worktree failed', tone: 'bad' })
+    expect(look.failed && preparationFailedText(look.failed)).toBe(
+      'creating worktree failed: unknown base ref v9'
+    )
+  })
+
+  it('shows a failed setup only while the row is stuck on it, not once a session moved it on', () => {
+    const failedSetup = {
+      ...idle,
+      status: 'stuck' as const,
+      statusReason: 'setup_failed',
+      preparation: {
+        ...preparing.preparation,
+        done: [
+          ...preparing.preparation.done,
+          { step: 'setup' as const, ms: 3_000, error: 'exited with code 3' },
+          { step: 'claude' as const, ms: 2 }
+        ]
+      }
+    }
+
+    expect(rowTone(failedSetup).failed).toMatchObject({ step: 'setup' })
+    expect(rowTone({ ...failedSetup, status: 'idle', statusReason: null }).failed).toBeNull()
+    expect(rowTone({ ...failedSetup, statusReason: 'no_heartbeat' }).failed).toBeNull()
   })
 })

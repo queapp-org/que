@@ -10,7 +10,7 @@ import type { BackgroundTask, StatusSummary, WorkspaceStatus } from '../shared/t
 
 export interface StatusState {
   status: WorkspaceStatus
-  /** Set only while stuck: `no_heartbeat`, `setup_failed`, `error:<kind>`. */
+  /** Set only while stuck: `no_heartbeat`, `setup_failed`, `preparation_failed`, `error:<kind>`. */
   reason: string | null
   /** When status or reason last changed. */
   statusAt: number
@@ -45,6 +45,7 @@ export type StatusInput =
   | { kind: 'agents_json'; entry: AgentEntry }
   | { kind: 'setup_done' }
   | { kind: 'setup_failed' }
+  | { kind: 'preparation_failed' }
   | { kind: 'remove' }
 
 export interface ReduceOptions {
@@ -256,6 +257,8 @@ export function reduce(
       return transition(state, 'idle', null, now)
     case 'setup_failed':
       return transition(state, 'stuck', 'setup_failed', now)
+    case 'preparation_failed':
+      return transition(state, 'stuck', 'preparation_failed', now)
     case 'remove':
       // Its terminals are killed first, so nothing runs in the background any more.
       return transition(state, 'removing', null, now, { backgroundTasks: [] })

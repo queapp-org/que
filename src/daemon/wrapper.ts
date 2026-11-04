@@ -35,21 +35,21 @@ export type StartFrom =
   | { resumeSessionId: string }
 
 /**
- * What workspace.start types: claude on the start prompt when one is set, else on the
- * brief file read by the shell (so the brief arrives verbatim, never quoted by us), else
- * a bare claude. A session restored after a daemon restart, in a workspace or a
- * loose terminal, resumes its session id instead. The wrapper adds the hook
- * settings either way, and in a workspace the permission mode.
+ * What workspace.start types: with no brief a bare claude, which waits for its first prompt;
+ * with one, claude on the start prompt when one is set, else on the brief file read by the
+ * shell (so the brief arrives verbatim, never quoted by us). A session restored after a daemon
+ * restart, in a workspace or a loose terminal, resumes its session id instead. The wrapper adds
+ * the hook settings either way, and in a workspace the permission mode.
  */
 export function startCommand(from: StartFrom): string {
   if ('resumeSessionId' in from) return `claude --resume ${shQuote(from.resumeSessionId)}\r`
   const { startPrompt, briefFile } = from
 
+  if (!briefFile) return 'claude\r'
+
   if (startPrompt.trim() !== '') return claudeCommand(startPrompt)
 
-  if (briefFile) return `claude "$(cat ${shQuote(briefFile)})"\r`
-
-  return 'claude\r'
+  return `claude "$(cat ${shQuote(briefFile)})"\r`
 }
 
 function isExecutableFile(p: string): boolean {

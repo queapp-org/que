@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { makePrCheck, makePullRequest } from '@renderer/testing/fixtures'
-import type { Removal } from '../../shared/types'
-import { firstFailingCheck, removalLines, tildePath } from './workspace-popout'
+import type { Preparation, Removal } from '../../shared/types'
+import {
+  firstFailingCheck,
+  preparationLabel,
+  preparationLines,
+  removalLines,
+  tildePath
+} from './workspace-popout'
 
 describe('tildePath', () => {
   it('writes ~ for the home directory and leaves other paths alone', () => {
@@ -59,5 +65,64 @@ describe('removalLines', () => {
         ]
       }).map((l) => l.state)
     ).toEqual(['done', 'done'])
+  })
+})
+
+describe('preparationLines', () => {
+  const preparation: Preparation = {
+    plan: ['fetch', 'worktree', 'setup', 'claude'],
+    since: '2026-11-03T09:00:00.000Z',
+    done: [{ step: 'fetch', ms: 900 }]
+  }
+
+  it('reads each planned step as done, current or pending', () => {
+    expect(preparationLines(preparation)).toEqual([
+      { step: 'fetch', state: 'done', ms: 900 },
+      { step: 'worktree', state: 'current' },
+      { step: 'setup', state: 'pending' },
+      { step: 'claude', state: 'pending' }
+    ])
+  })
+
+  it('has no current step once a failed one has stopped it', () => {
+    const stopped = {
+      ...preparation,
+      done: [...preparation.done, { step: 'worktree' as const, ms: 40, error: 'unknown base ref' }]
+    }
+
+    expect(preparationLines(stopped).map((l) => l.state)).toEqual([
+      'done',
+      'failed',
+      'pending',
+      'pending'
+    ])
+  })
+
+  it('goes on to the next step after a failed setup', () => {
+    const failed = {
+      ...preparation,
+      done: [
+        ...preparation.done,
+        { step: 'worktree' as const, ms: 40 },
+        { step: 'setup' as const, ms: 3, error: 'exited with code 3' }
+      ]
+    }
+
+    expect(preparationLines(failed).map((l) => l.state)).toEqual([
+      'done',
+      'done',
+      'failed',
+      'current'
+    ])
+  })
+})
+
+describe('preparationLabel', () => {
+  it('says the step, and that Claude starts on the brief when there is one', () => {
+    expect(preparationLabel(undefined)('fetch')).toBe('fetching origin')
+    expect(preparationLabel(undefined)('worktree')).toBe('creating worktree')
+    expect(preparationLabel('Retry uploads')('setup')).toBe('running setup')
+    expect(preparationLabel(undefined)('claude')).toBe('starting Claude')
+    expect(preparationLabel('Retry uploads')('claude')).toBe('starting Claude with your brief')
   })
 })

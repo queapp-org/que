@@ -93,6 +93,15 @@ export const decoders: { [M in MethodName]: (p: Params) => ParamsOf<M> } = {
     baseRef: optString(p, 'baseRef'),
     branch: optString(p, 'branch')
   }),
+  'workspace.prepare': (p) => ({
+    projectId: str(p, 'projectId'),
+    name: optString(p, 'name'),
+    title: optString(p, 'title'),
+    brief: optString(p, 'brief'),
+    baseRef: optString(p, 'baseRef'),
+    branch: optString(p, 'branch'),
+    start: optBool(p, 'start')
+  }),
   'workspace.list': (p) => ({ projectId: optString(p, 'projectId') }),
   'workspace.get': idOnly,
   'workspace.remove': (p) => ({ id: str(p, 'id'), deleteBranch: bool(p, 'deleteBranch') }),

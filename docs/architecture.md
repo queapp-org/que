@@ -219,6 +219,51 @@ removal the daemon was stopped in resumes from its step when the daemon starts
 again, and leftovers in `.trash` are deleted then. `project.remove` with
 `force` waits for every removal to finish.
 
+Making a workspace has two paths that share their step code. `workspace.create`
+blocks: it fetches and adds the worktree, inserts the row and announces it with
+`workspace.created`, then answers with setup running in the background; a
+refusal at any point leaves nothing behind. `que work`, `tickets.start` and the
+other callers use it. `workspace.prepare`, the app's path for the project head's
+character and the New workspace dialog, inserts the row first: it refuses a bad
+or taken name at once, announces the row, answers, and runs the steps in the
+background. `Workspace.preparation` holds the plan, the steps done with their
+durations and failures (the step running now is the first one not done), and
+since when it has run; it is stored with the row, so every `workspace.updated`
+carries it, and each step's result is announced. The steps, in order: `fetch`
+runs `git fetch origin` when there is an origin, and a failed fetch is only
+logged; `worktree` resolves the base (the row's `baseRef` is empty until then)
+and runs `git worktree add`, then copies `worktree_include` and writes the
+brief; `setup` runs the repo's `setup` command, only when it has one; `claude`,
+only with `start`, opens the first terminal and types the command that starts
+Claude, so no shell exists before it. The row stays `preparing` until the steps
+end, and leaving it is what releases the typing. A step that fails stops the
+rest: the row stays with the failed step and its reason, `stuck` with
+`preparation_failed`, and all it can do is be removed. The exception is setup:
+as in a workspace that was created and started, Claude starts anyway, so the
+row goes `stuck` with `setup_failed` and keeps the failed step for the card,
+until the session's first hook moves it on. Otherwise `preparation` is cleared
+when the steps end. While a preparation has not finished, every method marked
+`needsWorktree` in `METHODS` answers `conflict`, once, in dispatch: opening or
+starting a terminal, the diff, the files, a pull request's thread and its checks,
+and the worktree watch. A branch rename does too, inside `workspace.rename`, whose
+title change stays allowed. The pull request poll skips the row. The app shows the
+steps with their clocks in the sidebar row and the main pane. Its one gate is that it
+opens no terminal for the workspace; a fetch it does ask for is refused, and a
+refusal leaves nothing to show. When the steps end it asks again for the watch and
+what is on screen, and opens a shell if no `claude` step opened a terminal. Claude's
+terminal is the workspace's only tab, so it is selected, and mounting it gives it the
+keyboard unless the user is typing in a field or a dialog; a window showing something
+else mounts nothing, so its focus is never touched. A preparation the
+daemon was stopped in resumes from its step when the daemon starts again: a
+fetch or a setup runs again from its start, and the worktree step goes on from
+the branch or the worktree an earlier try made. A row from `workspace.create`
+left `preparing` by a stopped daemon has no steps, and runs its setup again.
+`workspace.remove` stops a preparation first, so nothing is left to appear after
+the removal; it skips teardown when the worktree step never finished, and a
+branch that was never made is no failure. An app newer than its background
+service gets `unknown_method` for `workspace.prepare`, and says to restart the
+service.
+
 ## What a process que starts can see
 
 The daemon and every terminal get a cleaned copy of the
@@ -419,8 +464,9 @@ sidebar shows; the brief goes verbatim to `<worktree>/.que/brief.md`.
 with it, and once setup has ended types the command that starts Claude. By
 default the brief is the first prompt: `claude "$(cat '<worktree>/.que/brief.md')"`,
 so the shell hands it over verbatim. With `start_prompt` set, that text is sent
-instead (`claude '<start_prompt>'`; it can tell Claude to read `.que/brief.md`),
-and a workspace without a brief gets a bare `claude`. `workspace.rename`
+instead (`claude '<start_prompt>'`; it can tell Claude to read `.que/brief.md`).
+A workspace without a brief always gets a bare `claude`, which waits for its
+first prompt, whatever `start_prompt` says. `workspace.rename`
 changes the title and, for a branch with no `origin/<branch>`, can rename the
 branch to a name the user gives; the folder keeps its name.
 

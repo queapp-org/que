@@ -342,6 +342,14 @@ describe('reduce', () => {
       expect(at(working, 'setup_done')).toEqual(working)
     })
 
+    it('marks a preparing workspace stuck with preparation_failed when a step stops it', () => {
+      expect(reduce(preparing, { kind: 'preparation_failed' }, T0 + 1_000)).toMatchObject({
+        status: 'stuck',
+        reason: 'preparation_failed',
+        statusAt: T0 + 1_000
+      })
+    })
+
     it('marks the workspace stuck with setup_failed whatever it was doing', () => {
       for (const state of [preparing, working]) {
         expect(at(state, 'setup_failed')).toMatchObject({

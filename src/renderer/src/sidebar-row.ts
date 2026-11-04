@@ -2,7 +2,12 @@
 // mark), its tone, the weight of the name, the background mark or the removal step, and the status word. Pure rules over the
 // workspace; Sidebar.tsx draws them. docs/design.md "Sidebar".
 import type { Workspace } from '../../preload/index.d'
-import { formatAge, removalStepLabel } from '../../shared/format'
+import { formatAge, preparationStepLabel, removalStepLabel } from '../../shared/format'
+import {
+  type PreparationFailure,
+  preparationFailure,
+  preparationStep
+} from '../../shared/preparation'
 import { removalStep } from '../../shared/removal'
 import { statusBadge, type Tone } from './format'
 
@@ -21,6 +26,13 @@ export interface RowTone {
    * always shown at the row's right end, and nothing to open or act on.
    */
   removing: boolean
+  /**
+   * Being prepared: the working mark in the neutral tone and the step word always shown, as
+   * while being removed, but it opens like any row.
+   */
+  preparing: boolean
+  /** The preparation step that failed, while the row is stuck on it: shown with its reason. */
+  failed: PreparationFailure | null
   /** Finished since the app last had it selected. */
   unseen: boolean
   weight: Weight
@@ -57,6 +69,17 @@ export function backgroundKinds(ws: Pick<Workspace, 'status' | 'backgroundTasks'
 /** Statuses that already mean "now": a fresh finish does not paint over them. */
 const URGENT: ReadonlySet<string> = new Set(['working', 'needs_input', 'stuck'])
 
+/** The failed preparation step a stuck row is stuck on; a session moving it on leaves that to the card. */
+function stuckOnPreparation(
+  ws: Pick<Workspace, 'status' | 'statusReason' | 'preparation'>
+): PreparationFailure | null {
+  if (ws.status !== 'stuck' || !ws.preparation) return null
+
+  return ws.statusReason === 'preparation_failed' || ws.statusReason === 'setup_failed'
+    ? preparationFailure(ws.preparation)
+    : null
+}
+
 /**
  * The row's look: the workspace's status, green with its name at full strength while it
  * finished unseen. The selected row is looked at, so never unseen, and always reads `--fg`.
@@ -71,6 +94,8 @@ export function rowTone(ws: Workspace, selected = false): RowTone {
     tone: unseen ? 'good' : statusBadge(ws.status).tone,
     working,
     removing,
+    preparing: ws.status === 'preparing',
+    failed: stuckOnPreparation(ws),
     unseen,
     weight: removing
       ? 'faint'
@@ -106,8 +131,29 @@ export function removalWord(ws: Pick<Workspace, 'removal'>, now: number): string
   return `${removalStepLabel(step)} ${formatAge(ws.removal?.since ?? null, now)}`
 }
 
+/**
+ * A preparing workspace's step and how long it has run: `running setup 12s`; `preparing` for one
+ * with no steps (a workspace.create whose setup runs).
+ */
+export function preparationWord(ws: Pick<Workspace, 'preparation'>, now: number): string {
+  const step = ws.preparation ? preparationStep(ws.preparation) : null
+
+  if (!step) return 'preparing'
+
+  return `${preparationStepLabel(step)} ${formatAge(ws.preparation?.since ?? null, now)}`
+}
+
+/** A failed preparation step and why: `creating worktree failed: unknown base ref v9`. */
+export function preparationFailedText(failure: PreparationFailure): string {
+  return `${preparationStepLabel(failure.step)} failed: ${failure.error}`
+}
+
 export function hoverWord(ws: Workspace, look: RowTone, now: number): HoverWord {
   if (look.removing) return { word: removalWord(ws, now), tone: null }
+
+  if (look.failed) return { word: `${preparationStepLabel(look.failed.step)} failed`, tone: 'bad' }
+
+  if (look.preparing) return { word: preparationWord(ws, now), tone: null }
 
   const toned = look.tone === 'attention' || look.tone === 'bad' ? look.tone : null
 

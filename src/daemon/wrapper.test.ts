@@ -257,17 +257,23 @@ describe('bin/claude', () => {
 })
 
 describe('startCommand', () => {
-  it('starts on the start prompt, else on the brief file, else bare', () => {
+  it('starts a workspace with a brief on the start prompt, else on the brief file', () => {
     expect(
       startCommand({
         startPrompt: "Read the brief, then say what you'd do first.",
-        briefFile: null
+        briefFile: '/w/.que/brief.md'
       })
     ).toBe(`claude 'Read the brief, then say what you'\\''d do first.'\r`)
     expect(startCommand({ startPrompt: ' ', briefFile: '/w/.que/brief.md' })).toBe(
       `claude "$(cat '/w/.que/brief.md')"\r`
     )
+  })
+
+  it('starts bare with no brief, whatever the start prompt says, so Claude waits for the first prompt', () => {
     expect(startCommand({ startPrompt: '', briefFile: null })).toBe('claude\r')
+    expect(
+      startCommand({ startPrompt: 'Read .que/brief.md and propose a plan.', briefFile: null })
+    ).toBe('claude\r')
   })
 
   it('resumes a session by its id instead of a prompt', () => {

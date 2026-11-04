@@ -3,7 +3,7 @@
 // or the unlock row in its place, with Update at its right end, over the icon strip of
 // Report, Tickets and Settings, and Claude usage at its right end with the card it opens),
 // the project context menu, and the new-workspace and
-// remove-project and remove-workspace dialogs, a removing row's step word, and the card a workspace row opens under a resting pointer.
+// remove-project and remove-workspace dialogs, a preparing or removing row's step word, and the card a workspace row opens under a resting pointer.
 import { expect, type Locator, type Page } from '@playwright/test'
 
 export class SidebarPage {
@@ -55,7 +55,10 @@ export class SidebarPage {
   project: (id: string) => Locator
   projectToggle: (id: string) => Locator
   projectMenuRemove: (id: string) => Locator
-  projectAddWorkspace: (id: string) => Locator
+  projectActions: (id: string) => Locator
+  projectStart: (id: string) => Locator
+  projectMenu: (id: string) => Locator
+  projectMenuNewWorkspace: (id: string) => Locator
   projectCount: (id: string) => Locator
   workspace: (id: string) => Locator
   workspaceOpen: (id: string) => Locator
@@ -127,8 +130,12 @@ export class SidebarPage {
     this.project = (id: string) => page.getByTestId(`sidebar-project-${id}`)
     this.projectToggle = (id: string) => page.getByTestId(`sidebar-project-${id}-toggle`)
     this.projectMenuRemove = (id: string) => page.getByTestId(`sidebar-project-${id}-menu-remove`)
-    this.projectAddWorkspace = (id: string) =>
-      page.getByTestId(`sidebar-project-${id}-add-workspace`)
+    // The head's buttons, under the pointer: the character (one click to a Claude session) and ⋯.
+    this.projectActions = (id: string) => page.getByTestId(`sidebar-project-${id}-actions`)
+    this.projectStart = (id: string) => page.getByTestId(`sidebar-project-${id}-start`)
+    this.projectMenu = (id: string) => page.getByTestId(`sidebar-project-${id}-menu`)
+    this.projectMenuNewWorkspace = (id: string) =>
+      page.getByTestId(`sidebar-project-${id}-menu-new-workspace`)
     this.projectCount = (id: string) => page.getByTestId(`sidebar-project-${id}-count`)
     this.workspace = (id: string) => page.getByTestId(`sidebar-workspace-${id}`)
     this.workspaceOpen = (id: string) => page.getByTestId(`sidebar-workspace-${id}-open`)
@@ -140,7 +147,7 @@ export class SidebarPage {
     this.workspaceMenu = (id: string) => page.getByTestId(`sidebar-workspace-${id}-menu`)
     this.workspaceMenuRemove = (id: string) =>
       page.getByTestId(`sidebar-workspace-${id}-menu-remove`)
-    // While the workspace is removed: its step and the clock since it started, always shown.
+    // While the workspace is prepared or removed: its step and the clock since it started, always shown.
     this.workspaceStep = (id: string) => page.getByTestId(`sidebar-workspace-${id}-step`)
     // The card beside a row: opens once the pointer rests on the row.
     this.workspacePopout = (id: string) => page.getByTestId(`sidebar-workspace-${id}-popout`)

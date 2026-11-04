@@ -133,7 +133,8 @@ test("a workspace described in a brief gets a random name, claude started on it,
   })
 
   await test.step('Describe the work under a random name, drawing another once', async () => {
-    await sidebar.projectAddWorkspace(project.id).click()
+    await sidebar.projectMenu(project.id).click()
+    await sidebar.projectMenuNewWorkspace(project.id).click()
     await sidebar.newWorkspaceBrief.fill(brief)
     await expect(sidebar.newWorkspaceName).toHaveValue(/^[a-z]+-[a-z]+-[a-z]+$/)
     await sidebar.newWorkspaceNewName.click()
