@@ -25,6 +25,8 @@
   /* accents */
   --accent: #3fcdb4;
   --accent-hover: #6adcc7;
+  /* The accent as a fill behind --fg, which the accent itself is too bright for. */
+  --accent-fill: #1c6f61;
   --inverse: #e6e6e6;
   --inverse-fg: #111111;
 

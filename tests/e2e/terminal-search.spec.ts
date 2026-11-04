@@ -18,14 +18,14 @@ test('⌘F finds text in the scrollback, steps through the matches, and Escape r
   let terminal: TerminalPage
   let id = ''
 
-  await test.step('Three lines hold the text; the typed command does not', async () => {
+  await test.step('Three lines hold the text, a screen apart; the typed command does not', async () => {
     launched = await launchApp()
     await new AppShellPage(launched.window).waitForLoad()
     terminal = new TerminalPage(launched.window)
     id = await terminal.waitForActiveTerminal()
     await terminal.input.focus()
     await launched.window.keyboard.type(
-      `printf '%s%s\\n' NEEDLE ${suffix} NEEDLE ${suffix} NEEDLE ${suffix}`
+      `for n in 1 2 3; do printf '%s%s\\n' NEEDLE ${suffix}; seq 1 100; done`
     )
     await launched.window.keyboard.press('Enter')
     await terminal.expectScreenToContain(needle)
@@ -39,9 +39,11 @@ test('⌘F finds text in the scrollback, steps through the matches, and Escape r
     await expect(find().input).toBeFocused()
   })
 
-  await test.step('Typing finds every match, and the count says which one is current', async () => {
+  await test.step('Typing finds every match, scrolls to the current one and outlines it', async () => {
     await launched.window.keyboard.type(needle)
     await expect(find().count).toHaveText('1/3')
+    // xterm shows a decoration only while its line is in the viewport, so this proves the scroll.
+    await expect(find().current).toBeVisible()
     await launched.window.screenshot({ path: 'test-results/terminal-find.png' })
   })
 

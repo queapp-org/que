@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ISearchResultChangeEvent, SearchAddon } from '@xterm/addon-search'
-import { findCountText, findDecorations } from '../terminal-find'
+import { findCountText, findDecorations, token } from '../terminal-find'
 import { ChevronDownIcon, ChevronUpIcon } from './icons'
 
 /** Puts the keyboard in the field, with its text selected so typing replaces it. */
 function focusField(field: HTMLInputElement | null): void {
   field?.focus()
   field?.select()
-}
-
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
 /**
