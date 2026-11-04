@@ -64,6 +64,12 @@ const retryPr = makePullRequest({
 const REFUSED =
   'The handoff failed: the new daemon exited (code 3) while taking over the terminals. Nothing changed: the previous build keeps serving every terminal, and que daemon restart would end them and start this build'
 
+/** As the main process words a failed download and a release that went away (src/main/update-install.ts). */
+const DOWNLOAD_FAILED =
+  "Couldn't download the update: no connection to GitHub. Settings > Updates links to the release page."
+
+const NOTHING_TO_DOWNLOAD = 'que found no newer release to download. It may have been withdrawn.'
+
 const claude = makeTermInfo({ name: 'claude', workspaceId: retry.id })
 const docsShell = makeTermInfo({ name: 'zsh', workspaceId: docs.id })
 const homeShell = makeTermInfo({ name: 'zsh', cwd: '/Users/dev' })
@@ -121,7 +127,7 @@ describe('UpdateChip', () => {
       ).toBeTruthy()
     })
 
-    it('reads Update in the same place when the check already found a newer release, and says what it opens', async () => {
+    it('reads Update in the same place when the check already found a newer release, and says what it does', async () => {
       seed()
       fakeBridge.setUpdateStatus({ update: RELEASE })
 
@@ -129,9 +135,10 @@ describe('UpdateChip', () => {
 
       const update = await screen.findByRole('button', { name: 'Update' })
       expect(update).toHaveAttribute('data-testid', 'sidebar-app-update')
+      expect(update).toHaveAttribute('data-state', 'update')
       expect(update).toHaveAttribute(
         'title',
-        'que 0.3.0 has been released. Opens its download page.'
+        'que 0.3.0 has been released. Downloads it in the background; nothing installs until you click Restart.'
       )
       expect(update.parentElement).toBe(screen.getByTestId('sidebar-foot-row'))
       expect(screen.queryByTestId('sidebar-daemon-update')).not.toBeInTheDocument()
@@ -304,8 +311,10 @@ describe('UpdateChip', () => {
 
       expect(await aliveFlags()).toEqual([true, true, true])
     })
+  })
 
-    it('opens the release page on Update, and stays until the update is taken', async () => {
+  describe('installing a release', () => {
+    it('downloads on Update and shows the percent, with no second click and no browser', async () => {
       const user = userEvent.setup()
       seed()
       fakeBridge.setUpdateStatus({ update: RELEASE })
@@ -313,11 +322,93 @@ describe('UpdateChip', () => {
 
       await user.click(await screen.findByRole('button', { name: 'Update' }))
 
-      await waitFor(() => {
-        expect(fakeBridge.openUpdateCalls()).toBe(1)
-      })
-      expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: 'Updating 0%' })).toBeDisabled()
+      expect(fakeBridge.installUpdateCalls()).toBe(1)
+      expect(fakeBridge.openUpdateCalls()).toBe(0)
       expect(fakeBridge.upgradeCalls()).toBe(0)
+
+      fakeBridge.setUpdateStatus({ install: { phase: 'downloading', percent: 42 } })
+
+      const updating = await screen.findByRole('button', { name: 'Updating 42%' })
+      expect(updating).toBeDisabled()
+      expect(updating).toHaveAttribute('data-testid', 'sidebar-app-update')
+      expect(updating).toHaveAttribute('data-state', 'downloading')
+      expect(updating).toHaveAttribute(
+        'title',
+        'Downloading que 0.3.0 in the background. Nothing installs until you click Restart.'
+      )
+    })
+
+    it('reads Restart once downloaded, and that click installs without touching the service', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setUpdateStatus({ update: RELEASE })
+      render(<App />)
+      await screen.findByRole('button', { name: 'Update' })
+
+      fakeBridge.setUpdateStatus({ install: { phase: 'ready', version: '0.3.0' } })
+
+      const restart = await screen.findByRole('button', { name: 'Restart' })
+      expect(restart).toHaveAttribute('data-testid', 'sidebar-app-update')
+      expect(restart).toHaveAttribute('data-state', 'ready')
+      expect(restart).toHaveAttribute(
+        'title',
+        'que 0.3.0 is downloaded. Restart to install it; every terminal keeps running.'
+      )
+
+      await user.click(restart)
+
+      const restarting = await screen.findByRole('button', { name: 'Restarting…' })
+      expect(restarting).toBeDisabled()
+      expect(restarting).toHaveAttribute('data-state', 'installing')
+      expect(restarting).toHaveAttribute(
+        'title',
+        'Installing que 0.3.0. que reopens by itself; every terminal keeps running.'
+      )
+      expect(fakeBridge.restartToInstallCalls()).toBe(1)
+      expect(fakeBridge.upgradeCalls()).toBe(0)
+    })
+
+    it('puts the install first with a stale service too, since the new app hands over by itself', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setDaemon(STALE)
+      fakeBridge.setUpdateStatus({
+        update: RELEASE,
+        install: { phase: 'ready', version: '0.3.0' }
+      })
+      render(<App />)
+
+      const restart = await screen.findByTestId('sidebar-app-update')
+      expect(restart).toHaveAttribute('data-state', 'ready')
+      expect(screen.queryByTestId('sidebar-daemon-update')).not.toBeInTheDocument()
+
+      await user.click(restart)
+
+      await waitFor(() => {
+        expect(fakeBridge.restartToInstallCalls()).toBe(1)
+      })
+      expect(fakeBridge.upgradeCalls()).toBe(0)
+    })
+
+    it('reads the service restart over a download running behind it, then the percent again', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setDaemon(STALE)
+      fakeBridge.setUpdateStatus({
+        update: RELEASE,
+        install: { phase: 'downloading', percent: 17 }
+      })
+      render(<App />)
+
+      const restart = await screen.findByTestId('sidebar-daemon-update')
+      expect(restart).toHaveAttribute('data-state', 'stale')
+      expect(screen.queryByTestId('sidebar-app-update')).not.toBeInTheDocument()
+
+      await user.click(restart)
+
+      expect(await screen.findByRole('button', { name: 'Updating 17%' })).toBeDisabled()
+      expect(fakeBridge.upgradeCalls()).toBe(1)
     })
   })
 
@@ -357,6 +448,81 @@ describe('UpdateChip', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(fakeBridge.upgradeCalls()).toBe(2)
     })
+
+    it('goes back to Update when a download fails, says why on the error line, and tries again on the click', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setUpdateStatus({ update: RELEASE })
+      render(<App />)
+      await user.click(await screen.findByRole('button', { name: 'Update' }))
+      await screen.findByRole('button', { name: 'Updating 0%' })
+
+      fakeBridge.setUpdateStatus({ install: { phase: 'failed', message: DOWNLOAD_FAILED } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(DOWNLOAD_FAILED)
+      const update = screen.getByRole('button', { name: 'Update' })
+      expect(update).toBeEnabled()
+
+      await user.click(update)
+
+      expect(await screen.findByRole('button', { name: 'Updating 0%' })).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(fakeBridge.installUpdateCalls()).toBe(2)
+    })
+
+    it('says so and takes the chip away when the release is gone by the time of the click', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setUpdateStatus({ update: RELEASE })
+      render(<App />)
+      await user.click(await screen.findByRole('button', { name: 'Update' }))
+      await screen.findByRole('button', { name: 'Updating 0%' })
+
+      fakeBridge.setUpdateStatus({
+        update: null,
+        install: { phase: 'failed', message: NOTHING_TO_DOWNLOAD }
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(NOTHING_TO_DOWNLOAD)
+      expect(screen.queryByTestId('sidebar-app-update')).not.toBeInTheDocument()
+    })
+
+    it('does not bring a dismissed failure back when a later check reports the same one', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setUpdateStatus({ update: RELEASE })
+      render(<App />)
+      await screen.findByRole('button', { name: 'Update' })
+      fakeBridge.setUpdateStatus({ install: { phase: 'failed', message: DOWNLOAD_FAILED } })
+      await screen.findByRole('alert')
+
+      await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+      fakeBridge.setUpdateStatus({ checkedAt: new Date(2026, 10, 3, 15, 0).getTime() })
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      })
+    })
+
+    it('puts a failed hand-off at launch on the error line, and the stale Restart tries again', async () => {
+      const user = userEvent.setup()
+      seed()
+      fakeBridge.setDaemon(STALE)
+      fakeBridge.setUpdateStatus({ handoffError: REFUSED })
+      render(<App />)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(REFUSED)
+      const restart = await screen.findByRole('button', { name: 'Restart' })
+      expect(restart).toHaveAttribute('data-testid', 'sidebar-daemon-update')
+      expect(await aliveFlags()).toEqual([true, true, true])
+
+      await user.click(restart)
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('sidebar-daemon-update')).not.toBeInTheDocument()
+      })
+      expect(fakeBridge.upgradeCalls()).toBe(1)
+    })
   })
 
   describe('empty state', () => {
@@ -371,6 +537,7 @@ describe('UpdateChip', () => {
       expect(screen.queryByTestId('sidebar-daemon-update')).not.toBeInTheDocument()
       expect(screen.queryByTestId('sidebar-app-update')).not.toBeInTheDocument()
       expect(fakeBridge.upgradeCalls()).toBe(0)
+      expect(fakeBridge.installUpdateCalls()).toBe(0)
     })
   })
 })

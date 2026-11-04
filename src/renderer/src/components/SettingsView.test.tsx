@@ -764,7 +764,8 @@ describe('SettingsView updates', () => {
     expect(within(section).getByTestId('settings-updates-answer')).toHaveTextContent(
       `Up to date. Checked at ${hhmm(CHECKED_AT)}.`
     )
-    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('settings-download-update')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('settings-install-update')).not.toBeInTheDocument()
   })
 
   it('reads Checking… and is disabled while the request runs, keeping the last answer', async () => {
@@ -784,7 +785,7 @@ describe('SettingsView updates', () => {
     expect(fakeBridge.updateCheckCalls()).toBe(1)
   })
 
-  it('finds a newer release: says so, Download opens it, and the Quiet row offers Update', async () => {
+  it('finds a newer release: says so, Release page opens it, and the Quiet row offers Update', async () => {
     const user = userEvent.setup()
     fakeBridge.answerUpdateCheck({ update: RELEASE, checkedAt: CHECKED_AT, failed: false })
     await openSettings(user)
@@ -797,14 +798,106 @@ describe('SettingsView updates', () => {
         'que 0.3.1 is available.'
       )
     })
-    expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
+    expect(screen.getByTestId('sidebar-app-update')).toHaveTextContent('Update')
     expect(screen.getByRole('button', { name: 'Check for updates' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Download' }))
+    await user.click(screen.getByRole('button', { name: 'Release page' }))
 
     await waitFor(() => {
       expect(fakeBridge.openUpdateCalls()).toBe(1)
     })
+    expect(fakeBridge.installUpdateCalls()).toBe(0)
+  })
+
+  it('takes the same steps as the chip: Update, Updating N%, Restart, Restarting…', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setUpdateStatus({ update: RELEASE, checkedAt: CHECKED_AT })
+    await openSettings(user)
+    const action = await screen.findByTestId('settings-install-update')
+    const chip = screen.getByTestId('sidebar-app-update')
+    expect(action).toHaveTextContent('Update')
+    expect(action).toHaveAttribute('data-state', 'update')
+
+    await user.click(action)
+
+    await waitFor(() => {
+      expect(action).toHaveTextContent('Updating 0%')
+    })
+    expect(action).toBeDisabled()
+    expect(fakeBridge.installUpdateCalls()).toBe(1)
+
+    fakeBridge.setUpdateStatus({ install: { phase: 'downloading', percent: 42 } })
+
+    await waitFor(() => {
+      expect(action).toHaveTextContent('Updating 42%')
+    })
+    expect(chip).toHaveTextContent('Updating 42%')
+    expect(action).toHaveAttribute('data-state', 'downloading')
+    expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(
+      'que 0.3.1 is available.'
+    )
+    // The way to the release page stays through all of it.
+    expect(screen.getByRole('button', { name: 'Release page' })).toBeEnabled()
+
+    fakeBridge.setUpdateStatus({ install: { phase: 'ready', version: '0.3.1' } })
+
+    await waitFor(() => {
+      expect(action).toHaveTextContent('Restart')
+    })
+    expect(chip).toHaveTextContent('Restart')
+    expect(action).toBeEnabled()
+    expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(
+      'que 0.3.1 is ready to install.'
+    )
+
+    await user.click(action)
+
+    await waitFor(() => {
+      expect(action).toHaveTextContent('Restarting…')
+    })
+    expect(action).toBeDisabled()
+    expect(fakeBridge.restartToInstallCalls()).toBe(1)
+    expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent('Installing que 0.3.1.')
+  })
+
+  it('says why a download failed, keeps the release page, and offers Update again', async () => {
+    const user = userEvent.setup()
+
+    const failed =
+      "Couldn't download the update: no connection to GitHub. Settings > Updates links to the release page."
+
+    fakeBridge.setUpdateStatus({ update: RELEASE, checkedAt: CHECKED_AT })
+    await openSettings(user)
+    const action = await screen.findByTestId('settings-install-update')
+
+    fakeBridge.setUpdateStatus({ install: { phase: 'failed', message: failed } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-updates-answer')).toHaveTextContent(failed)
+    })
+    expect(action).toHaveTextContent('Update')
+    expect(action).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Release page' })).toBeEnabled()
+    // The error line announces it; the answer only keeps it where it can be found again.
+    expect(screen.getByRole('alert')).toHaveAttribute('data-testid', 'app-error')
+  })
+
+  it('offers the service restart the chip offers while the service runs the previous build', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setDaemon({ buildId: '8c41e07d92aa', expectedBuildId: '3f9a2c71b0de', stale: true })
+    fakeBridge.setUpdateStatus({ update: RELEASE, checkedAt: CHECKED_AT })
+    await openSettings(user)
+
+    const action = await screen.findByTestId('settings-install-update')
+    expect(action).toHaveTextContent('Restart')
+    expect(action).toHaveAttribute('data-state', 'stale')
+
+    await user.click(action)
+
+    await waitFor(() => {
+      expect(fakeBridge.upgradeCalls()).toBe(1)
+    })
+    expect(fakeBridge.installUpdateCalls()).toBe(0)
   })
 
   it('says it could not check, and the button can ask again', async () => {
@@ -845,7 +938,7 @@ describe('SettingsView updates', () => {
         'que 0.3.1 is available.'
       )
     })
-    expect(screen.getByRole('button', { name: 'Update' })).toBeInTheDocument()
+    expect(screen.getByTestId('sidebar-app-update')).toHaveTextContent('Update')
   })
 
   it('keeps working while the daemon is unreachable, since the check runs in the app', async () => {
@@ -870,5 +963,6 @@ describe('SettingsView updates', () => {
     )
     expect(screen.getByTestId('settings-updates-version')).toHaveTextContent('que 0.2.0')
     expect(screen.queryByRole('button', { name: 'Check for updates' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('settings-install-update')).not.toBeInTheDocument()
   })
 })

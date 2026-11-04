@@ -128,7 +128,15 @@ class Gate {
 
 /** A release build at 0.2.0 that has not asked yet. */
 function currentUpdateStatus(): UpdateStatus {
-  return { version: '0.2.0', releaseBuild: true, update: null, checkedAt: null, failed: false }
+  return {
+    version: '0.2.0',
+    releaseBuild: true,
+    update: null,
+    checkedAt: null,
+    failed: false,
+    install: { phase: 'idle' },
+    handoffError: null
+  }
 }
 
 function rpcError(code: string, message: string): Error {
@@ -204,6 +212,8 @@ class FakeBridge {
   private updateBook: UpdateStatus = currentUpdateStatus()
   private updateListeners = new Set<(status: UpdateStatus) => void>()
   private updateOpens = 0
+  private installUpdateCount = 0
+  private restartToInstallCount = 0
   private updateCheckCount = 0
   /** A test's hold on app.checkForUpdate. */
   private updateCheckGate = new Gate()
@@ -430,6 +440,24 @@ class FakeBridge {
           this.updateOpens++
 
           return { ok: true }
+        },
+        // As the main process: the download starts and reports through onUpdateStatus; a test
+        // moves it on with setUpdateStatus.
+        installUpdate: async () => {
+          this.installUpdateCount++
+          this.setUpdateStatus({ install: { phase: 'downloading', percent: 0 } })
+
+          return { ...this.updateBook }
+        },
+        restartToInstall: async () => {
+          this.restartToInstallCount++
+          const { install } = this.updateBook
+
+          if (install.phase === 'ready') {
+            this.setUpdateStatus({ install: { phase: 'installing', version: install.version } })
+          }
+
+          return { ...this.updateBook }
         },
         openSetupLog: async ({ id }) => {
           this.setupLogCallLog.push(id)
@@ -1006,8 +1034,9 @@ class FakeBridge {
   }
 
   /**
-   * What the check says, as the main process does when one finishes. Set before render to
-   * model a check that finished before the window opened; set after render to emit onUpdateStatus.
+   * What the check says or where an install has got to, as the main process reports them. Set
+   * before render to model what happened before the window opened; set after render to emit
+   * onUpdateStatus.
    */
   setUpdateStatus(patch: Partial<UpdateStatus>): void {
     this.updateBook = { ...this.updateBook, ...patch }
@@ -1038,6 +1067,16 @@ class FakeBridge {
   /** How many times app.openUpdate() was called. */
   openUpdateCalls(): number {
     return this.updateOpens
+  }
+
+  /** How many times app.installUpdate() was called. */
+  installUpdateCalls(): number {
+    return this.installUpdateCount
+  }
+
+  /** How many times app.restartToInstall() was called. */
+  restartToInstallCalls(): number {
+    return this.restartToInstallCount
   }
 
   /** Every path app.openInEditor was asked to open, in order. */
@@ -1408,6 +1447,8 @@ class FakeBridge {
     this.updateBook = currentUpdateStatus()
     this.updateListeners.clear()
     this.updateOpens = 0
+    this.installUpdateCount = 0
+    this.restartToInstallCount = 0
     this.updateCheckCount = 0
     this.updateCheckGate.reset()
     this.updateCheckAnswer = null

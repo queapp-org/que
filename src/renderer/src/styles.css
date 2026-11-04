@@ -826,11 +826,22 @@ button.ghost.start:hover:not(:disabled) {
   background: none;
   border-radius: var(--radius);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
 }
 
 .update-chip .status-dot {
   --tone: var(--accent);
+}
+
+/* The percent is there to be read; only the click is off. */
+.update-chip[data-state='downloading']:disabled,
+.settings .updates-install[data-state='downloading']:disabled {
+  opacity: 1;
+}
+
+.settings .updates-install {
+  font-variant-numeric: tabular-nums;
 }
 
 .unlock-row {

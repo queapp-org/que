@@ -107,7 +107,10 @@ prerelease, which the app's update check never offers.
 Review the pull request (the changelog section is the release notes) and merge
 it. The release workflow then builds que.app and drafts the GitHub release;
 check the notes and the DMG on the release page and publish the draft, which
-creates the tag.
+creates the tag. Publishing is also what offers it to every running que: Update
+downloads the zip the draft carries and checks it against `latest-mac.yml`, so
+both have to stay on the release. The workflow stops before drafting if the
+bundle has no `app-update.yml`, the file that tells the app where to look.
 
 `npm run package` and `npm run dist` build unsigned. With a Developer ID
 Application certificate in your login keychain,

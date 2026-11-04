@@ -56,7 +56,8 @@ build in place (see below) and keeps every one running. If that fails (the
 running daemon is too old to hand off, or the successor did not start), the
 old daemon still serves, the error line says why, and the control stays for
 another try. The app never ends a terminal to change builds; only `que daemon
-restart` does. Both are always the user's click, never automatic.
+restart` does. Both are always the user's click, never automatic. The one Restart
+that installs an update counts as that click for the hand-off too (see below).
 
 Until that click a newer window talks to the previous build, so it reads that
 build's answers with defaults: every workspace enters the renderer's store
@@ -121,7 +122,16 @@ process, ask the running daemon for `daemon.handoff` (the renderer cannot call
 it directly), naming the daemon bundle and runtime of the que that asks,
 normally the newly installed app's. Both go through `src/shared/upgrade.ts`,
 which reports a failure as an answer, not a throw, and puts what it means into
-words for both surfaces (`handOffFailedText`). The running daemon then:
+words for both surfaces (`handOffFailedText`).
+
+The app also asks by itself once: at the launch after a Restart that installed
+an update. That click writes `QUE_HOME/state/update-restart.json` just before
+installing, and every launch removes the file whatever happens. If it was there
+and under ten minutes old, and the daemon is stale, the main process calls the
+same hand-off before opening its window, so one click takes both steps
+(`src/main/update-install.ts`). An upgrade installed by hand leaves no such file
+and keeps its own Restart. If this hand-off fails, the error line says why and
+that Restart is there to try again. Either way, the running daemon then:
 
 1. stops reading every live terminal at the handle, so what the shells print
    from then on waits in the kernel, and serializes each mirror;
@@ -515,8 +525,10 @@ renderer, keeps the menu-bar title (`● 3 ▸ 1 ✕ 0`), shows the quiet board 
 while locked, and looks for a newer release: it asks at launch, hourly looks
 whether the last attempt is six hours old (a failed one asks again on the next
 look), and Settings can ask at any time. The sidebar's Quiet row offers what it
-finds as Update while the daemon runs this build. Only a release
-build checks: one run from source is not packaged, and `npm run package` (which
+finds as Update while the daemon runs this build. A click downloads it through
+`electron-updater`, loaded only then, and Restart installs it and relaunches; nothing
+installs on quit (`src/main/update-install.ts`). Only a release build checks or
+installs: one run from source is not packaged, and `npm run package` (which
 `npm run install:local` runs) marks its bundle's package.json with
 `queLocalBuild`; releases build with `npm run dist`. The renderer only
 ever talks to `window.que`, which is why its component tests can run against

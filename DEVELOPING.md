@@ -31,7 +31,13 @@ Quiet row; it hands every terminal to the new build without ending any, and `que
 does the same from the CLI. If the handoff is refused, the running service keeps serving as it was
 and the error line says why. The app never ends a terminal to do this; `que daemon restart` does,
 stopping the service and starting the new build, when you want it regardless. When a newer que
-release is published, the same place reads Update, which opens the release's download page.
+release is published, the same place reads Update in a release build: it downloads the release,
+and a click on Restart installs it, relaunches, and hands the terminals over at launch. Only a
+release build (`npm run dist`) does this, and only it has the `app-update.yml` the updater reads,
+because electron-builder writes that file for the dmg and zip targets and not for
+`npm run package`'s app directory. The updater library sits in `devDependencies` so that
+electron-vite bundles it: `electron-builder.yml` leaves `node_modules` out of the app, and
+`npm run smoke:packaged` fails if it stops loading from `app.asar`.
 
 ## How the pieces fit
 
