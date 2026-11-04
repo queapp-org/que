@@ -310,6 +310,14 @@ export interface NotificationsConfig {
   morningSummary: boolean
 }
 
+export interface TerminalConfig {
+  /**
+   * Option acts as Meta in a terminal (Option+B reaches the program as Alt+B). Off, Option types
+   * what the keyboard layout gives it; some layouts need it for `#` and `@`.
+   */
+  optionAsMeta: boolean
+}
+
 /** Claude Code permission modes que may pass with --permission-mode. */
 export type PermissionMode =
   | 'default'
@@ -348,6 +356,7 @@ export interface UserConfig {
   instructionsFile?: string
   quietHours: QuietHoursConfig
   notifications: NotificationsConfig
+  terminal: TerminalConfig
   jira: JiraConfig
   /** What claude starts on in a workspace made from a brief; empty (the default) means the brief itself. */
   startPrompt: string

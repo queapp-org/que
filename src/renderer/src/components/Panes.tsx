@@ -14,6 +14,7 @@ import {
   useStore
 } from '../store'
 import { tabLabel } from '../format'
+import { optionAsMeta } from '../terminal-keys'
 import { setPaneSource } from '../testHook'
 import DiffView from './DiffView'
 import FileView from './FileView'
@@ -47,12 +48,20 @@ function leavesKeyboardAlone(): boolean {
  * A pane's terminal. Mounting takes the keyboard while the pane has focus, unless that is decided
  * against once, as it first appears; then it waits until the pane next gets focus.
  */
-function PaneTerminal({ id, focused }: { id: string; focused: boolean }): React.JSX.Element {
+function PaneTerminal({
+  id,
+  focused,
+  optionMeta
+}: {
+  id: string
+  focused: boolean
+  optionMeta: boolean
+}): React.JSX.Element {
   const [leftAlone, setLeftAlone] = useState(leavesKeyboardAlone)
 
   if (leftAlone && !focused) setLeftAlone(false)
 
-  return <Terminal id={id} focused={focused && !leftAlone} />
+  return <Terminal id={id} focused={focused && !leftAlone} optionAsMeta={optionMeta} />
 }
 
 /** The grid track sizes of a split at this ratio: first pane, divider, second pane. */
@@ -237,6 +246,7 @@ function Pane({
   const prs = useQueSelector((s) => s.workspaces[termKey]?.prs)
   const preparing = useQueSelector((s) => isPreparing(s, termKey))
   const focused = store.focusedPane(termKey) === index
+  const optionMeta = useQueSelector((s) => optionAsMeta(s.config?.config))
 
   return (
     <div
@@ -365,7 +375,12 @@ function Pane({
       ) : active ? (
         // An inactive tab's terminal is detached; it reattaches (and replays) when selected.
         // A reconnect (a new `connection`) attaches it again.
-        <PaneTerminal key={`${active.id}:${connection}`} id={active.id} focused={focused} />
+        <PaneTerminal
+          key={`${active.id}:${connection}`}
+          id={active.id}
+          focused={focused}
+          optionMeta={optionMeta}
+        />
       ) : (
         <div className="empty" data-testid="terminal-empty">
           {tabs.length === 0 && !error ? 'No terminals. Press + to open one.' : ''}

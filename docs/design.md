@@ -278,6 +278,15 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   not typing in a field or a dialog; anywhere else, nothing moves. A setup that failed does
   not stop Claude, so its terminal takes the place of the steps and the error line above the
   tab strip says which step failed and why.
+- A terminal's find control (⌘F) floats at its top right, over the output: `--bg-raised`
+  behind a 1px `--border-strong` at a 2px radius, with the menu's shadow since it floats. It
+  holds a mono 12px field on `--bg-input` behind a 1px `--border` (`--accent` on focus), the
+  count in mono 11px `--fg-faint` with tabular numbers (`2/12`), and previous and next as
+  `button.ghost.icon` chevrons. Enter and Shift+Enter step, Escape closes it and hands the
+  keyboard back to the terminal. Every match sits on `--bg-active` behind a 1px `--fg-faint`
+  outline; the current one takes a 1px `--accent` outline instead.
+- A right-click on a terminal opens the app's menu at the pointer: Copy, only with a selection,
+  and Paste. Closing it returns the keyboard to the terminal.
 - Row actions (the ⋯ button) show on hover, focus, or while their menu is open.
 - The window has no native title bar. The traffic lights sit in the 40px strip
   above the sidebar's content; that strip, the tab row's empty space and the review

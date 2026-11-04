@@ -23,6 +23,8 @@ export class TerminalPage {
   tabExited: (id: string) => Locator
   // The program (or name) a tab reads.
   tabReattached: (id: string) => Locator
+  // Under the pointer a link underlines and takes the hand; xterm marks that with this class.
+  linkUnderPointer: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -36,6 +38,34 @@ export class TerminalPage {
     this.tabClose = (id: string) => page.getByTestId(`terminal-tab-${id}-close`)
     this.tabExited = (id: string) => page.getByTestId(`terminal-tab-${id}-exited`)
     this.tabReattached = (id: string) => page.getByTestId(`terminal-tab-${id}-reattached`)
+    this.linkUnderPointer = first.viewport.locator('.xterm-cursor-pointer')
+  }
+
+  // A terminal's right-click menu.
+  menu(id: string): { copy: Locator; paste: Locator } {
+    return {
+      copy: this.page.getByTestId(`terminal-${id}-menu-copy`),
+      paste: this.page.getByTestId(`terminal-${id}-menu-paste`)
+    }
+  }
+
+  // A terminal's find control (⌘F).
+  find(id: string): {
+    root: Locator
+    input: Locator
+    count: Locator
+    previous: Locator
+    next: Locator
+  } {
+    const at = (element: string) => this.page.getByTestId(`terminal-${id}-find${element}`)
+
+    return {
+      root: at(''),
+      input: at('-input'),
+      count: at('-count'),
+      previous: at('-previous'),
+      next: at('-next')
+    }
   }
 
   // One pane: its container, its tab strip (a row of the main column) and the split and
@@ -103,6 +133,62 @@ export class TerminalPage {
   /** The xterm buffer of one mounted terminal, by id; '' until it is attached. */
   async screenTextOf(termId: string): Promise<string> {
     return this.page.evaluate((id) => window.__que?.screenTextOf(id) ?? '', termId)
+  }
+
+  /**
+   * Drops real files on a point of the window, as the operating system would: Chromium builds the
+   * File objects from the paths, so the app reads them as it reads a real drop.
+   */
+  async dropFiles(paths: string[], at: { x: number; y: number }): Promise<void> {
+    const session = await this.page.context().newCDPSession(this.page)
+    const data = { items: [], files: paths, dragOperationsMask: 1 }
+
+    for (const type of ['dragEnter', 'dragOver', 'drop'] as const) {
+      await session.send('Input.dispatchDragEvent', { type, ...at, data })
+    }
+
+    await session.detach()
+  }
+
+  /** Fires a paste event as Cmd+V does, holding text or an image, without the real pasteboard. */
+  async firePaste(content: { text: string } | { imageName: string }): Promise<void> {
+    await this.input.evaluate((field, c) => {
+      const clipboardData = new DataTransfer()
+
+      if ('text' in c) clipboardData.setData('text/plain', c.text)
+      else clipboardData.items.add(new File(['png'], c.imageName, { type: 'image/png' }))
+
+      field.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true })
+      )
+    }, content)
+  }
+
+  /** The middle of the first pane's terminal, in window coordinates. */
+  async viewportCenter(): Promise<{ x: number; y: number }> {
+    const box = await this.viewport.boundingBox()
+
+    if (!box) throw new Error('the terminal is not on screen')
+
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  }
+
+  /** Where text last appears on a terminal's screen, in window coordinates; waits for it. */
+  async pointOf(termId: string, text: string): Promise<{ x: number; y: number }> {
+    const read = () =>
+      this.page.evaluate(([id, t]) => window.__que?.pointOf(id, t) ?? null, [termId, text])
+
+    await expect.poll(read, { message: `"${text}" is not on screen` }).not.toBeNull()
+    const point = await read()
+
+    if (!point) throw new Error(`"${text}" left the screen`)
+
+    return point
+  }
+
+  /** The column the cursor stands in on a terminal's screen; null until it is attached. */
+  async cursorColumn(termId: string): Promise<number | null> {
+    return this.page.evaluate((id) => window.__que?.cursorOf(id)?.col ?? null, termId)
   }
 
   // Waits until a terminal is attached and on screen, and returns its id.
