@@ -20,16 +20,21 @@ export function findCountText(
   return resultIndex < 0 ? `${limit}+` : `${resultIndex + 1}/${limit}+`
 }
 
+/** A colour token's value from styles.css. */
+export function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
 /**
- * How matches are drawn, from the app's tokens: every match on the active fill behind a faint
- * hairline, and the current one lit by the accent's edge, since the accent means "this is the thing".
+ * How matches are drawn, from the app's tokens: every match on a grey fill bright enough to find at
+ * a glance, and the current one on the accent, since the accent means "this is the thing".
  */
 export function findDecorations(token: (name: string) => string): ISearchDecorationOptions {
   return {
-    matchBackground: token('--bg-active'),
+    matchBackground: token('--tone-muted'),
     matchBorder: token('--fg-faint'),
     matchOverviewRuler: token('--border-strong'),
-    activeMatchBackground: token('--bg-active'),
+    activeMatchBackground: token('--accent-fill'),
     activeMatchBorder: token('--accent'),
     activeMatchColorOverviewRuler: token('--accent')
   }

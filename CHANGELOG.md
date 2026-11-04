@@ -10,6 +10,10 @@ All notable changes to que are recorded here. The format follows
 
 - The `+` is back on a project, in place of Claude Code's character. It does the same thing: one click makes a workspace and starts Claude there.
 
+### Fixed
+
+- Cmd+F's matches are easy to see in a terminal: every match has a brighter fill, and the current one is teal.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added

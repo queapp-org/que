@@ -50,6 +50,7 @@ so the DOM keeps the plain word.
 | ------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--accent`         | `#3fcdb4` | Links, the active tab's underline, focus rings, the cursor, the unlock countdown, the working mark (sidebar and quiet board).                      |
 | `--accent-hover`   | `#6adcc7` | The accent under the pointer.                                                                                                                      |
+| `--accent-fill`    | `#1c6f61` | The accent as a fill behind `--fg`: the current match in a terminal.                                                                               |
 | `--inverse`        | `#e6e6e6` | The one primary button on a screen, light on dark.                                                                                                 |
 | `--tone-busy`      | `#4f8cf5` | working, as a still dot or badge: status badges, the popout, the report. The sidebar and the quiet board draw the working mark instead.            |
 | `--tone-attention` | `#f99c00` | needs input; a Claude usage window at 80% and over.                                                                                                |
@@ -275,8 +276,9 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   holds a mono 12px field on `--bg-input` behind a 1px `--border` (`--accent` on focus), the
   count in mono 11px `--fg-faint` with tabular numbers (`2/12`), and previous and next as
   `button.ghost.icon` chevrons. Enter and Shift+Enter step, Escape closes it and hands the
-  keyboard back to the terminal. Every match sits on `--bg-active` behind a 1px `--fg-faint`
-  outline; the current one takes a 1px `--accent` outline instead.
+  keyboard back to the terminal. Every match sits on `--tone-muted` behind a 1px `--fg-faint`
+  outline. The current one is the terminal's selection, which takes `--accent-fill` while the
+  control is open, behind a 1px `--accent` outline.
 - A right-click on a terminal opens the app's menu at the pointer: Copy, only with a selection,
   and Paste. Closing it returns the keyboard to the terminal.
 - Row actions (the ⋯ button) show on hover, focus, or while their menu is open.
