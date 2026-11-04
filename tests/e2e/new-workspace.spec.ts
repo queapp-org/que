@@ -1,4 +1,4 @@
-// One click to a Claude session through the real app and daemon: the character on a project head
+// One click to a Claude session through the real app and daemon: the + on a project head
 // makes a workspace with a generated name, its row and steps show while the daemon prepares it, and
 // Claude's terminal takes their place with the keyboard, running a bare claude with que's hooks.
 // The project menu's dialog is one step of it: the brief is optional there.
@@ -20,7 +20,7 @@ test.afterEach(async () => {
   await launched?.close() // quits the app AND stops the test daemon
 })
 
-test('the character on a project head makes a workspace, shows its steps, and lands in a focused terminal running claude', async () => {
+test('the + on a project head makes a workspace, shows its steps, and lands in a focused terminal running claude', async () => {
   // Setup waits for the spec, so the preparing state stays on screen as long as it needs.
   const gate = join(tempDir('que-e2e-gate-'), 'setup-gate')
 

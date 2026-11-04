@@ -14,6 +14,7 @@ import {
 import { minutesAgo, openWorkspace } from '@renderer/testing/helpers'
 import type { PreparationStep } from '@shared/types'
 import App from '../App'
+import { PlusIcon } from './icons'
 
 const uploader = makeProject()
 const api = makeProject({ id: 'prj_01hzw9c4v7kd', name: 'api', path: '/Users/dev/code/api' })
@@ -322,7 +323,8 @@ describe('Sidebar', () => {
       expect(button).toHaveAttribute('title', 'New workspace running Claude Code')
       expect(button).toHaveTextContent('')
       expect(button.closest('.project-head .head-actions')).not.toBeNull()
-      expect(button.querySelector('svg path')).toHaveAttribute('d', 'M8 3.25v9.5M3.25 8h9.5')
+      const plus = render(<PlusIcon />).container.querySelector('svg')
+      expect(button.querySelector('svg')?.isEqualNode(plus)).toBe(true)
     })
 
     it('makes a workspace with a generated name, starting Claude, and shows it at once', async () => {
