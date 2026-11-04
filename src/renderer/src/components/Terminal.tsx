@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { openTerminalLink } from '../terminal-links'
 import { clearActiveTerminal, setActiveTerminal } from '../testHook'
 
 interface Props {
@@ -38,6 +40,8 @@ export default function Terminal({ id, focused = true }: Props): React.JSX.Eleme
       cursorBlink: true,
       scrollback: 10000,
       macOptionIsMeta: false,
+      // OSC 8 hyperlinks. xterm itself drops those that are not http or https.
+      linkHandler: { activate: openTerminalLink },
       // The app's surface colours (styles.css); the cursor takes the accent.
       theme: {
         background: '#181818',
@@ -50,6 +54,8 @@ export default function Terminal({ id, focused = true }: Props): React.JSX.Eleme
 
     const fit = new FitAddon()
     term.loadAddon(fit)
+    // Plain URLs in the output.
+    term.loadAddon(new WebLinksAddon(openTerminalLink))
     term.open(host)
 
     // Prefer the GPU renderer; fall back to xterm's default DOM renderer if
