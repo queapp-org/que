@@ -93,7 +93,9 @@ branch but `release/*` and a dirty tree, runs `npm run verify`, asks patch,
 minor or major, moves the `[Unreleased]` notes under `## [<version>] - <today>`
 with the compare links updated, bumps `package.json` and `package-lock.json`,
 commits `Release v<version>`, pushes the branch and opens the release pull
-request. `npm run release -- --dry-run` prints every step and writes nothing;
+request. Verify's output goes to `verify.log`, because release-it kills a hook
+that prints more than 1 MiB; if verify fails, the end of the log is printed.
+`npm run release -- --dry-run` prints every step and writes nothing;
 `npm run release -- minor --ci` skips the questions. Nothing is tagged
 locally.
 
