@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent, webUtils } from 'electron'
 import type { QueApi, UpdateStatus } from './index.d'
 
 type Reply = { ok: true; result: unknown } | { ok: false; error: { code: string; message: string } }
@@ -119,6 +119,7 @@ const api: QueApi = {
   },
   app: {
     homedir: () => ipcRenderer.invoke('app:homedir'),
+    pathForFile: (file) => webUtils.getPathForFile(file),
     openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
     openInEditor: (p) => ipcRenderer.invoke('app:openInEditor', p.path),
     trayTitle: () => ipcRenderer.invoke('app:trayTitle'),

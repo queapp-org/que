@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { droppedText, isFileDrag } from '../terminal-drop'
 import { FIND_LIMIT } from '../terminal-find'
 import { lineEditSequence } from '../terminal-keys'
 import { openTerminalLink } from '../terminal-links'
@@ -212,8 +213,24 @@ export default function Terminal({
     }
   }, [id])
 
+  // Holding a file over the terminal offers a copy. Anything else is left to refuse itself.
+  const onDragOver = (e: React.DragEvent): void => {
+    if (!isFileDrag(e.dataTransfer)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  // Never the default: that navigates to a file, or types dragged text into xterm's textarea.
+  // term.paste applies bracketed paste when the program has enabled it, and no Enter follows.
+  const onDrop = (e: React.DragEvent): void => {
+    e.preventDefault()
+    const text = droppedText(e.dataTransfer, window.que.app.pathForFile)
+
+    if (text !== null) termRef.current?.paste(text)
+  }
+
   return (
-    <div className="terminal-frame">
+    <div className="terminal-frame" onDragOver={onDragOver} onDrop={onDrop}>
       <div className="terminal" ref={hostRef} data-testid="terminal-viewport" />
       {find && (
         <TerminalFind

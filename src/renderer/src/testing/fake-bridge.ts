@@ -181,6 +181,7 @@ class FakeBridge {
   private upgradeGate = new Gate()
   private daemonStateCount = 0
   private home = '/Users/dev'
+  private filePaths = new Map<File, string>()
   private folder: string | null = null
   private tray = '● 0 ▸ 0 ✕ 0'
   private editorCalls: string[] = []
@@ -384,6 +385,7 @@ class FakeBridge {
       },
       app: {
         homedir: async () => this.home,
+        pathForFile: (file) => this.filePaths.get(file) ?? '',
         openFolder: async () => this.folder,
         openInEditor: async ({ path }) => {
           this.editorCalls.push(path)
@@ -969,6 +971,11 @@ class FakeBridge {
 
   // ---- terminals -----------------------------------------------------------
 
+  /** Where a dropped File lives on disk (app.pathForFile); any other File is not on disk. */
+  seedFilePath(file: File, path: string): void {
+    this.filePaths.set(file, path)
+  }
+
   /** Puts a running terminal in the book silently, as if created before launch. */
   seedTerminal(info: TermInfo, screen = ''): void {
     this.terminals.set(info.id, { ...info, input: '', screen })
@@ -1401,6 +1408,7 @@ class FakeBridge {
     this.upgradeGate.reset()
     this.daemonStateCount = 0
     this.folder = null
+    this.filePaths.clear()
     this.tray = '● 0 ▸ 0 ✕ 0'
     this.editorCalls = []
     this.updateBook = currentUpdateStatus()

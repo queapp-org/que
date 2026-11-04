@@ -10,7 +10,7 @@
 import fs from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { shQuote } from '@daemon/wrapper'
+import { shQuote } from '@shared/sh-quote'
 import type { Workspace } from '@shared/types'
 import { readFakeLog } from '../../src/testing/fakes'
 import {
