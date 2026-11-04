@@ -63,6 +63,9 @@ chime_on_needs_input = ${d.notifications.chimeOnNeedsInput}
 chime_in_manual_quiet = ${d.notifications.chimeInManualQuiet}
 morning_summary = ${d.notifications.morningSummary}
 
+[terminal]
+option_as_meta = ${d.terminal.optionAsMeta}
+
 [jira]
 jql = ${JSON.stringify(d.jira.jql)}
 poll_minutes = ${d.jira.pollMinutes}

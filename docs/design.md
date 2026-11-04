@@ -251,6 +251,15 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   page icon and the name): the path in mono `--fg-faint` above the text in mono 12px
   with faint line numbers, unwrapped, scrolling both ways. Nothing replaces or hides
   the terminals.
+- A terminal's find control (⌘F) floats at its top right, over the output: `--bg-raised`
+  behind a 1px `--border-strong` at a 2px radius, with the menu's shadow since it floats. It
+  holds a mono 12px field on `--bg-input` behind a 1px `--border` (`--accent` on focus), the
+  count in mono 11px `--fg-faint` with tabular numbers (`2/12`), and previous and next as
+  `button.ghost.icon` chevrons. Enter and Shift+Enter step, Escape closes it and hands the
+  keyboard back to the terminal. Every match sits on `--bg-active` behind a 1px `--fg-faint`
+  outline; the current one takes a 1px `--accent` outline instead.
+- A right-click on a terminal opens the app's menu at the pointer: Copy, only with a selection,
+  and Paste. Closing it returns the keyboard to the terminal.
 - Row actions (the ⋯ button) show on hover, focus, or while their menu is open.
 - The window has no native title bar. The traffic lights sit in the 40px strip
   above the sidebar's content; that strip, the tab row's empty space and the review

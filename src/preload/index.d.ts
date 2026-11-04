@@ -141,6 +141,8 @@ export type TermEventName =
 
 export interface AppApi {
   homedir(): Promise<string>
+  /** Where a File from a drop lives on disk; '' for one that is not on disk. */
+  pathForFile(file: File): string
   /** Shows a native folder picker; resolves to the chosen path or null. */
   openFolder(): Promise<string | null>
   /** Opens a folder in a new editor window (`code -n <path>`); fire-and-forget. */
@@ -325,6 +327,13 @@ export interface QueTestHook {
   screenTextOf(termId: string): string
   /** The tray's current title, from the main process. */
   trayTitle(): Promise<string>
+  /**
+   * Where text last appears on an attached terminal's screen, in window coordinates (the
+   * middle of its first character), or null when it is not on screen.
+   */
+  pointOf(termId: string, text: string): { x: number; y: number } | null
+  /** The cursor's cell on an attached terminal's screen, or null when it is not on screen. */
+  cursorOf(termId: string): { col: number; row: number } | null
   /** The chimes the app would have played, in order (recorded, never played, under e2e). */
   chimes(): ChimeKind[]
 }

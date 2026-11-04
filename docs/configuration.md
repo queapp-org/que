@@ -43,6 +43,9 @@ chime_on_needs_input = false
 chime_in_manual_quiet = false
 morning_summary = false
 
+[terminal]
+option_as_meta = true
+
 [jira]
 jql = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
 poll_minutes = 5
@@ -77,6 +80,7 @@ start_prompt = "Read .que/ticket.md, the ticket this workspace is for. Restate t
 | `notifications.chime_on_needs_input`  | A chime when a session asks for input (work hours only).                                                                                                                                                                                                                     |
 | `notifications.chime_in_manual_quiet` | Let the complete chime through during a manual quiet (`que quiet start`), when `chime_on_complete` is on. Scheduled quiet hours stay silent, and the needs-input chime never plays in a quiet window.                                                                        |
 | `notifications.morning_summary`       | One notification with what the sessions did in the night when quiet hours end.                                                                                                                                                                                               |
+| `terminal.option_as_meta`             | Option acts as Meta in a terminal: Option+B reaches the program as Alt+B. Turn it off if your keyboard needs Option to type characters such as `#` and `@`.                                                                                                                  |
 | `jira.jql`                            | The filter for the ticket queue, run with `acli jira workitem search`. The default is the tickets assigned to you that are not done, newest first.                                                                                                                           |
 | `jira.poll_minutes`                   | How often the daemon refreshes the queue from the tracker.                                                                                                                                                                                                                   |
 | `jira.site`                           | The tracker's host (`team.example.net`, or a URL) that ticket links are built on. By default que reads it from `acli jira auth status`; set it if that is wrong or unavailable.                                                                                              |

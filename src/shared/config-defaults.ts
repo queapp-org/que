@@ -1,6 +1,12 @@
 // The config defaults, apart from config.ts so the renderer (its test
 // fixtures and fake bridge) can use them: no Node imports.
-import type { JiraConfig, NotificationsConfig, QuietHoursConfig, UserConfig } from './types'
+import type {
+  JiraConfig,
+  NotificationsConfig,
+  QuietHoursConfig,
+  TerminalConfig,
+  UserConfig
+} from './types'
 
 /** Every default, with worktrees under `worktreeRoot` (config.ts's defaultConfig puts it in QUE_HOME). */
 export function configDefaults(worktreeRoot: string): UserConfig {
@@ -15,6 +21,7 @@ export function configDefaults(worktreeRoot: string): UserConfig {
     protectedBranches: ['main', 'master', 'release'],
     quietHours: defaultQuietHours(),
     notifications: defaultNotifications(),
+    terminal: defaultTerminal(),
     jira: defaultJira(),
     // Empty: claude starts on the brief itself.
     startPrompt: ''
@@ -39,6 +46,10 @@ export function defaultJira(): JiraConfig {
     startPrompt: DEFAULT_START_PROMPT,
     projects: {}
   }
+}
+
+export function defaultTerminal(): TerminalConfig {
+  return { optionAsMeta: true }
 }
 
 export function defaultNotifications(): NotificationsConfig {

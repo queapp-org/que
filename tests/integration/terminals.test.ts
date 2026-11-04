@@ -50,6 +50,40 @@ describe('terminals', () => {
       expect(listed.find((t) => t.id === id)).toMatchObject({ alive: false })
     }, 20_000)
 
+    it('counts an emoji as two cells, so the cursor stands where the program thinks it does', async () => {
+      // Back to the line's start and two cells right: B lands on A only if the emoji took two.
+      const line = (emoji: string): string => `${emoji}A\\r\\033[2CB\\n\\r`
+
+      const { id } = await client.request('term.create', {
+        file: '/bin/sh',
+        args: ['-c', `printf '${line('✅')}${line('🚀')}${line('🧠')}'; sleep 30`],
+        cols: 80,
+        rows: 24
+      })
+
+      await expect
+        .poll(async () => (await client.request('term.snapshot', { id })).text, { timeout: 10_000 })
+        .toBe('✅B\n🚀B\n🧠B')
+    }, 20_000)
+
+    it('keeps a clipboard write out of the snapshot', async () => {
+      const { id } = await client.request('term.create', {
+        file: '/bin/sh',
+        args: ['-c', `printf 'QUE_BEFORE_6d1a\\033]52;c;aGk=\\007QUE_AFTER_6d1a'; sleep 30`],
+        cols: 80,
+        rows: 24
+      })
+
+      await expect
+        .poll(async () => (await client.request('term.snapshot', { id })).text, { timeout: 10_000 })
+        .toContain('QUE_AFTER_6d1a')
+
+      const { snapshot } = await client.request('term.attach', { id, cols: 80, rows: 24 })
+
+      expect(snapshot).toContain('QUE_BEFORE_6d1aQUE_AFTER_6d1a')
+      expect(snapshot).not.toContain(']52')
+    }, 20_000)
+
     it('streams live output to an attached client', async () => {
       const data = recordEvents(client, 'term.data')
       const { id } = await client.request('term.create', { file: '/bin/cat', cols: 80, rows: 24 })

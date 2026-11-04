@@ -6,8 +6,20 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Right-clicking a terminal shows a menu at the pointer: Copy when there is a selection, and Paste.
+- A program in a terminal can set the clipboard with OSC 52, including one running over ssh. It can only write: a program never reads the clipboard this way, and anything over 1 MiB is ignored. A program's earlier write does not repeat when you come back to its terminal, and one made while the terminal is not on screen is dropped.
+- Dropping files on a terminal pastes their shell-quoted paths at the cursor without pressing Enter, so Claude Code takes a dropped image as an attachment.
+- Cmd+F finds text in a terminal's scrollback: a small control at the top right of the focused terminal, with the number of matches, previous and next. Enter and Shift+Enter step through the matches, and Escape closes it and returns you to the terminal.
+- Option acts as Meta in a terminal, so Claude Code's Option shortcuts and a shell's Alt+B, F, D and Y work. If your keyboard needs Option to type characters such as `#` and `@`, turn it off under Settings > Terminal or with `terminal.option_as_meta = false`; open terminals follow the change.
+- Cmd+Backspace clears to the start of the line in a terminal, and Cmd+Left and Cmd+Right go to its start and end.
+- Links in a terminal work. Cmd+click opens a URL in your browser, whether it is plain text or an OSC 8 hyperlink; a plain click does nothing, and a link underlines under the pointer. Only http and https links open.
+
 ### Fixed
 
+- Text pasted into a terminal has its control characters taken out, by Cmd+V and the menu's Paste alike, so pasted text can't end a bracketed paste early and run what comes after it. Tabs and line ends stay, and pasting an image works as before.
+- Emoji such as ✅, 🚀 and 🧠 take two cells in a terminal, so the text after them no longer sits wrong or overlaps. Sequences that join several emoji into one, and symbols turned into emoji by a variation selector (⚠️), can still sit off by a cell.
 - Programs in a que terminal can use the microphone, so Claude Code's dictation works. macOS asks once, the first time one tries. 0.3.0 denied it without asking.
 
 ## [0.3.0] - 2026-11-02
