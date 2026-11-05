@@ -151,7 +151,7 @@ export interface ReviewState {
 /** The folding sections inside a pull request. */
 export type PrSection = 'files' | 'checks' | 'comments'
 
-export const REVIEW_MIN = 260
+export const REVIEW_MIN = 270
 export const REVIEW_MAX = 520
 export const REVIEW_DEFAULT = 320
 const REVIEW_KEY = 'que.review'

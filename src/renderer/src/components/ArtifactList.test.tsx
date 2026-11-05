@@ -57,9 +57,9 @@ describe('ArtifactList', () => {
       ).toEqual(['Upload retries', 'Workspace removal flow'])
       expect(screen.getByTestId('artifact-Bo2pUji8XumREbCYMXcoMe-age')).toHaveTextContent(/^2m$/)
       expect(screen.getByTestId('artifact-5TzMcQgtfF2RmJrrpX3D7m-age')).toHaveTextContent(/^3h$/)
-      expect(screen.getByTestId('artifact-Bo2pUji8XumREbCYMXcoMe-age')).toHaveAttribute(
+      expect(screen.getByTestId('artifact-Bo2pUji8XumREbCYMXcoMe-link')).toHaveAttribute(
         'title',
-        `Updated ${new Date(retries.updatedAt).toLocaleString()}`
+        `Upload retries\nUpdated ${new Date(retries.updatedAt).toLocaleString()}`
       )
     })
 
@@ -111,17 +111,6 @@ describe('ArtifactList', () => {
         expect(retriesRow()).toHaveAttribute('data-opened', 'true')
       })
       expect(fakeBridge.getWorkspace(ID)?.artifacts[0]?.openedAt).not.toBeNull()
-    })
-
-    it('opens from the age too, which sits above the link for its tooltip', async () => {
-      const user = userEvent.setup()
-      await openList(user, [retries])
-
-      await user.click(screen.getByTestId('artifact-Bo2pUji8XumREbCYMXcoMe-age'))
-
-      await waitFor(() => {
-        expect(retriesRow()).toHaveAttribute('data-opened', 'true')
-      })
     })
 
     it('stays unopened and raises no error line against a daemon without the method', async () => {

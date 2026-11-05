@@ -114,7 +114,7 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
 - The review pane is a full-height column at the right of the window, the sidebar's
   mirror: it runs from the window's top edge to the bottom on `--bg-side` behind a 1px
   hairline, and the tab row spans only the middle column. It is 320px wide, dragged
-  between 260 and 520px on a 7px track like the sidebar's (double-click resets, arrow
+  between 270 and 520px on a 7px track like the sidebar's (double-click resets, arrow
   keys move it), and remembered. Two chevrons are its toggle, both `button.ghost.icon`
   line icons: open, a double chevron pointing right (»), at the right end of the pane's
   strip, hides it ("Hide review (⌘B)"); ⌘B toggles it too.
@@ -257,10 +257,10 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   with `n published`, then one line each. The title at 13px with an ellipsis, `--fg` until
   the page is opened and `--fg-secondary` after, a new publish bringing it back. A copy
   link `button.ghost.icon.sm` right after the title, shown on hover or focus. At the right
-  the age in mono 11px `--fg-faint`, the full last-updated time as its tooltip, then the
-  open-elsewhere mark, always there because this is the one row in the pane that leaves
-  the app. The whole row opens the page in the browser and marks it opened; copying the
-  link does not. Keyboard focus on it draws a 1px `--accent` outline on the row. With none:
+  the age in mono 11px `--fg-faint`, then the open-elsewhere mark, always there because
+  this is the one row in the pane that leaves the app. The whole row opens the page in the
+  browser and marks it opened, and its tooltip gives the full title and last-updated time;
+  copying the link does not mark it. Keyboard focus on it draws a 1px `--accent` outline on the row. With none:
   `No artifacts from this session yet.`, centred.
 - A new workspace has no tab and no terminal until Claude's, or a shell when Start
   Claude is off. The main pane shows its steps in the middle, in a 300px column:
