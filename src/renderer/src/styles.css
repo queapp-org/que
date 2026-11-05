@@ -3461,7 +3461,11 @@ button.pr-row.settled .pr-row-number {
  * the link's ::after covers the row, with its tooltip, and Copy sits above that. */
 .artifact {
   position: relative;
-  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px;
   color: var(--fg);
 }
 
@@ -3476,14 +3480,6 @@ button.pr-row.settled .pr-row-number {
 
 .artifact.opened {
   color: var(--fg-secondary);
-}
-
-.artifact-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  height: 20px;
 }
 
 a.artifact-name {
@@ -3509,6 +3505,7 @@ button.artifact-copy {
   z-index: 1;
   flex: none;
   opacity: 0;
+  transition: opacity 0.12s;
 }
 
 button.artifact-copy svg {
@@ -3521,13 +3518,9 @@ button.artifact-copy svg {
   opacity: 1;
 }
 
-.artifact-gap {
-  flex: 1;
-}
-
 .artifact-age {
   flex: none;
-  margin-right: 4px;
+  margin: 0 4px 0 auto;
   font: 11px var(--mono);
   color: var(--fg-faint);
   font-variant-numeric: tabular-nums;
