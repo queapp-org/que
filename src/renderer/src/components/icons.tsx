@@ -158,6 +158,16 @@ export function ExternalLinkIcon(): React.JSX.Element {
   )
 }
 
+/** A browser window: the pages a session published. */
+export function ArtifactsIcon(): React.JSX.Element {
+  return (
+    <svg {...base} aria-hidden="true">
+      <rect x="2.25" y="3" width="11.5" height="10" rx="1" />
+      <path d="M2.25 6h11.5M4.25 4.5h.01M6 4.5h.01" />
+    </svg>
+  )
+}
+
 /** Two overlapping rounded squares: copy to the clipboard. */
 export function CopyIcon(): React.JSX.Element {
   return (
