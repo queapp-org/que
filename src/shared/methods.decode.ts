@@ -122,6 +122,7 @@ export const decoders: { [M in MethodName]: (p: Params) => ParamsOf<M> } = {
   }),
   'workspace.canRenameBranch': idOnly,
   'workspace.seen': idOnly,
+  'workspace.artifactOpened': (p) => ({ id: str(p, 'id'), url: str(p, 'url') }),
   'workspace.diff': (p) => ({
     id: str(p, 'id'),
     base: optString(p, 'base'),

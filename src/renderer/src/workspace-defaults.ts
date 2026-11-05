@@ -33,6 +33,7 @@ type LeftOutField =
   | 'archivedAt'
   | 'finishedAt'
   | 'seenAt'
+  | 'artifacts'
   | 'backgroundTasks'
 
 /** A workspace as any build of the daemon sends it. */
@@ -75,6 +76,7 @@ export function withDefaults(ws: SentWorkspace): Workspace {
     archivedAt: ws.archivedAt ?? null,
     finishedAt: ws.finishedAt ?? null,
     seenAt: ws.seenAt ?? null,
+    artifacts: ws.artifacts ?? [],
     backgroundTasks: ws.backgroundTasks ?? []
   }
 }

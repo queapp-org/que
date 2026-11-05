@@ -191,6 +191,7 @@ const QUIET_POLICY: Record<MethodName, 'refused' | 'allowed'> = {
   'workspace.rename': 'allowed',
   'workspace.canRenameBranch': 'allowed',
   'workspace.seen': 'allowed',
+  'workspace.artifactOpened': 'allowed',
   'workspace.diff': 'refused',
   'workspace.diffFile': 'refused',
   'workspace.prThread': 'refused',

@@ -41,6 +41,7 @@ import type {
   WorkspaceStartResult
 } from '../shared/protocol'
 import type { ConfigPatch, Workspace } from '../shared/types'
+import { recordArtifact } from './artifacts'
 import { EventBus } from './bus'
 import { RpcError } from './errors'
 import type { HostedTerminal, PtyHost, Term, TermExtra } from './pty-host'
@@ -960,6 +961,7 @@ export class DaemonServer {
       allowed: await this.workspaces.canRenameBranch(p.id)
     }),
     'workspace.seen': (p) => this.workspaces.seen(p.id),
+    'workspace.artifactOpened': (p) => this.workspaces.artifactOpened(p.id, p.url),
     'workspace.diff': (p) => {
       const ws = this.workspaces.get(p.id)
 
@@ -1008,6 +1010,7 @@ export class DaemonServer {
       this.prs.hook(ws.id, p.payload).catch((e: unknown) => {
         this.log(`pull request capture failed for ${ws.id}: ${errorMessage(e)}`)
       })
+      recordArtifact(this, ws.id, p.payload)
 
       return { ok: true }
     },

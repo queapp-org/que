@@ -331,6 +331,17 @@ export class WorkspaceManager {
     return next
   }
 
+  /** Records that the app opened one of the workspace's artifacts; another URL changes nothing. */
+  artifactOpened(id: string, url: string): Workspace {
+    const ws = this.get(id)
+
+    if (!this.opts.store.markWorkspaceArtifactOpened(id, url, new Date().toISOString())) return ws
+    const next = this.get(id)
+    this.opts.emit('workspace.updated', next)
+
+    return next
+  }
+
   list(projectId?: string): Workspace[] {
     return this.opts.store.listWorkspaces(projectId)
   }
@@ -510,6 +521,7 @@ export class WorkspaceManager {
       prs: [],
       finishedAt: null,
       seenAt: null,
+      artifacts: [],
       backgroundTasks: []
     }
 
