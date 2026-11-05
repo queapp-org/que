@@ -147,12 +147,15 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
     store.ensureReview(termKey)
   }, [store, termKey, place.view, place.pr, numbers])
 
-  const refresh = (): Promise<void> =>
-    place.view === 'changes'
-      ? store.fetchDiff(termKey)
-      : place.view === 'files'
-        ? store.refreshFiles(termKey)
-        : store.refreshPrs(termKey)
+  const refreshes: Record<ReviewView, (() => Promise<void>) | null> = {
+    prs: () => store.refreshPrs(termKey),
+    changes: () => store.fetchDiff(termKey),
+    files: () => store.refreshFiles(termKey),
+    // Hook events keep the list current: nothing polls, so there is nothing to refresh.
+    artifacts: null
+  }
+
+  const refresh = refreshes[place.view]
 
   // ⌘F while the pane has focus: the Files view's filter.
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -208,8 +211,8 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
         <div className="review-actions">
           {ws && (
             <>
-              {/* Each view and each pull request turns its own Refresh; nothing polls for artifacts. */}
-              {place.view !== 'artifacts' && (
+              {/* Each view and each pull request turns its own Refresh. */}
+              {refresh && (
                 <RefreshButton
                   key={`${termKey}:${place.view}:${pr?.number ?? ''}`}
                   testId={`${testId}-refresh`}

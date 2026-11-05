@@ -3,6 +3,7 @@
 // does not send the fields added since. Every workspace enters the store through
 // withDefaults(): each list and nullable field of a workspace and of its pull requests that a
 // build may leave out is filled here, so the rest of the renderer reads complete values.
+import { isArtifactUrl } from '../../shared/artifact-url'
 import type { PullRequest, Workspace } from '../../preload/index.d'
 
 /** The pull request fields a build may leave out: those added after its first build, and the nullable ones. */
@@ -76,7 +77,8 @@ export function withDefaults(ws: SentWorkspace): Workspace {
     archivedAt: ws.archivedAt ?? null,
     finishedAt: ws.finishedAt ?? null,
     seenAt: ws.seenAt ?? null,
-    artifacts: ws.artifacts ?? [],
+    // A hook payload wrote these URLs and the app opens them outside itself: no other gets a row or a count.
+    artifacts: (ws.artifacts ?? []).filter((a) => isArtifactUrl(a.url)),
     backgroundTasks: ws.backgroundTasks ?? []
   }
 }

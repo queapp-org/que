@@ -3,22 +3,14 @@
 import type { Locator, Page } from '@playwright/test'
 
 export class ArtifactsPage {
-  page: Page
-  list: Locator
   summary: Locator
-  empty: Locator
-  openEditor: Locator
   row: (id: string) => Locator
   rowLink: (id: string) => Locator
   rowCopy: (id: string) => Locator
   rowAge: (id: string) => Locator
 
   constructor(page: Page) {
-    this.page = page
-    this.list = page.getByTestId('artifact-list')
     this.summary = page.getByTestId('artifact-list-summary')
-    this.empty = page.getByTestId('artifact-empty')
-    this.openEditor = page.getByTestId('artifacts-open-editor')
     this.row = (id: string) => page.getByTestId(`artifact-${id}`)
     this.rowLink = (id: string) => page.getByTestId(`artifact-${id}-link`)
     this.rowCopy = (id: string) => page.getByTestId(`artifact-${id}-copy`)

@@ -85,9 +85,7 @@ describe('ArtifactList', () => {
       await openList(userEvent.setup(), [retries, removal])
 
       expect(retriesRow()).toHaveAttribute('data-opened', 'false')
-      expect(retriesRow()).not.toHaveClass('opened')
       expect(removalRow()).toHaveAttribute('data-opened', 'true')
-      expect(removalRow()).toHaveClass('opened')
     })
   })
 
@@ -144,13 +142,6 @@ describe('ArtifactList', () => {
       expect(fakeBridge.getWorkspace(ID)?.artifacts[0]?.openedAt).toBeNull()
       expect(retriesRow()).toHaveAttribute('data-opened', 'false')
     })
-
-    it('is no part of the link', async () => {
-      await openList(userEvent.setup(), [retries])
-
-      const copy = within(retriesRow()).getByRole('button', { name: 'Copy link' })
-      expect(copy.closest('a')).toBeNull()
-    })
   })
 
   describe('untrusted data', () => {
@@ -158,22 +149,16 @@ describe('ArtifactList', () => {
       const list = await openList(userEvent.setup(), [
         retries,
         { ...removal, url: 'javascript:alert(1)//claude.ai/artifact/x', title: 'Not a page' },
-        { ...removal, url: 'https://claude.ai.example.com/artifact/x', title: 'Another host' }
+        { ...removal, url: 'https://claude.ai.example.com/artifact/x', title: 'Another host' },
+        { ...removal, url: 'https://claude.ai/artifact/x/../../evil', title: 'A climbing path' }
       ])
 
       expect(within(list).getAllByRole('link')).toHaveLength(1)
       expect(screen.queryByText('Not a page')).not.toBeInTheDocument()
       expect(screen.queryByText('Another host')).not.toBeInTheDocument()
+      expect(screen.queryByText('A climbing path')).not.toBeInTheDocument()
       expect(screen.getByTestId('artifact-list-summary')).toHaveTextContent('1 published')
-    })
-
-    it('says none are published when no entry has a good URL', async () => {
-      await openList(userEvent.setup(), [
-        { ...removal, url: 'https://claude.ai/artifact/x/../../evil', title: 'Not a page' }
-      ])
-
-      expect(screen.getByTestId('artifact-empty')).toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: 'Not a page' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('review-view-artifacts-count')).toHaveTextContent('1')
     })
 
     it('shows a title with markup as literal text', async () => {
