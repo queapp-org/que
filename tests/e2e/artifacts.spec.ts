@@ -109,8 +109,8 @@ test('a published page is counted, listed, opened in the browser, and then reads
     await expect(artifacts.rowLink(PAGE_ID)).toHaveCSS('color', OPENED)
   })
 
-  await test.step('The age takes the pointer for its tooltip, and a click on it opens too', async () => {
-    await artifacts.rowAge(PAGE_ID).click()
+  await test.step('A click at the far end of the row, over the age, opens it too', async () => {
+    await artifacts.row(PAGE_ID).click({ position: { x: 280, y: 10 } })
     await expect.poll(() => launched.externalOpens()).toEqual([PAGE_URL, PAGE_URL])
   })
 

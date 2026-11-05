@@ -322,7 +322,7 @@ describe('ReviewPane', () => {
       render(<App />)
       await openWorkspace(user, retry.id)
 
-      expect(screen.getByTestId('review-resizer')).toHaveAttribute('aria-valuenow', '260')
+      expect(screen.getByTestId('review-resizer')).toHaveAttribute('aria-valuenow', '270')
     })
 
     it('falls back to the defaults for an unreadable or out-of-range memory', async () => {

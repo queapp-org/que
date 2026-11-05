@@ -3458,7 +3458,7 @@ button.pr-row.settled .pr-row-number {
 }
 
 /* One published page on one line: --fg until opened, then --fg-secondary. The whole row opens it:
- * the link's ::after covers the row, and Copy and the age sit above that. */
+ * the link's ::after covers the row, with its tooltip, and Copy sits above that. */
 .artifact {
   position: relative;
   padding: 5px 12px;
@@ -3525,16 +3525,12 @@ button.artifact-copy svg {
   flex: 1;
 }
 
-/* Above the link so its tooltip can show; a click on it passes to the link. */
 .artifact-age {
-  position: relative;
-  z-index: 1;
   flex: none;
   margin-right: 4px;
   font: 11px var(--mono);
   color: var(--fg-faint);
   font-variant-numeric: tabular-nums;
-  cursor: pointer;
 }
 
 /* The open-elsewhere mark is always there: this is the one row in the pane that leaves the app. */

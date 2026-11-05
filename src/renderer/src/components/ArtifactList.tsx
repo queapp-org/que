@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import type { Artifact } from '../../../preload/index.d'
 import { isArtifactUrl } from '../../../shared/artifact-url'
 import { formatAge } from '../../../shared/format'
@@ -16,7 +15,6 @@ function Row({
   now: number
 }): React.JSX.Element {
   const store = useStore()
-  const link = useRef<HTMLAnchorElement>(null)
   const { url, title, updatedAt, openedAt } = artifact
   const opened = openedAt !== null
   const id = `artifact-${url.slice(url.lastIndexOf('/') + 1)}`
@@ -25,11 +23,11 @@ function Row({
     <li className={`artifact${opened ? ' opened' : ''}`} data-testid={id} data-opened={opened}>
       <div className="artifact-line">
         <a
-          ref={link}
           className="artifact-name"
           href={url}
           target="_blank"
           rel="noreferrer"
+          title={`${title}\nUpdated ${new Date(updatedAt).toLocaleString()}`}
           data-testid={`${id}-link`}
           onClick={() => store.artifactOpened(wsId, url)}
         >
@@ -46,12 +44,7 @@ function Row({
           <CopyIcon />
         </button>
         <span className="artifact-gap" />
-        <span
-          className="artifact-age"
-          title={`Updated ${new Date(updatedAt).toLocaleString()}`}
-          data-testid={`${id}-age`}
-          onClick={() => link.current?.click()}
-        >
+        <span className="artifact-age" data-testid={`${id}-age`}>
           {formatAge(updatedAt, now)}
         </span>
         <span className="artifact-out">
