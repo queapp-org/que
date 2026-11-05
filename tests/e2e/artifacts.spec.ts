@@ -120,6 +120,14 @@ test('a published page is counted, listed, opened in the browser, and then reads
     await expect(review.artifactsCount).toHaveText('2')
     await expect(artifacts.row(NEXT_ID)).toHaveAttribute('data-opened', 'false')
     await expect(artifacts.row(PAGE_ID)).toHaveAttribute('data-opened', 'true')
+  })
+
+  await test.step('Copy shows on the hovered row only, not on the one a click left focused', async () => {
+    await retryPointer(async () => {
+      await artifacts.row(NEXT_ID).hover()
+      await expect(artifacts.rowCopy(NEXT_ID)).toHaveCSS('opacity', '1', { timeout: 1_000 })
+    })
+    await expect(artifacts.rowCopy(PAGE_ID)).toHaveCSS('opacity', '0')
     await review.root.screenshot({ path: 'test-results/artifacts-pane.png' })
   })
 })

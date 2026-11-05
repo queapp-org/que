@@ -3499,7 +3499,8 @@ a.artifact-name::after {
   inset: 0;
 }
 
-/* Copy sits right after the text and shows on hover or focus, like the popout's copy icons. */
+/* Copy sits right after the text and shows on hover or keyboard focus, like the popout's copy
+ * icons: a click leaves the link focused, and Copy must not stay behind. */
 button.artifact-copy {
   position: relative;
   z-index: 1;
@@ -3514,7 +3515,7 @@ button.artifact-copy svg {
 }
 
 .artifact:hover .artifact-copy,
-.artifact:focus-within .artifact-copy {
+.artifact:has(:focus-visible) .artifact-copy {
   opacity: 1;
 }
 

@@ -256,7 +256,7 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
 - Artifacts lists the pages the session published, newest update first: `[ ARTIFACTS ]`
   with `n published`, then one line each. The title at 13px with an ellipsis, `--fg` until
   the page is opened and `--fg-secondary` after, a new publish bringing it back. A copy
-  link `button.ghost.icon.sm` right after the title, shown on hover or focus. At the right
+  link `button.ghost.icon.sm` right after the title, shown on hover or keyboard focus. At the right
   the age in mono 11px `--fg-faint`, then the open-elsewhere mark, always there because
   this is the one row in the pane that leaves the app. The whole row opens the page in the
   browser and marks it opened, and its tooltip gives the full title and last-updated time;
