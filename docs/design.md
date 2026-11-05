@@ -114,27 +114,28 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
 - The review pane is a full-height column at the right of the window, the sidebar's
   mirror: it runs from the window's top edge to the bottom on `--bg-side` behind a 1px
   hairline, and the tab row spans only the middle column. It is 320px wide, dragged
-  between 240 and 520px on a 7px track like the sidebar's (double-click resets, arrow
+  between 260 and 520px on a 7px track like the sidebar's (double-click resets, arrow
   keys move it), and remembered. Two chevrons are its toggle, both `button.ghost.icon`
   line icons: open, a double chevron pointing right (»), at the right end of the pane's
   strip, hides it ("Hide review (⌘B)"); ⌘B toggles it too.
 - Hidden, the pane folds to a 40px rail for a workspace (the Sessions view has none):
   the same `--bg-side` column behind its hairline, full height. Its top, in the 40px
   strip row above a solid hairline, holds a double chevron pointing left («, "Show
-  review (⌘B)") and drags the window from its empty space; under it the three view icons
+  review (⌘B)") and drags the window from its empty space; under it the four view icons
   stack, each with its count under it in mono 11px `--fg-faint`. A view icon opens the
   pane on that view. The resize track exists only while the pane is open.
 - The pane's strip is 40px tall, lined up with the tab row above a solid hairline. At
-  its left, lined up with the session tabs, three `button.ghost.icon`s pick the view:
-  pull requests (a branch-merge line icon), changes (a page with ±) and files (a
-  folder). Pull requests and changes carry a count in mono 11px `--fg-faint` beside the
-  icon (the open and draft pull requests; the changed files); never a dot, since a
-  failure shows inside the pane and in the workspace popout. Each icon's name is its
-  tooltip and accessible name. The current one reads `--fg` with a 1px `--fg` line under
-  it, the others `--fg-faint`. The view's own buttons sit at the strip's right end, then
-  the hide chevron: refresh on every view (on Pull requests it checks them with GitHub
-  now) and open in editor. The pane remembers its view per workspace. Each view opens with
-  a head: its `[ LABEL ]` at the left, its counts in mono `--fg-faint` at the right.
+  its left, lined up with the session tabs, four `button.ghost.icon`s pick the view:
+  pull requests (a branch-merge line icon), changes (a page with ±), files (a folder)
+  and artifacts (a browser window). All but files carry a count in mono 11px `--fg-faint`
+  beside the icon (the open and draft pull requests; the changed files; the published
+  pages), `0` included; never a dot, since a failure shows inside the pane and in the
+  workspace popout. Each icon's name is its tooltip and accessible name. The current one
+  reads `--fg` with a 1px `--fg` line under it, the others `--fg-faint`. The view's own
+  buttons sit at the strip's right end, then the hide chevron: refresh on every view but
+  Artifacts, where nothing polls (on Pull requests it checks them with GitHub now), and
+  open in editor. The pane remembers its view per workspace. Each view opens with a head:
+  its `[ LABEL ]` at the left, its counts in mono `--fg-faint` at the right.
 - Pull requests lists every pull request the session opened (#192): `[ PULL REQUESTS ]`
   with `n open · k failing` (only `k failing` in `--tone-bad`), then one two-line row
   each. Line one: the dot, `#n` in mono `--fg-muted`, the title on one line with an
@@ -252,6 +253,15 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   page icon and the name): the path in mono `--fg-faint` above the text in mono 12px
   with faint line numbers, unwrapped, scrolling both ways. Nothing replaces or hides
   the terminals.
+- Artifacts lists the pages the session published, newest update first: `[ ARTIFACTS ]`
+  with `n published`, then one line each. The title at 13px with an ellipsis, `--fg` until
+  the page is opened and `--fg-secondary` after, a new publish bringing it back. A copy
+  link `button.ghost.icon.sm` right after the title, shown on hover or focus. At the right
+  the age in mono 11px `--fg-faint`, the full last-updated time as its tooltip, then the
+  open-elsewhere mark, always there because this is the one row in the pane that leaves
+  the app. The whole row opens the page in the browser and marks it opened; copying the
+  link does not. Keyboard focus on it draws a 1px `--accent` outline on the row. With none:
+  `No artifacts from this session yet.`, centred.
 - A new workspace has no tab and no terminal until Claude's, or a shell when Start
   Claude is off. The main pane shows its steps in the middle, in a 300px column:
   `[ PREPARING ]`, then a line per step, `fetching origin`, `creating worktree`, `running
