@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Output no longer shows twice when a terminal comes back on screen while it is printing. It could happen when Join panes moved the terminal, when closing the other pane's last tab moved it, or when the window was reloaded or reopened.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

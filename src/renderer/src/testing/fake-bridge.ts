@@ -75,6 +75,8 @@ export interface FakeTerminal extends TermInfo {
   input: string
   /** What term.attach and term.snapshot replay. */
   screen: string
+  /** The last chunk of output `screen` holds, as term.attach says; absent like an older daemon's. */
+  seq?: number
 }
 
 type AnyEvents = Events
@@ -379,7 +381,7 @@ class FakeBridge {
           Object.assign(t, { cols, rows })
           await this.attachGate.pass()
 
-          return { snapshot: t.screen, cols, rows }
+          return { snapshot: t.screen, cols, rows, seq: t.seq }
         },
         detach: async () => ({ ok: true }),
         write: ({ id, data }) => {
@@ -974,13 +976,13 @@ class FakeBridge {
   }
 
   /** Puts a running terminal in the book silently, as if created before launch. */
-  seedTerminal(info: TermInfo, screen = ''): void {
-    this.terminals.set(info.id, { ...info, input: '', screen })
+  seedTerminal(info: TermInfo, screen = '', seq?: number): void {
+    this.terminals.set(info.id, { ...info, input: '', screen, seq })
   }
 
   /** A program printed: emits term.data, as the daemon does for an attached terminal. */
-  printToTerminal(id: string, data: string): void {
-    this.emit('term.data', { id, data })
+  printToTerminal(id: string, data: string, seq?: number): void {
+    this.emit('term.data', { id, data, seq })
   }
 
   /** Attaches wait until releaseAttach(): a slow daemon, with output arriving meanwhile. */
@@ -1746,7 +1748,7 @@ class FakeBridge {
   }
 }
 
-function toInfo({ input: _input, screen: _screen, ...info }: FakeTerminal): TermInfo {
+function toInfo({ input: _input, screen: _screen, seq: _seq, ...info }: FakeTerminal): TermInfo {
   return info
 }
 

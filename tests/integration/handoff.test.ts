@@ -156,9 +156,15 @@ describe('daemon handoff', () => {
       expect(attached.snapshot).toContain('BEFORE-42')
 
       const data: string[] = []
-      after.on('term.data', (d) => data.push(d.data))
+      const numbers: Array<number | undefined> = []
+      after.on('term.data', (d) => {
+        data.push(d.data)
+        numbers.push(d.seq)
+      })
       await after.request('term.write', { id: term.id, data: 'echo AFTER-$((5*5)); stty size\r' })
       await expect.poll(() => data.join(''), { timeout: 5_000 }).toContain('AFTER-25')
+      // An adopted terminal numbers its output too, past what the snapshot holds.
+      expect(numbers[0]).toBeGreaterThan(attached.seq ?? Infinity)
       // The attach's size reached the shell through the adopted fd.
       await expect.poll(() => data.join(''), { timeout: 5_000 }).toContain('40 100')
       expect(await screen(after, term.id)).toContain('BEFORE-42')
