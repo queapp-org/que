@@ -18,6 +18,7 @@ import { run } from '../shared/exec'
 import { loginShell } from '../shared/login-path'
 import type { QuePaths } from '../shared/paths'
 import type {
+  HookEvent,
   ProjectAddParams,
   WorkspaceCreateParams,
   WorkspacePrepareParams,
@@ -40,6 +41,7 @@ import type {
   TitleSource,
   Workspace
 } from '../shared/types'
+import { decodeArtifactCall } from './artifacts.decode'
 import { reflogBranches, renameBranch, withBranch } from './branch-history'
 import { badRequest, conflict, notFound } from './errors'
 import type { Emit } from './bus'
@@ -340,6 +342,23 @@ export class WorkspaceManager {
     this.opts.emit('workspace.updated', next)
 
     return next
+  }
+
+  /** Applies the Artifact call a hook event shows, if any, and announces a list that changed. */
+  recordArtifact(id: string, event: HookEvent): void {
+    const call = decodeArtifactCall(event)
+
+    if (!call) return
+    const { store } = this.opts
+
+    const changed =
+      call.kind === 'published'
+        ? store.publishWorkspaceArtifact(id, call.url, call.title, new Date().toISOString())
+        : store.removeWorkspaceArtifact(id, call.url)
+
+    if (!changed) return
+    this.log(`workspace ${id} ${call.kind} ${call.url}`)
+    this.opts.emit('workspace.updated', this.get(id))
   }
 
   list(projectId?: string): Workspace[] {

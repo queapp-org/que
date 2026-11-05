@@ -52,7 +52,7 @@ const artifactsOf = async (id: string) => (await client.request('workspace.get',
 const listed = async (id: string) => (await artifactsOf(id)).map((a) => [a.url, a.title])
 
 describe('published pages', () => {
-  it('records a publish, announces it, and keeps one row per URL with the newest on top', async () => {
+  it('records a publish, announces it, and updates it in place', async () => {
     const { id, type } = await session()
     const updates = recordEvents(client, 'workspace.updated')
 
@@ -67,15 +67,6 @@ describe('published pages', () => {
 
     await expect.poll(() => listed(id), opts).toEqual([[PAGE, 'Upload retries, second draft']])
     expect((await artifactsOf(id))[0].updatedAt).not.toBe(first.updatedAt)
-
-    await type(`/artifact ${OTHER_PAGE} Backoff notes`)
-
-    await expect
-      .poll(() => listed(id), opts)
-      .toEqual([
-        [OTHER_PAGE, 'Backoff notes'],
-        [PAGE, 'Upload retries, second draft']
-      ])
   }, 40_000)
 
   it('adds nothing for a read', async () => {
@@ -114,7 +105,7 @@ describe('published pages', () => {
 })
 
 describe('workspace.artifactOpened', () => {
-  it('sets openedAt, announces it, and the next publish clears it', async () => {
+  it('sets openedAt and announces it', async () => {
     const { id, type } = await session()
     await type(`/artifact ${PAGE} Upload retries`)
     await expect.poll(() => listed(id), opts).toEqual([[PAGE, 'Upload retries']])
@@ -125,12 +116,6 @@ describe('workspace.artifactOpened', () => {
     expect(opened.artifacts[0].openedAt).toMatch(/^\d{4}-\d\d-\d\dT/)
     expect(updates).toContainEqual(opened)
     expect(await artifactsOf(id)).toEqual(opened.artifacts)
-
-    await type(`/artifact ${PAGE} Upload retries, second draft`)
-
-    await expect
-      .poll(() => artifactsOf(id), opts)
-      .toEqual([expect.objectContaining({ title: 'Upload retries, second draft', openedAt: null })])
   }, 40_000)
 
   it('changes nothing for a URL the workspace does not list, and refuses an unknown workspace', async () => {

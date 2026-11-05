@@ -1,5 +1,5 @@
 // Reads an Artifact PostToolUse hook payload into what it did to a published page, for
-// artifacts.ts. The payload is untrusted: only these fields count, a URL must pass isArtifactUrl,
+// WorkspaceManager.recordArtifact. The payload is untrusted: only these fields count, a URL must pass isArtifactUrl,
 // and anything else (a read, a pin, an asset upload, a failed call) is nothing to record.
 import { isArtifactUrl } from '../shared/artifact-url'
 import { fieldsOf, type Obj, str } from '../shared/json.decode'

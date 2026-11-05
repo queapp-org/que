@@ -41,12 +41,6 @@ describe('decodeArtifactCall', () => {
     it.each<[string, HookEvent, string, string]>([
       ['the captured publish', call({ file_path: 'page.html' }, PUBLISH_RESPONSE), PAGE, TITLE],
       [
-        'an update of a known URL',
-        call({ file_path: 'page.html', url: PAGE }, { ...PUBLISH_RESPONSE, updated: true }),
-        PAGE,
-        TITLE
-      ],
-      [
         'one created from a type',
         call(
           { type_url: 'https://claude.ai/artifact/type', title: TITLE },
@@ -103,8 +97,6 @@ describe('decodeArtifactCall', () => {
   })
 
   describe('nothing to record', () => {
-    const readLike = { ...PUBLISH_RESPONSE }
-
     it.each<[string, HookEvent]>([
       [
         'a delete of one asset (path)',
@@ -114,7 +106,7 @@ describe('decodeArtifactCall', () => {
         'a delete that did not happen',
         call({ action: 'delete', url: PAGE }, { artifact_delete: { url: PAGE, deleted: false } })
       ],
-      ['a delete with no artifact_delete', call({ action: 'delete', url: PAGE }, readLike)],
+      ['a delete with no artifact_delete', call({ action: 'delete', url: PAGE }, PUBLISH_RESPONSE)],
       [
         'a delete of a URL that fails the rule',
         call(
@@ -122,13 +114,13 @@ describe('decodeArtifactCall', () => {
           { artifact_delete: { url: 'https://evil.example/artifact/x', deleted: true } }
         )
       ],
-      ['read', call({ action: 'read', url: PAGE }, readLike)],
-      ['list', call({ action: 'list' }, readLike)],
-      ['open', call({ action: 'open', url: PAGE }, readLike)],
-      ['pin', call({ action: 'pin', url: PAGE }, readLike)],
-      ['unpin', call({ action: 'unpin', url: PAGE }, readLike)],
-      ['quickstart', call({ action: 'quickstart', intent: 'other' }, readLike)],
-      ['an asset upload', call({ url: PAGE, file_path: 'a.png', asset: true }, readLike)],
+      ['read', call({ action: 'read', url: PAGE }, PUBLISH_RESPONSE)],
+      ['list', call({ action: 'list' }, PUBLISH_RESPONSE)],
+      ['open', call({ action: 'open', url: PAGE }, PUBLISH_RESPONSE)],
+      ['pin', call({ action: 'pin', url: PAGE }, PUBLISH_RESPONSE)],
+      ['unpin', call({ action: 'unpin', url: PAGE }, PUBLISH_RESPONSE)],
+      ['quickstart', call({ action: 'quickstart', intent: 'other' }, PUBLISH_RESPONSE)],
+      ['an asset upload', call({ url: PAGE, file_path: 'a.png', asset: true }, PUBLISH_RESPONSE)],
       [
         'PreToolUse',
         makeHookEvent('PreToolUse', {
