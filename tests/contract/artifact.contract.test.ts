@@ -1,15 +1,17 @@
 // Contract test against the REAL Claude Code CLI: a real publish's PostToolUse is what
-// decodeArtifactCall reads (the fake's `/artifact` imitates it). Each run really publishes, so
-// beyond QUE_CONTRACT=1 it needs QUE_CONTRACT_ARTIFACT_URL, the one page it may update:
-// QUE_CONTRACT=1 QUE_CONTRACT_ARTIFACT_URL=<url> npx vitest run tests/contract/artifact.contract.test.ts
-import { execFile } from 'node:child_process'
+// decodeArtifactCall reads (the fake's `/artifact` imitates it). The tool exists only in an
+// interactive session, not under `-p`. Each run really publishes, so beyond QUE_CONTRACT=1 it needs
+// QUE_CONTRACT_ARTIFACT_URL, the one page it may update:
+// QUE_CONTRACT=1 QUE_CONTRACT_ARTIFACT_URL=<url> npx vitest run --project node tests/contract/artifact.contract.test.ts
 import fs from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
+import * as pty from 'node-pty'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { decodeArtifactCall } from '../../src/daemon/artifacts.decode'
 import { decodeHookEvent } from '../../src/shared/hook.decode'
 import { FAKES_BIN } from '../../src/testing/fakes'
+import { answerTrustPrompt, jsonLines, plainText, recordCommand } from './interactive'
 
 const PAGE_URL = process.env.QUE_CONTRACT_ARTIFACT_URL
 const CONTRACT = process.env.QUE_CONTRACT === '1' && Boolean(PAGE_URL)
@@ -33,64 +35,70 @@ describe.skipIf(!CONTRACT)('claude Artifact contract', () => {
   it('reports a publish in the shape the decoder reads', async () => {
     const page = join(dir, 'page.html')
     const log = join(dir, 'hooks.jsonl')
-    const recorder = join(dir, 'record.cjs')
     fs.writeFileSync(page, PAGE_HTML)
-    fs.writeFileSync(
-      recorder,
+    const hook = { hooks: [{ type: 'command', command: recordCommand(dir)(log) }] }
+
+    const prompt = [
+      `The file ${page} is a tiny test page this test wrote. Its whole content is: ${PAGE_HTML}`,
+      `Use the Artifact tool to update the existing artifact at ${PAGE_URL} with that file:`,
+      `file_path ${page}, url ${PAGE_URL}. Read that artifact first if the tool asks you to.`,
+      'Load no skill and do not change the file. Publish to no other URL.',
+      'Then reply with exactly the word OK.'
+    ].join(' ')
+
+    const term = pty.spawn(
+      'claude',
       [
-        "const fs = require('node:fs')",
-        "let input = ''",
-        "process.stdin.on('data', (c) => (input += c))",
-        "process.stdin.on('end', () => fs.appendFileSync(process.argv[2], input.trim() + '\\n'))",
-        ''
-      ].join('\n')
+        '--settings',
+        JSON.stringify({ hooks: { PostToolUse: [hook], Stop: [hook] } }),
+        prompt,
+        // Last: it takes every argument after it as a tool.
+        '--allowedTools',
+        'Artifact'
+      ],
+      { cwd: dir, cols: 120, rows: 40, env: process.env as Record<string, string> }
     )
-    const command = `'${process.execPath}' '${recorder}' '${log}'`
 
-    const { code, stderr } = await new Promise<{ code: number; stderr: string }>((resolve) => {
-      execFile(
-        'claude',
-        [
-          '-p',
-          [
-            `The file ${page} is a tiny test page this test wrote. Its whole content is: ${PAGE_HTML}`,
-            `Use the Artifact tool to update the existing artifact at ${PAGE_URL} with that file:`,
-            `file_path ${page}, url ${PAGE_URL}. Read that artifact first if the tool asks you to.`,
-            'Publish to no other URL. Then reply with exactly the word OK.'
-          ].join('\n'),
-          '--max-turns',
-          '8',
-          '--allowedTools',
-          'Artifact',
-          '--permission-prompts',
-          'none',
-          '--settings',
-          JSON.stringify({
-            hooks: { PostToolUse: [{ hooks: [{ type: 'command', command }] }] }
-          })
-        ],
-        { cwd: dir, encoding: 'utf8', timeout: 170_000, maxBuffer: 32 * 1024 * 1024 },
-        (err, _stdout, stderr) => {
-          resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stderr })
-        }
-      ).stdin?.end()
+    let output = ''
+    term.onData((data) => {
+      output = (output + plainText(data)).slice(-2000)
     })
+    answerTrustPrompt(term)
 
-    expect(code, stderr).toBe(0)
+    const events = () => jsonLines(log).flatMap((line) => decodeHookEvent(line) ?? [])
 
-    const calls = fs
-      .readFileSync(log, 'utf8')
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .flatMap((line) => decodeHookEvent(JSON.parse(line)) ?? [])
-      .flatMap((event) => decodeArtifactCall(event) ?? [])
+    try {
+      // Until the turn ends, or long enough to report a session stuck on a prompt.
+      const deadline = Date.now() + 150_000
+      await expect
+        .poll(() => events().some((e) => e.hook_event_name === 'Stop') || Date.now() > deadline, {
+          timeout: 160_000
+        })
+        .toBe(true)
 
-    // The tool may refuse a first attempt, and the model may publish again: each one that went
-    // through is that one page.
-    expect(calls.length).toBeGreaterThan(0)
+      const calls = events().flatMap((event) => decodeArtifactCall(event) ?? [])
+      const tools = events().map((e) => e.tool_name ?? e.hook_event_name)
 
-    for (const call of calls) {
-      expect(call).toEqual({ kind: 'published', url: PAGE_URL, title: expect.stringMatching(/\S/) })
+      // The tool may refuse a first attempt, and the model may publish again: each one that went
+      // through is that one page.
+      expect(
+        calls.length,
+        `tools: ${tools.join(', ')}\nresponses: ${JSON.stringify(
+          events()
+            .filter((e) => e.tool_name === 'Artifact')
+            .map((e) => e.tool_response)
+        ).slice(0, 1500)}\nscreen: ${output}`
+      ).toBeGreaterThan(0)
+
+      for (const call of calls) {
+        expect(call).toEqual({
+          kind: 'published',
+          url: PAGE_URL,
+          title: expect.stringMatching(/\S/)
+        })
+      }
+    } finally {
+      term.kill()
     }
   }, 180_000)
 })

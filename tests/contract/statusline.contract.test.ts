@@ -10,40 +10,20 @@ import * as pty from 'node-pty'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { decodeStatusLineUsage } from '../../src/shared/usage.decode'
 import { FAKES_BIN } from '../../src/testing/fakes'
+import { answerTrustPrompt, jsonLines, recordCommand } from './interactive'
 
 const CONTRACT = process.env.QUE_CONTRACT === '1'
 
-/** Parses newline-delimited JSON, skipping blank lines. */
-function jsonLines(path: string): Record<string, unknown>[] {
-  if (!fs.existsSync(path)) return []
-
-  return fs
-    .readFileSync(path, 'utf8')
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as Record<string, unknown>)
-}
-
 describe.skipIf(!CONTRACT)('claude status line contract', () => {
   let dir: string
-  let recorder: string
+  let record: (log: string) => string
 
   beforeAll(() => {
     // The real binary, never the fake: drop tests/fakes/bin from PATH.
     const path = (process.env.PATH ?? '').split(':').filter((p) => p !== FAKES_BIN)
     vi.stubEnv('PATH', path.join(':'))
     dir = fs.realpathSync(fs.mkdtempSync(join(os.tmpdir(), 'que-contract-statusline-')))
-    recorder = join(dir, 'record.cjs')
-    fs.writeFileSync(
-      recorder,
-      [
-        "const fs = require('node:fs')",
-        "let input = ''",
-        "process.stdin.on('data', (c) => (input += c))",
-        "process.stdin.on('end', () => fs.appendFileSync(process.argv[2], input.trim() + '\\n'))",
-        ''
-      ].join('\n')
-    )
+    record = recordCommand(dir)
   })
 
   afterAll(() => {
@@ -54,7 +34,6 @@ describe.skipIf(!CONTRACT)('claude status line contract', () => {
   it('passes rate_limits to the status line after a reply on a plan account', async (ctx) => {
     const statusLog = join(dir, 'statusline.jsonl')
     const stopLog = join(dir, 'stop.jsonl')
-    const record = (log: string): string => `'${process.execPath}' '${recorder}' '${log}'`
 
     const settings = {
       statusLine: { type: 'command', command: record(statusLog) },
@@ -67,32 +46,7 @@ describe.skipIf(!CONTRACT)('claude status line contract', () => {
       { cwd: dir, cols: 120, rows: 40, env: process.env as Record<string, string> }
     )
 
-    // A fresh directory asks whether to trust it, with "No, exit" highlighted.
-    // Each key waits for the screen to settle: a key sent while the prompt is
-    // still drawing is lost when it redraws. Down to "Yes", then Enter.
-    let trust: 'waiting' | 'asked' | 'moved' | 'answered' = 'waiting'
-    let screen = ''
-    let settle: NodeJS.Timeout | undefined
-    term.onData((data) => {
-      if (trust === 'answered') return
-      // Cursor moves sit between the words of a redraw.
-      screen += data.replace(/\x1b\[[0-9;?<>]*[ -/]*[@-~]/g, '') // oxlint-disable-line no-control-regex
-
-      if (trust === 'waiting' && /trust/i.test(screen)) trust = 'asked'
-
-      if (trust === 'waiting') return
-      clearTimeout(settle)
-      settle = setTimeout(() => {
-        if (trust === 'asked') {
-          trust = 'moved'
-          screen = ''
-          term.write('\x1b[B')
-        } else if (trust === 'moved' && /❯\s*Yes/.test(screen)) {
-          trust = 'answered'
-          term.write('\r')
-        }
-      }, 300)
-    })
+    answerTrustPrompt(term)
 
     try {
       await expect.poll(() => jsonLines(stopLog).length, { timeout: 150_000 }).toBeGreaterThan(0)
