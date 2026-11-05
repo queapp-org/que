@@ -209,8 +209,18 @@ export interface PullRequest {
   commentedAt: string | null
 }
 
-/** Workspace counts per status, for the tray and `que status`. */
+/** Workspace counts per status, as `que status` reports them. */
 export type StatusSummary = Record<WorkspaceStatus, number>
+
+/**
+ * What the menu-bar item shows: the mark beside the q, the text beside the icon (the unlock
+ * countdown, else empty), and its menu's disabled count rows (`2 working`), non-zero only.
+ */
+export interface TrayView {
+  mark: 'none' | 'working' | 'attention'
+  title: string
+  counts: string[]
+}
 
 /** A quiet window in local wall-clock time, `HH:MM`; it may cross midnight. */
 export interface QuietWindow {

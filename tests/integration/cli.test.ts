@@ -252,7 +252,7 @@ describe('que status', () => {
       preparing: 0,
       removing: 0
     })
-    expect(status.tray).toBe('● 0 ▸ 1 ✕ 0')
+    expect((await runCli('status')).stdout).toMatch(/^working 0 · needs input 1 · stuck 0 · /m)
     expect(status.workspaces).toEqual([
       {
         id: ws.id,

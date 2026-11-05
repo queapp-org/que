@@ -3,11 +3,9 @@ import { makeBackgroundTask, makeHookEvent } from '../testing/fixtures'
 import {
   AGENTS_JSON_MIN_AGE_MS,
   initialState,
-  quietTrayTitle,
   reduce,
   type StatusState,
-  summarize,
-  trayTitle
+  summarize
 } from './status-engine'
 
 // Local wall-clock instants on 14 Oct 2026; the engine only ever sees `now`.
@@ -403,8 +401,8 @@ describe('reduce', () => {
   })
 })
 
-describe('summarize and trayTitle', () => {
-  it('counts workspaces per status and formats the tray title', () => {
+describe('summarize', () => {
+  it('counts workspaces per status', () => {
     const summary = summarize([
       { status: 'working' },
       { status: 'working' },
@@ -424,42 +422,5 @@ describe('summarize and trayTitle', () => {
       preparing: 1,
       removing: 1
     })
-    expect(trayTitle(summary)).toBe('● 3 ▸ 1 ✕ 0')
-  })
-})
-
-describe('quietTrayTitle', () => {
-  const summary = summarize([
-    { status: 'working' },
-    { status: 'working' },
-    { status: 'working' },
-    { status: 'needs_input' }
-  ])
-
-  const now = new Date(2026, 9, 14, 2, 0).getTime()
-
-  const quiet = {
-    inQuietHours: true,
-    unlockedUntil: new Date(now + 14 * 60_000 + 32_000).toISOString()
-  }
-
-  it('leads with the unlock countdown while an unlock runs', () => {
-    expect(quietTrayTitle(summary, quiet, now)).toBe('🔓 14:32 · ● 3 ▸ 1 ✕ 0')
-    expect(quietTrayTitle(summary, quiet, now + 14 * 60_000 + 31_000)).toBe(
-      '🔓 00:01 · ● 3 ▸ 1 ✕ 0'
-    )
-  })
-
-  it('drops the needs-input count while quiet and locked', () => {
-    expect(quietTrayTitle(summary, { inQuietHours: true, unlockedUntil: null }, now)).toBe(
-      '● 3 ✕ 0'
-    )
-  })
-
-  it('is the plain counts in work hours', () => {
-    expect(quietTrayTitle(summary, { inQuietHours: false, unlockedUntil: null }, now)).toBe(
-      '● 3 ▸ 1 ✕ 0'
-    )
-    expect(quietTrayTitle(summary, null, now)).toBe('● 3 ▸ 1 ✕ 0')
   })
 })
