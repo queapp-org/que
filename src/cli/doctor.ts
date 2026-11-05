@@ -7,6 +7,7 @@ import { DaemonClient, resolveDaemonScript } from '../shared/client'
 import { configPath, describeQuietHours, formatConfigErrors, loadConfig } from '../shared/config'
 import { firstLine, run as exec } from '../shared/exec'
 import { describeSocket, quePaths } from '../shared/paths'
+import { plistPath } from './launchd'
 
 interface Check {
   name: string
@@ -31,6 +32,41 @@ function executable(path: string): boolean {
   }
 }
 
+/** Why a daemon misses what this shell finds, and how to change that. */
+function daemonPathAdvice(): string {
+  const fix = fs.existsSync(plistPath())
+    ? "The launchd agent's PATH was set when it was installed: `que daemon stop`, `que daemon uninstall`, then `que daemon install` give it this shell's PATH and end every terminal."
+    : "`que daemon restart` gives it this shell's PATH and ends every terminal. The app reads PATH from your shell's startup files and gives up after 5 seconds, so if a daemon it starts has the same problem, set PATH in your login profile (~/.zprofile for zsh)."
+
+  return `a daemon keeps the PATH it started with, even through \`que daemon upgrade\`. ${fix}`
+}
+
+/** The daemon PATH check: where the daemon finds each tool, and why it misses one this shell finds. */
+function daemonPathCheck(pathEnv: string, binDir: string) {
+  const tool = (name: string) => ({
+    name,
+    daemon: findOnPath(name, pathEnv, [binDir]),
+    here: findOnPath(name, process.env.PATH, [binDir])
+  })
+
+  const claude = tool('claude')
+  const tools = [claude, tool('gh')]
+
+  const found = tools
+    .map((t) => (t.daemon ? `${t.name} at ${t.daemon}` : `${t.name} not on the daemon's PATH`))
+    .join(', ')
+
+  const onlyHere = tools.flatMap((t) => (t.here && !t.daemon ? [t.here] : []))
+
+  return {
+    ok: claude.daemon !== null,
+    detail:
+      onlyHere.length > 0
+        ? `${found}. This shell finds ${onlyHere.join(' and ')}, but ${daemonPathAdvice()}`
+        : found
+  }
+}
+
 export async function runDoctor(): Promise<number> {
   const paths = quePaths()
   const checks: Check[] = []
@@ -42,12 +78,7 @@ export async function runDoctor(): Promise<number> {
   if (client) {
     try {
       const ping = await client.request('daemon.ping')
-      const onPath = (name: string): string => findOnPath(name, ping.path, [paths.binDir]) ?? ''
-      const [c, g] = [onPath('claude'), onPath('gh')]
-      daemonPath = {
-        ok: c !== '',
-        detail: `${c ? `claude at ${c}` : "claude not on the daemon's PATH"}, ${g ? `gh at ${g}` : "gh not on the daemon's PATH"}`
-      }
+      daemonPath = daemonPathCheck(ping.path, paths.binDir)
       const expected = buildIdOf(resolveDaemonScript())
       daemonBuild = daemonIsStale(ping.buildId, expected)
         ? { ok: false, detail: staleDaemonHint(ping.buildId, expected) }

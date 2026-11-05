@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A directory added to your PATH only in `~/.zshrc`, which is often where `claude` lives, now reaches a background service the app starts. The app waits at most 5 seconds for your shell's startup files, then uses what a login shell reports. A service that's already running keeps the PATH it started with, even after an update, so `que doctor` now says when it can't find `claude` or `gh` but your shell can, why, and what to do.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

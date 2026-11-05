@@ -285,10 +285,17 @@ serves; app internals go too. `QUE_TERMINAL=1` is set. The user's own
 configuration (an alternate config directory, provider selectors, limits) is
 kept.
 
-The app resolves the login shell's PATH once at start (`src/shared/login-path.ts`)
-and merges it in front of its own, and the daemon and editor launches inherit
-it, so a Finder launch finds the same tools a terminal does. `que doctor`
-reports what is on the daemon's PATH.
+The app resolves the shell's PATH once at start (`src/shared/login-path.ts`) and
+merges it in front of its own, and a daemon it starts and its editor launches
+inherit it, so a Finder launch finds the same tools a terminal does. It asks an
+interactive login shell, which also reads `~/.zshrc`, and a plain login shell at
+the same time, whose answer it uses when startup files hang or fail; both get 5
+seconds. Only a daemon the app starts gets this PATH. A running daemon keeps the
+PATH it started with, and a handoff passes it on, because the old daemon spawns
+its successor. A daemon the CLI starts has the CLI's PATH, and the launchd agent
+has the one `que daemon install` ran with. `que doctor` reports what is on the
+daemon's PATH, and says why and what to do when this shell finds `claude` or `gh`
+and the daemon does not.
 
 ## The status engine
 
