@@ -47,6 +47,7 @@ import type {
   WorkspaceRenameParams
 } from '../shared/protocol'
 import type {
+  Artifact,
   DaemonState,
   NotificationsConfig,
   Project,
@@ -67,6 +68,7 @@ import type {
 } from '../shared/types'
 
 export type {
+  Artifact,
   ConfigGetResult,
   DaemonState,
   ConfigSetParams,
@@ -338,7 +340,12 @@ export interface QueTestHook {
     focused: boolean
   }>
   /** The review pane at the right of the main area: open or not, the shown workspace's view and the pull request open in it, its width in px. */
-  review(): { open: boolean; view: 'prs' | 'changes' | 'files'; pr: number | null; width: number }
+  review(): {
+    open: boolean
+    view: 'prs' | 'changes' | 'files' | 'artifacts'
+    pr: number | null
+    width: number
+  }
   /** The screen of any attached terminal by id ('' when it is not on screen). */
   screenTextOf(termId: string): string
   /** What the menu-bar item shows, from the main process. */

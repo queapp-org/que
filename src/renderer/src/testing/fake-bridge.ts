@@ -780,6 +780,7 @@ class FakeBridge {
           return this.sent(next)
         },
         artifactOpened: async ({ id, url }) => {
+          this.refuseIfUnknown('workspace.artifactOpened')
           const ws = this.workspace(id)
 
           if (!ws.artifacts.some((a) => a.url === url)) return this.sent(ws)
