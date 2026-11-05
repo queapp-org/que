@@ -29,6 +29,13 @@ tests, E2E tests, and Packaged app (`npm run smoke:packaged`). Lint also fails
 if the generated docs are stale. If you changed a CLI command or a
 config default, run `npm run docs` and commit the regenerated `docs/` files.
 
+Unit tests, E2E tests and Packaged app run on macOS, and they skip when they
+can tell us nothing new: on a pull request that changes only docs, on a
+`release/*` pull request that bumps the version and otherwise changes only the
+changelog and generated docs, and on a push to `main` whose merged tree is exactly
+the branch the pull request tested. `scripts/mac-jobs.mjs` decides, and when it can't, they
+run. A skipped job still passes its required check.
+
 A Semgrep check also runs on every pull request (registry rules plus `.semgrep/que.yml`). To run the
 custom rules locally, install `semgrep` and run `semgrep scan --config .semgrep/que.yml --error .`.
 
@@ -55,7 +62,7 @@ flaky test.
 When the website's home-page animation changes, re-record the README's GIF with `npm run day:gif`: it records one loop of the animation from queapp.org (`-- --url http://localhost:4321/` for a local build of the website) and writes `docs/images/day.gif`. It needs Playwright's browser (`npx playwright install chromium`).
 
 `npm run test:coverage` runs the Vitest suites with coverage and writes the
-report to `coverage/index.html`. Every pull request's "Unit tests" step summary
+report to `coverage/index.html`. The step summary of every "Unit tests" run
 shows the same four percentages (lines, statements, branches, functions) and
 links the full report. The floor is 75% of lines, statements and functions and
 70% of branches (#107): a run below it fails, locally and in the Unit tests
@@ -89,12 +96,10 @@ npm run release
 ```
 
 `npm run release` (release-it, configured in `.release-it.json`) refuses any
-branch but `release/*` and a dirty tree, runs `npm run verify`, asks patch,
-minor or major, moves the `[Unreleased]` notes under `## [<version>] - <today>`
-with the compare links updated, bumps `package.json` and `package-lock.json`,
-commits `Release v<version>`, pushes the branch and opens the release pull
-request. Verify's output goes to `verify.log`, because release-it kills a hook
-that prints more than 1 MiB; if verify fails, the end of the log is printed.
+branch but `release/*` and a dirty tree, asks patch, minor or major, moves the
+`[Unreleased]` notes under `## [<version>] - <today>` with the compare links
+updated, bumps `package.json` and `package-lock.json`, commits
+`Release v<version>`, pushes the branch and opens the release pull request.
 `npm run release -- --dry-run` prints every step and writes nothing;
 `npm run release -- minor --ci` skips the questions. Nothing is tagged
 locally.
@@ -105,8 +110,13 @@ A beta for testers goes the same way from `release/0.2.0-beta.1`:
 prerelease, which the app's update check never offers.
 
 Review the pull request (the changelog section is the release notes) and merge
-it. The release workflow then builds que.app and drafts the GitHub release;
-check the notes and the DMG on the release page and publish the draft, which
+it. A release pull request runs only the Linux checks, because it changes only the
+version, the changelog and generated docs. The Release job is the full run: after the merge it
+runs `npm run verify`, builds que.app, launches the built app and drafts the
+GitHub release. If it fails no draft appears; a follow-up pull request fixes it,
+and the workflow tries again because that version still has no release.
+
+Check the notes and the DMG on the release page and publish the draft, which
 creates the tag. Publishing is also what offers it to every running que: Update
 downloads the zip the draft carries and checks it against `latest-mac.yml`, so
 both have to stay on the release. The workflow stops before drafting if the

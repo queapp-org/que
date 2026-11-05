@@ -2,12 +2,12 @@ name: Release
 
 # Merging a release pull request (made by `npm run release`, see CONTRIBUTING.md)
 # is the release: on a push to main whose package.json version has no GitHub
-# release yet, this verifies, builds the DMG and zip, and drafts the release
-# v<version> with the version's CHANGELOG.md section as its notes and the DMG,
-# the zip and the update manifest (latest-mac.yml) as assets. A version with a
-# prerelease suffix (0.2.0-beta.1) is drafted as a prerelease. Publishing the
-# draft from the release page creates the tag. Any other push to main stops
-# after one API call.
+# release yet, this verifies, builds the DMG and zip, launches the built app, and
+# drafts the release v<version> with the version's CHANGELOG.md section as its
+# notes and the DMG, the zip and the update manifest (latest-mac.yml) as assets. A
+# version with a prerelease suffix (0.2.0-beta.1) is drafted as a prerelease.
+# Publishing the draft from the release page creates the tag. Any other push to
+# main stops after one API call.
 #
 # Run it from the Actions tab (workflow_dispatch) to rehearse: the same build,
 # no release, and the DMG, zip, manifest and notes uploaded as an artifact.
@@ -100,7 +100,8 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # Kept although the release PR passed its checks: main may have moved since.
+      # The release's one full run: release/* PRs skip the Mac jobs, and so does their merge when
+      # the tree is unchanged.
       - run: npm run verify
 
       # An unset secret arrives as an empty string. electron-builder would try to import an
@@ -131,6 +132,11 @@ jobs:
       # it, so the packaged smoke check, on `npm run package`'s build, can't see it there.
       - name: Check the update config is in the bundle
         run: test -s release/mac-*/que.app/Contents/Resources/app-update.yml
+
+      # Launches the bundle the DMG and zip were made from, signed when the secrets are set.
+      # The Packaged app check skips on a release PR and on its merge, and verify doesn't include it.
+      - name: Launch the built app
+        run: node scripts/smoke-packaged.mjs --no-build
 
       # gh instead of a third-party release action: only GitHub-official actions are used here.
       # The version and the commit reach the shell as environment variables, never interpolated
