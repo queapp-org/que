@@ -26,6 +26,8 @@ export interface TestDaemon {
   host: LeakCheckedPtyHost
   server: DaemonServer
   client: DaemonClient
+  /** Every line the daemon has logged so far, in order. */
+  logged: string[]
   /** Where the fakes record their calls (read with readFakeLog / readWrapperLog). */
   claudeLog: string
   ghLog: string
@@ -85,10 +87,12 @@ export async function startTestDaemon(opts: TestDaemonOptions = {}): Promise<Tes
 
   const paths = ensureDirs(quePaths())
   const host = new LeakCheckedPtyHost()
+  const logged: string[] = []
 
   const server = new DaemonServer({
     host,
     version: 'test',
+    log: (msg) => logged.push(msg),
     onShutdown: opts.onShutdown,
     cliScript: bundleEntry('src/cli/index.ts'),
     statusTickMs: opts.statusTickMs ?? 200,
@@ -115,6 +119,7 @@ export async function startTestDaemon(opts: TestDaemonOptions = {}): Promise<Tes
     host,
     server,
     client,
+    logged,
     claudeLog: env.QUE_FAKE_CLAUDE_LOG,
     ghLog: env.QUE_FAKE_GH_LOG,
     ghPrs: env.QUE_FAKE_GH_PRS,
