@@ -103,6 +103,12 @@ and `fakeStatusContext({ context, state, targetUrl? })` for `statusCheckRollup`;
 for `comments` / `reviews`; `fakeLineComment({ author, body, path, line, hunk?, createdAt? })`
 for `lineComments`. A check run defaults to a completed success; times default to
 2026-10-14 around 03:00 UTC.
+**The repository's name.** `gh repo view <owner>/<name> --json nameWithOwner` prints
+`{ "nameWithOwner": "<owner>/<name>" }`: the repository as asked, unless `$QUE_FAKE_GH_MOVED`
+(`<old owner>/<name>=<new owner>/<name>`) says it moved, which it follows as GitHub follows a rename or
+transfer. It honours `$QUE_FAKE_GH_FAIL`. With `$QUE_FAKE_GH_REPO_VIEW_HOLD` naming a file, the first
+`repo view` in the log waits until that file exists before answering, so a test can act while the call
+is running; later ones answer at once.
 Read the call logs back with `readFakeLog()` from `src/testing/fakes.ts` (Vitest) or `launched.ghCalls()` (E2E).
 
 ## `acli`

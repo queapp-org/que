@@ -10,7 +10,8 @@ const argv = process.argv.slice(2)
 const log = process.env.QUE_FAKE_GH_LOG
 const prsFile = process.env.QUE_FAKE_GH_PRS
 
-function priorPrCreates() {
+/** How many `gh <a> <b>` calls the log holds. */
+function callsInLog(a, b) {
   if (!log || !fs.existsSync(log)) return 0
   return fs
     .readFileSync(log, 'utf8')
@@ -23,7 +24,7 @@ function priorPrCreates() {
         return []
       }
     })
-    .filter((a) => Array.isArray(a) && a[0] === 'pr' && a[1] === 'create').length
+    .filter((call) => Array.isArray(call) && call[0] === a && call[1] === b).length
 }
 
 function readPrs() {
@@ -88,7 +89,15 @@ function flag(name) {
   return i >= 0 ? argv[i + 1] : undefined
 }
 
-const prNumber = priorPrCreates() + 1
+/** The first `repo view` in the log waits until the hold file exists, so a test can catch it running. */
+function holdFirstRepoView() {
+  const hold = process.env.QUE_FAKE_GH_REPO_VIEW_HOLD
+  if (!hold || callsInLog('repo', 'view') > 1) return
+  const tick = new Int32Array(new SharedArrayBuffer(4))
+  while (!fs.existsSync(hold)) Atomics.wait(tick, 0, 0, 20)
+}
+
+const prNumber = callsInLog('pr', 'create') + 1
 if (log) {
   fs.appendFileSync(log, `${JSON.stringify({ argv, cwd: process.cwd(), ts: new Date().toISOString() })}\n`)
 }
@@ -162,6 +171,11 @@ if (cmd === 'auth' && sub === 'status') {
   const full = { comments: [], reviews: [], ...entry }
   const fields = (flag('--json') ?? '').split(',').filter((f) => VIEW_FIELDS.includes(f))
   process.stdout.write(`${JSON.stringify(Object.fromEntries(fields.map((f) => [f, full[f] ?? null])))}\n`)
+} else if (cmd === 'repo' && sub === 'view') {
+  failIfAsked()
+  holdFirstRepoView()
+  const [from, to] = (process.env.QUE_FAKE_GH_MOVED ?? '').split('=')
+  process.stdout.write(`${JSON.stringify({ nameWithOwner: argv[2] === from ? to : argv[2] })}\n`)
 } else if (cmd === 'api') {
   failIfAsked()
   const path = argv.slice(1).find((a) => !a.startsWith('-') && a !== 'GET') ?? ''

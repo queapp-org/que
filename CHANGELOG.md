@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Pull requests a session creates with `gh pr create` keep showing on its workspace after the repository moves to another owner or name, with no restart, including from a clone whose remote still names the old owner. One on a different repository is still left out, and the daemon log now says why. Pull requests missed before this fix stay missing.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added
