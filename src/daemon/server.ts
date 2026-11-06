@@ -960,6 +960,7 @@ export class DaemonServer {
       allowed: await this.workspaces.canRenameBranch(p.id)
     }),
     'workspace.seen': (p) => this.workspaces.seen(p.id),
+    'workspace.artifactOpened': (p) => this.workspaces.artifactOpened(p.id, p.url),
     'workspace.diff': (p) => {
       const ws = this.workspaces.get(p.id)
 
@@ -1008,6 +1009,7 @@ export class DaemonServer {
       this.prs.hook(ws.id, p.payload).catch((e: unknown) => {
         this.log(`pull request capture failed for ${ws.id}: ${errorMessage(e)}`)
       })
+      this.workspaces.recordArtifact(ws.id, p.payload)
 
       return { ok: true }
     },

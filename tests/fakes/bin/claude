@@ -360,15 +360,43 @@ function interactive() {
     out('Claude needs your permission to use Bash. Allow? (y/n) ')
   })
 
-  const toolCall = (name, input) => {
+  const toolCall = (name, input, response = { type: 'text', ok: true }) => {
     const id = `toolu_${crypto.randomBytes(12).toString('hex')}`
     runHooks('PreToolUse', { tool_name: name, tool_input: input, tool_use_id: id })
     runHooks('PostToolUse', {
       tool_name: name,
       tool_input: input,
-      tool_response: { type: 'text', ok: true },
+      tool_response: response,
       tool_use_id: id
     })
+  }
+
+  // `/artifact`: the Artifact tool's calls, reported in the shapes the real tool's are.
+  const artifactCall = (line) => {
+    const [first, ...rest] = line.split(/\s+/).slice(1)
+    if (first === 'delete') {
+      const url = rest[0]
+      toolCall('Artifact', { action: 'delete', url }, { artifact_delete: { url, deleted: true } })
+    } else if (first === 'read') {
+      const url = rest[0]
+      toolCall('Artifact', { action: 'read', url }, { url, title: 'A page only read' })
+    } else {
+      toolCall(
+        'Artifact',
+        { file_path: 'page.html' },
+        {
+          url: first,
+          path: path.join(cwd, 'page.html'),
+          artifact_id: crypto.randomUUID(),
+          title: rest.join(' '),
+          updated: true,
+          owned: true,
+          audience: 'owner',
+          seq: 10,
+          version: '1793839146-44fa'
+        }
+      )
+    }
   }
 
   const handle = (raw) => {
@@ -422,6 +450,13 @@ function interactive() {
       const kinds = line.split(/\s+/).slice(1)
       if (kinds.length === 1 && kinds[0] === 'done') finishBackground(line)
       else startBackground(line, kinds)
+      out('> ')
+      return
+    }
+    if (line.startsWith('/artifact ')) {
+      submitPrompt(line)
+      artifactCall(line)
+      reply('Called the Artifact tool.')
       out('> ')
       return
     }

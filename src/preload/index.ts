@@ -96,6 +96,7 @@ const api: QueApi = {
     rename: (p) => call('workspace.rename', p),
     canRenameBranch: (p) => call('workspace.canRenameBranch', p),
     seen: (p) => call('workspace.seen', p),
+    artifactOpened: (p) => call('workspace.artifactOpened', p),
     diff: (p) => call('workspace.diff', p),
     diffFile: (p) => call('workspace.diffFile', p),
     prThread: (p) => call('workspace.prThread', p),

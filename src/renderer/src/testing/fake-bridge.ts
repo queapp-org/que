@@ -777,6 +777,21 @@ class FakeBridge {
 
           return this.sent(next)
         },
+        artifactOpened: async ({ id, url }) => {
+          const ws = this.workspace(id)
+
+          if (!ws.artifacts.some((a) => a.url === url)) return this.sent(ws)
+          const openedAt = new Date().toISOString()
+
+          const next: Workspace = {
+            ...ws,
+            artifacts: ws.artifacts.map((a) => (a.url === url ? { ...a, openedAt } : a))
+          }
+
+          this.putWorkspace(next)
+
+          return this.sent(next)
+        },
         canRenameBranch: async ({ id }) => {
           this.withWorktree(id)
 
@@ -1584,6 +1599,7 @@ class FakeBridge {
       prs: [],
       finishedAt: null,
       seenAt: null,
+      artifacts: [],
       backgroundTasks: []
     }
 

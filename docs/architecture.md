@@ -419,6 +419,22 @@ time), filled from the cache and stored; both stay null until a thread has been
 fetched, and a merged or closed one keeps what it had. A fetched thread whose
 counts differ updates the workspace and emits `workspace.updated`.
 
+## Published pages
+
+`Workspace.artifacts` (`artifacts_json`) lists the pages a workspace's session,
+or one of its subagents, published with the Artifact tool: newest update first,
+at most 50. Like created pull requests, the list is written from `hook.event`
+and nothing polls. `artifacts.decode.ts` reads only the tool's `PostToolUse`: a
+publish counts when its response has a URL and a non-blank title (cut to 200
+characters), and a delete when its response says the page was deleted. Reads,
+listings, opens, pins, asset uploads, and a delete that names one asset (`path`)
+are ignored. A hook payload is untrusted, so a URL must match `isArtifactUrl`
+as a whole string (`https://claude.ai/artifact/<id>` or
+`https://claude.ai/code/artifact/<id>`), and a stored entry that doesn't is
+dropped when read. Publishing a known URL again updates its row and moves it to
+the front. `workspace.artifactOpened` sets `openedAt` when the app opens a page,
+a new publish clears it, and null reads as unopened.
+
 ## The diff view
 
 `workspace.diff` (`que ws diff`) compares a workspace against its base: `origin/<default>` when that remote ref exists, else the default branch, unless the caller names another ref as `base` (`--base`), which must resolve to a commit. Everything is measured from the merge base of the base and `HEAD`, so committed and uncommitted changes appear together, and untracked files are listed too. Each file carries its status, line counts, whether it is still uncommitted, and a unified patch (null for binary files and patches over 200,000 characters). The result also lists the branch's commits past the base, newest first (at most 200), and the refs worth comparing against: the base, the default branch here and on origin, then the other local and origin branches, never the workspace's own (at most 50). Given a `commit` (`--commit`) that is on the branch and not on the base, the files narrow to that commit's own changes, against its parent (or the empty tree for a root commit), with nothing from the working tree; the commit count and list still describe the whole branch. A base or commit that does not qualify is a `bad_request`. Given a `head`, it compares that branch instead of the worktree, for one pull request's own files: `merge-base(base, head)..head`, committed changes only, with no working tree and no untracked files. The head and the base each resolve as a branch here first (refs are shared between worktrees, so a subagent's branch usually is one), then as `origin/<ref>`; a head that resolves to neither is a `bad_request`. A pull request into another pull request's branch passes that branch as `base`, so it diffs against it, not the default. It only reads: `git diff`, `git status`, `git log`, `git ls-files`, and `git for-each-ref`. Quiet hours refuse it like any other workspace read.

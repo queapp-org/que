@@ -72,6 +72,16 @@ export type PreparationResult = StepResult<PreparationStep>
 /** Where a new workspace's preparation stands. */
 export type Preparation = StepRun<PreparationStep>
 
+/** A page a workspace's session published with the Artifact tool. */
+export interface Artifact {
+  url: string
+  title: string
+  /** When a session last published it. */
+  updatedAt: string
+  /** When the app opened it since that publish; null reads as unopened. */
+  openedAt: string | null
+}
+
 /** A git worktree on its own branch, with its own terminals and status. */
 export interface Workspace {
   id: string
@@ -115,6 +125,8 @@ export interface Workspace {
   finishedAt: string | null
   /** When the app last had it selected in a focused window (workspace.seen); null before. */
   seenAt: string | null
+  /** The pages its session published with the Artifact tool, newest update first, at most 50. */
+  artifacts: Artifact[]
   /** Still running after the last turn ended; agent-like kinds keep the status working, shell and monitor do not. */
   backgroundTasks: BackgroundTask[]
   /** Where its removal stands; present only while it is `removing`. */
