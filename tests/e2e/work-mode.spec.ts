@@ -18,7 +18,7 @@ import { ReviewPage } from './pages/ReviewPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SidebarPage } from './pages/SidebarPage'
 import { TerminalPage } from './pages/TerminalPage'
-import { type LaunchedApp, launchApp, newQueHome, tempDir } from './utils/app'
+import { type LaunchedApp, launchApp, newQueHome, retryPointer, tempDir } from './utils/app'
 import { queJson } from './utils/que'
 
 let launched: LaunchedApp
@@ -136,9 +136,11 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     await launched.window.keyboard.press('Enter')
     await sidebar.waitForWorkspaceStatus(workspace.id, 'needs_input')
     // The word shows only under the pointer.
-    await sidebar.workspace(workspace.id).hover()
-    await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '1')
-    await expect(sidebar.workspaceWord(workspace.id)).toHaveText('needs input')
+    await retryPointer(async () => {
+      await sidebar.workspace(workspace.id).hover()
+      await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '1')
+      await expect(sidebar.workspaceWord(workspace.id)).toHaveText('needs input')
+    })
     expect(statusOf()?.status).toBe('needs_input')
     await expect
       .poll(() => shell.trayView())
@@ -155,12 +157,16 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     await terminal.writeTo(termId, 'y\r')
     await sidebar.waitForWorkspaceStatus(workspace.id, 'idle')
     await expect(sidebar.workspaceStatus(workspace.id)).toHaveAttribute('data-unseen', 'true')
-    await sidebar.workspace(workspace.id).hover()
-    await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '1')
-    await expect(sidebar.workspaceWord(workspace.id)).toHaveText(/^done · \d+s ago$/)
+    await retryPointer(async () => {
+      await sidebar.workspace(workspace.id).hover()
+      await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '1')
+      await expect(sidebar.workspaceWord(workspace.id)).toHaveText(/^done · \d+s ago$/)
+    })
     // At rest again (the pointer off the rows): the green dot and the full-strength name.
-    await sidebar.root.hover({ position: { x: 120, y: 300 } })
-    await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '0')
+    await retryPointer(async () => {
+      await sidebar.root.hover({ position: { x: 120, y: 300 } })
+      await expect(sidebar.workspaceReveal(workspace.id)).toHaveCSS('opacity', '0')
+    })
     await sidebar.root.screenshot({ path: 'test-results/sidebar.png' })
     await sidebar.workspaceOpen(workspace.id).click()
     await expect(sidebar.workspaceStatus(workspace.id)).toHaveAttribute('data-unseen', 'false')
@@ -168,16 +174,21 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
   })
 
   await test.step('Drag the divider; the sidebar widens by the same amount', async () => {
-    const box = await sidebar.resizer.boundingBox()
-    expect(box).not.toBeNull()
-    const x = (box as { x: number; width: number }).x + (box as { width: number }).width / 2
-    const y = (box as { y: number; height: number }).y + 200
-    await launched.window.mouse.move(x, y)
-    await launched.window.mouse.down()
-    await launched.window.mouse.move(x + 100, y, { steps: 5 })
-    await launched.window.mouse.up()
-    await expect(sidebar.resizer).toHaveAttribute('aria-valuenow', '356')
-    expect((await sidebar.root.boundingBox())?.width).toBe(356)
+    await expect(sidebar.resizer).toHaveAttribute('aria-valuenow', '256')
+    await retryPointer(async () => {
+      // A drag cut short leaves the sidebar part way, so each attempt answers for its own 100px.
+      const before = Number(await sidebar.resizer.getAttribute('aria-valuenow'))
+      const box = await sidebar.resizer.boundingBox()
+      expect(box).not.toBeNull()
+      const x = (box as { x: number; width: number }).x + (box as { width: number }).width / 2
+      const y = (box as { y: number; height: number }).y + 200
+      await launched.window.mouse.move(x, y)
+      await launched.window.mouse.down()
+      await launched.window.mouse.move(x + 100, y, { steps: 5 })
+      await launched.window.mouse.up()
+      await expect(sidebar.resizer).toHaveAttribute('aria-valuenow', String(before + 100))
+      expect((await sidebar.root.boundingBox())?.width).toBe(before + 100)
+    })
   })
 
   await test.step("Open in editor, in the review pane's Changes, launches the editor on the worktree", async () => {

@@ -15,6 +15,7 @@ import {
   type LaunchedApp,
   launchApp,
   newQueHome,
+  retryPointer,
   windowStates,
   tempDir
 } from './utils/app'
@@ -143,13 +144,20 @@ test('a board with more rows than fit scrolls them under the wheel', async () =>
   })
 
   await test.step('A wheel over the rows scrolls the last row into view', async () => {
-    const box = await board.rows.boundingBox()
+    await retryPointer(async () => {
+      // Back to the top first, so only this attempt's wheel can bring the last row into view.
+      await board.rows.evaluate((el) => {
+        el.scrollTop = 0
+      })
+      await expect(board.rows.locator('li').last()).not.toBeInViewport()
+      const box = await board.rows.boundingBox()
 
-    if (!box) throw new Error('the rows have no box')
-    await board.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await board.page.mouse.wheel(0, 400)
-    await expect.poll(() => board.rows.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
-    await expect(board.rows.locator('li').last()).toBeInViewport()
+      if (!box) throw new Error('the rows have no box')
+      await board.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await board.page.mouse.wheel(0, 400)
+      await expect.poll(() => board.rows.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+      await expect(board.rows.locator('li').last()).toBeInViewport()
+    })
     await board.page.screenshot({ path: 'test-results/quiet-board-scrolled.png' })
   })
 })
