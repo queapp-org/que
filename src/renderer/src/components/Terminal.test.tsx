@@ -238,6 +238,75 @@ describe('Terminal', () => {
     })
   })
 
+  describe('attach', () => {
+    // A cursor position report goes back to the program, so what was written, how often and in
+    // which order shows in what the program is sent, with no reading of the screen. Each chunk
+    // here moves the cursor by a different amount.
+    const REPORT = '\x1b[6n'
+    const reportAtColumn = (column: number): string => `\x1b[1;${column}R`
+    const SNAPSHOT = 'snap' // Leaves the cursor at column 5.
+    const AHEAD = `aaaaa${REPORT}`
+    const AT = `bbbbbbb${REPORT}`
+    const PAST = `c${REPORT}`
+    const LATER = `dd${REPORT}`
+    const LATEST = `eee${REPORT}`
+
+    /** Mounts the terminal with its attach unanswered: what is printed now gets queued. */
+    async function mountWaiting(snapshotSeq?: number): Promise<void> {
+      fakeBridge.seedTerminal(session, SNAPSHOT, snapshotSeq)
+      fakeBridge.holdAttach()
+      render(<Terminal id={session.id} />)
+      await waitFor(() => expect(fakeBridge.attachCalls()).toContain(session.id))
+    }
+
+    it('writes only what is past the snapshot, once and in order', async () => {
+      await mountWaiting(7)
+
+      fakeBridge.printToTerminal(session.id, AHEAD, 6)
+      fakeBridge.printToTerminal(session.id, AT, 7)
+      fakeBridge.printToTerminal(session.id, PAST, 8)
+      fakeBridge.printToTerminal(session.id, LATER, 9)
+      fakeBridge.releaseAttach()
+
+      await waitFor(() =>
+        expect(fakeBridge.getTerminal(session.id)?.input).toBe(
+          reportAtColumn(6) + reportAtColumn(8)
+        )
+      )
+    })
+
+    it('keeps out output the snapshot holds that arrives after the answer, and writes what follows', async () => {
+      await mountWaiting(7)
+      fakeBridge.releaseAttach()
+      // Nothing is written until the answer, so this report means it has landed.
+      fakeBridge.printToTerminal(session.id, PAST, 8)
+      await waitFor(() => expect(fakeBridge.getTerminal(session.id)?.input).toBe(reportAtColumn(6)))
+
+      fakeBridge.printToTerminal(session.id, AT, 7)
+      fakeBridge.printToTerminal(session.id, LATEST, 9)
+
+      await waitFor(() =>
+        expect(fakeBridge.getTerminal(session.id)?.input).toBe(
+          reportAtColumn(6) + reportAtColumn(9)
+        )
+      )
+    })
+
+    it('writes everything queued when the daemon does not number its output', async () => {
+      await mountWaiting()
+
+      fakeBridge.printToTerminal(session.id, AHEAD)
+      fakeBridge.printToTerminal(session.id, PAST)
+      fakeBridge.releaseAttach()
+
+      await waitFor(() =>
+        expect(fakeBridge.getTerminal(session.id)?.input).toBe(
+          reportAtColumn(10) + reportAtColumn(11)
+        )
+      )
+    })
+  })
+
   describe('paste', () => {
     it('takes the control characters out of text pasted with Cmd+V', async () => {
       const user = userEvent.setup()

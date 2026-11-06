@@ -1,5 +1,6 @@
 // What the server and a handoff use of a terminal, whichever kind it is.
 import type { TermInfo, TermSnapshotResult } from '../shared/protocol'
+import type { SerializedMirror } from './mirror'
 
 export interface ExitInfo {
   exitCode: number
@@ -29,7 +30,7 @@ export interface Term {
   write(data: string): void
   resize(cols: number, rows: number): void
   snapshot(): Promise<TermSnapshotResult>
-  serializeNow(): Promise<string>
+  serializeNow(): Promise<SerializedMirror>
   /** Stops reading the PTY; what it prints from now on waits in the kernel. */
   holdReading(): void
   resumeReading(): void

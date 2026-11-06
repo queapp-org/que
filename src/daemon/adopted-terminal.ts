@@ -7,7 +7,7 @@ import tty from 'node:tty'
 import type { TermInfo, TermSnapshotResult } from '../shared/protocol'
 import { errorCode } from '../shared/errors.decode'
 import { TerminalFacts } from './foreground'
-import { TerminalMirror } from './mirror'
+import { type SerializedMirror, TerminalMirror } from './mirror'
 import { FdWriter, holdReading, ptyBinding, resumeReading } from './pty-fd'
 import { termInfo, type ExitInfo, type Term } from './term'
 
@@ -50,7 +50,7 @@ export class AdoptedTerminal implements Term {
 
   constructor(
     spec: AdoptSpec,
-    onData: (data: string) => void,
+    onData: (data: string, seq: number) => void,
     private readonly onExit: (e: ExitInfo) => void,
     onUpdate: (info: TermInfo) => void
   ) {
@@ -83,8 +83,7 @@ export class AdoptedTerminal implements Term {
     this.stream.setEncoding('utf8')
     this.stream.pause()
     this.stream.on('data', (data: string) => {
-      this.mirror.write(data)
-      onData(data)
+      onData(data, this.mirror.write(data))
     })
     // The shell's exit closes the slave end: EOF, or EIO on some systems.
     this.stream.on('end', () => this.exit())
@@ -131,7 +130,7 @@ export class AdoptedTerminal implements Term {
     return this.mirror.snapshot()
   }
 
-  serializeNow(): Promise<string> {
+  serializeNow(): Promise<SerializedMirror> {
     return this.mirror.serializeNow()
   }
 

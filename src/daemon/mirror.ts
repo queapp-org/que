@@ -7,9 +7,16 @@ import { applyUnicodeWidths } from '../shared/unicode-width'
 
 const SCROLLBACK = 10000
 
+/** A mirror serialized, and the number of the last chunk of output it holds. */
+export interface SerializedMirror {
+  serialized: string
+  seq: number
+}
+
 export class TerminalMirror {
   private readonly term: HeadlessTerminal
   private readonly serializer = new SerializeAddon()
+  private seq = 0
 
   constructor(cols: number, rows: number) {
     this.term = new HeadlessTerminal({ cols, rows, scrollback: SCROLLBACK, allowProposedApi: true })
@@ -19,8 +26,12 @@ export class TerminalMirror {
     applyUnicodeWidths(this.term)
   }
 
-  write(data: string): void {
+  /** Takes in a chunk of output and returns its number, one more than the chunk before it. */
+  write(data: string): number {
     this.term.write(data)
+    this.seq += 1
+
+    return this.seq
   }
 
   resize(cols: number, rows: number): void {
@@ -42,9 +53,15 @@ export class TerminalMirror {
     return this.atBoundary(() => ({ serialized: this.serialize(), text: this.text() }))
   }
 
-  /** Same boundary guarantee as snapshot(), serialized form only. */
-  serializeNow(): Promise<string> {
-    return this.atBoundary(() => this.serialize())
+  /**
+   * Same boundary guarantee as snapshot(), serialized form only. The number is read with nothing
+   * awaited before the boundary is queued, so a chunk numbered up to it is in the result and one
+   * numbered past it is not.
+   */
+  serializeNow(): Promise<SerializedMirror> {
+    const seq = this.seq
+
+    return this.atBoundary(() => ({ serialized: this.serialize(), seq }))
   }
 
   dispose(): void {
