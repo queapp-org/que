@@ -49,6 +49,7 @@ import { UsageService } from './usage'
 import { gatherReport } from './gather-report'
 import { PrService } from './prs'
 import { LiveSessions, storedLiveSessions } from './live-sessions'
+import { echoOffProbe, SHELL_WAIT_MS, waitForShell } from './shell-ready'
 import { StatusService } from './status'
 import { TicketService } from './tickets'
 import { Store } from './store'
@@ -245,7 +246,7 @@ export class DaemonServer {
       createWorkspace: (p) => this.workspaces.create(p),
       openTerminal: async (workspaceId) => this.openWorkspaceTerminal(workspaceId, 120, 30),
       createSession: async (cwd) => this.openLooseTerminal({ cwd, cols: 120, rows: 30 }).info(),
-      writeTerminal: (id, data) => this.requireTerm(id).write(data),
+      typeCommand: (id, command) => void this.typeAtPrompt(id, command, 'ticket'),
       learnProject: async (projectKey, projectName) => {
         this.setConfig({ jira: { projects: { [projectKey]: projectName } } }, false)
       }
@@ -287,9 +288,9 @@ export class DaemonServer {
         const command = startCommand({ resumeSessionId: entry.sessionId })
 
         if (entry.workspaceId === undefined) {
-          // A loose terminal has no setup to wait for; the shell reads what is typed once it starts.
+          // A loose terminal has no setup to wait for, only its shell.
           const t = this.openLooseTerminal({ cwd: entry.cwd, cols: 120, rows: 30 })
-          t.write(command)
+          void this.typeAtPrompt(t.id, command, 'loose session')
 
           return t.id
         }
@@ -485,7 +486,7 @@ export class DaemonServer {
 
   /**
    * Starts claude on the brief (or the configured start prompt), or a bare claude with no brief, in the workspace's
-   * first terminal (opened when it has none). Answers with the terminal at once; the command is typed once setup has ended.
+   * first terminal (opened when it has none). Answers with the terminal at once; the command is typed once setup has ended and the shell can take it.
    */
   private startWorkspace(id: string, cols = 120, rows = 30): WorkspaceStartResult {
     const ws = this.workspaces.get(id)
@@ -507,16 +508,43 @@ export class DaemonServer {
     return { terminal: first.info() }
   }
 
-  /** Types a command into a workspace terminal once the workspace's setup has ended. */
+  /** Types a command into a workspace terminal once the workspace's setup has ended and its shell can take it. */
   private typeAfterSetup(wsId: string, termId: string, command: string): void {
-    void this.status.setupDone(wsId).then(() => {
-      // Shutdown releases the wait too; nothing is typed into a terminal that is being torn down.
-      if (this.closed) return
-      const t = this.opts.host.get(termId)
+    void this.status
+      .setupDone(wsId)
+      .then(() => this.typeAtPrompt(termId, command, `workspace ${wsId}`))
+  }
 
-      if (t?.alive) t.write(command)
-      else this.log(`workspace ${wsId}: terminal ${termId} is gone; claude not started`)
-    })
+  /**
+   * Types a command that starts claude once the terminal's shell can take it (see shell-ready.ts),
+   * or anyway when the wait runs out. `whose` names the terminal in the log.
+   */
+  private async typeAtPrompt(termId: string, command: string, whose: string): Promise<void> {
+    const t = this.opts.host.get(termId)
+
+    const wait =
+      t &&
+      (await waitForShell({
+        probe: echoOffProbe(t.pid),
+        stopped: () => this.closed || !t.alive
+      }))
+
+    // Shutdown ends the waits too; nothing is typed into a terminal that is being torn down.
+    if (this.closed) return
+
+    if (!t?.alive) {
+      this.log(`${whose}: terminal ${termId} is gone; claude not started`)
+
+      return
+    }
+
+    if (wait === 'timeout') {
+      this.log(
+        `${whose}: terminal ${termId} has no line editor after ${SHELL_WAIT_MS / 1000}s; typing the command anyway`
+      )
+    }
+
+    t.write(command)
   }
 
   private killTerminal(id: string): boolean {

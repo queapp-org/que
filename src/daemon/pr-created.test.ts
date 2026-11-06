@@ -5,10 +5,12 @@ import {
   createdPullRequests,
   githubRepo,
   prCreateCall,
+  printedPullRequests,
   printsPullRequest,
   type Repo,
   runsPrCreate
 } from './pr-created'
+import { decodeRepoView } from './pr-created.decode'
 
 const QUE: Repo = { owner: 'rquellh', name: 'que' }
 const URL_88 = 'https://github.com/rquellh/que/pull/88'
@@ -72,6 +74,39 @@ describe('githubRepo', () => {
       expect(githubRepo(remote)).toBeNull()
     }
   )
+})
+
+describe('decodeRepoView', () => {
+  it('reads the repository gh names', () => {
+    expect(decodeRepoView({ nameWithOwner: 'queapp-org/que' })).toEqual({
+      owner: 'queapp-org',
+      name: 'que'
+    })
+  })
+
+  it.each([
+    [{}],
+    [{ nameWithOwner: 7 }],
+    [{ nameWithOwner: 'que' }],
+    [{ nameWithOwner: 'queapp-org/que/extra' }],
+    [null],
+    [[]]
+  ])('is null for %j', (view) => {
+    expect(decodeRepoView(view)).toBeNull()
+  })
+})
+
+describe('printedPullRequests', () => {
+  it('lists the URLs on any repository across the output, in order, each once', () => {
+    const uploader = 'https://github.com/rquellh/uploader/pull/12'
+
+    expect(
+      printedPullRequests({
+        command: 'gh pr create --fill',
+        output: [`${uploader}\n${URL_88}\n`, `Created ${URL_88}`]
+      })
+    ).toEqual([uploader, URL_88])
+  })
 })
 
 describe('createdPullRequests', () => {

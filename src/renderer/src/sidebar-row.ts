@@ -2,6 +2,7 @@
 // mark), its tone, the weight of the name, the background mark or the removal step, and the status word. Pure rules over the
 // workspace; Sidebar.tsx draws them. docs/design.md "Sidebar".
 import type { Workspace } from '../../preload/index.d'
+import { finishedUnseen } from '../../shared/finished'
 import { formatAge, preparationStepLabel, removalStepLabel } from '../../shared/format'
 import {
   type PreparationFailure,
@@ -45,19 +46,6 @@ export interface RowTone {
 }
 
 /**
- * Whether a workspace has something new to look at: it finished (a turn ended) since the app last had it selected in a focused window. True when `finishedAt` is
- * later than `seenAt` (or it finished and was never seen).
- */
-export function unseenDone(ws: Pick<Workspace, 'finishedAt' | 'seenAt'>): boolean {
-  const finished = ws.finishedAt ? Date.parse(ws.finishedAt) : Number.NaN
-
-  if (!Number.isFinite(finished)) return false
-  const seen = ws.seenAt ? Date.parse(ws.seenAt) : Number.NaN
-
-  return !Number.isFinite(seen) || finished > seen
-}
-
-/**
  * The distinct kinds still running in the background of an idle workspace, in the daemon's
  * order; none unless idle. The engine leaves only shells and monitors on an idle row, so idle
  * with background work is the whole rule. Non-empty draws `›_`, on the sidebar and the board.
@@ -65,9 +53,6 @@ export function unseenDone(ws: Pick<Workspace, 'finishedAt' | 'seenAt'>): boolea
 export function backgroundKinds(ws: Pick<Workspace, 'status' | 'backgroundTasks'>): string[] {
   return ws.status === 'idle' ? [...new Set(ws.backgroundTasks.map((t) => t.kind))] : []
 }
-
-/** Statuses that already mean "now": a fresh finish does not paint over them. */
-const URGENT: ReadonlySet<string> = new Set(['working', 'needs_input', 'stuck'])
 
 /** The failed preparation step a stuck row is stuck on; a session moving it on leaves that to the card. */
 function stuckOnPreparation(
@@ -86,7 +71,7 @@ function stuckOnPreparation(
  */
 export function rowTone(ws: Workspace, selected = false): RowTone {
   const removing = ws.status === 'removing'
-  const unseen = !selected && !removing && !URGENT.has(ws.status) && unseenDone(ws)
+  const unseen = !selected && finishedUnseen(ws)
   const working = ws.status === 'working'
 
   return {

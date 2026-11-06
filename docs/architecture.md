@@ -285,10 +285,17 @@ serves; app internals go too. `QUE_TERMINAL=1` is set. The user's own
 configuration (an alternate config directory, provider selectors, limits) is
 kept.
 
-The app resolves the login shell's PATH once at start (`src/shared/login-path.ts`)
-and merges it in front of its own, and the daemon and editor launches inherit
-it, so a Finder launch finds the same tools a terminal does. `que doctor`
-reports what is on the daemon's PATH.
+The app resolves the shell's PATH once at start (`src/shared/login-path.ts`) and
+merges it in front of its own, and a daemon it starts and its editor launches
+inherit it, so a Finder launch finds the same tools a terminal does. It asks an
+interactive login shell, which also reads `~/.zshrc`, and a plain login shell at
+the same time, whose answer it uses when startup files hang or fail; both get 5
+seconds. Only a daemon the app starts gets this PATH. A running daemon keeps the
+PATH it started with, and a handoff passes it on, because the old daemon spawns
+its successor. A daemon the CLI starts has the CLI's PATH, and the launchd agent
+has the one `que daemon install` ran with. `que doctor` reports what is on the
+daemon's PATH, and says why and what to do when this shell finds `claude` or `gh`
+and the daemon does not.
 
 ## The status engine
 
@@ -480,6 +487,14 @@ first prompt, whatever `start_prompt` says. `workspace.rename`
 changes the title and, for a branch with no `origin/<branch>`, can rename the
 branch to a name the user gives; the folder keeps its name.
 
+Every command that starts Claude (`workspace.start`, a ticket, a resumed session)
+is typed once the shell can take it (`shell-ready.ts`). Until a line editor starts,
+the tty echoes what is typed and the editor then draws it again, so the daemon polls
+the tty's ECHO flag, which line editors turn off as they take over. A shell with no
+line editor gets the command after 10 seconds, with a line in the daemon log. A daemon that closes or hands off during the
+wait types nothing and its successor does not know of the command, so that terminal
+stays at its prompt.
+
 Once a session is running, the title is the session's own. Claude Code names a
 session from its first prompt (or `/rename`) and writes the name to the terminal
 title, `✳ <name>` when idle and `◐ <name>` while busy; `session-label.ts` drops
@@ -521,9 +536,9 @@ quiet hours end leaves the night to the morning summary.
 ## The app
 
 The main process proxies an allow-list of methods and forwards events to the
-renderer, keeps the menu-bar title (`● 3 ▸ 1 ✕ 0`), shows the quiet board window
-while locked, and looks for a newer release: it asks at launch, hourly looks
-whether the last attempt is six hours old (a failed one asks again on the next
+renderer, keeps the menu-bar item (the q, one status mark, the counts in its
+menu), shows the quiet board window while locked, and looks for a newer release:
+it asks at launch, hourly looks whether the last attempt is six hours old (a failed one asks again on the next
 look), and Settings can ask at any time. The sidebar's Quiet row offers what it
 finds as Update while the daemon runs this build. A click downloads it through
 `electron-updater`, loaded only then, and Restart installs it and relaunches; nothing

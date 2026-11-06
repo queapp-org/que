@@ -120,7 +120,8 @@ export interface TicketServiceOptions {
   createWorkspace: (p: WorkspaceCreateParams) => Promise<Workspace>
   openTerminal: (workspaceId: string) => Promise<TermInfo>
   createSession: (cwd: string) => Promise<TermInfo>
-  writeTerminal: (id: string, data: string) => void
+  /** Types a command that starts claude into a terminal, once its shell can take it. */
+  typeCommand: (id: string, command: string) => void
   /** Records `tracker key = que project name` in the config file. */
   learnProject: (projectKey: string, projectName: string) => Promise<void>
 }
@@ -454,7 +455,7 @@ export class TicketService {
       fs.writeFileSync(file, brief)
       const t = await this.opts.createSession(os.homedir())
       const prompt = `Read ${file}, the ticket I am working on. Restate the goal in a sentence, then propose a plan before changing anything.`
-      this.opts.writeTerminal(t.id, claudeCommand(prompt))
+      this.opts.typeCommand(t.id, claudeCommand(prompt))
 
       return { kind: 'session', terminal: t }
     }
@@ -493,7 +494,7 @@ export class TicketService {
     store.setTicketWorkspace(ticket.key, workspace.id)
 
     const t = await this.opts.openTerminal(workspace.id)
-    this.opts.writeTerminal(t.id, claudeCommand(this.opts.config().jira.startPrompt))
+    this.opts.typeCommand(t.id, claudeCommand(this.opts.config().jira.startPrompt))
     this.opts.emit('tickets.synced', this.list())
 
     return { kind: 'workspace', workspace }

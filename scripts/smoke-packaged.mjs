@@ -8,13 +8,22 @@
 //   - the daemon the app starts runs from inside que.app/Contents/Resources,
 //     under the app's own binary;
 //   - a terminal opens and runs a command (read through window.__que);
-//   - the tray title is readable;
+//   - the tray's view is readable;
 //   - Contents/Resources/cli/que --version prints the package version;
 //   - launched again the way Finder does (PATH=/usr/bin:/bin:/usr/sbin:/sbin, no
-//     TERM, no QUE_E2E), the daemon's PATH is the login shell's, not launchd's;
+//     TERM, no QUE_E2E), the daemon's PATH is the shell's, not launchd's, down to
+//     a directory added only in .zshrc;
 // then quits the app, stops the daemon, and checks no process is left.
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -200,11 +209,13 @@ try {
   )
   log(`terminal ${termId} printed QUE_PKG_42`)
 
-  // 3. The tray title.
-  const tray = await poll('the tray title', () => window.evaluate(() => window.__que.trayTitle()))
-  log(`tray title "${tray}"`)
+  // 3. The tray's view.
+  const tray = await poll('the tray view', () => window.evaluate(() => window.__que.trayView()))
+  log(`tray view ${JSON.stringify(tray)}`)
 
-  if (!/^● \d+ ▸ \d+ ✕ \d+$/.test(tray)) throw new Error(`unexpected tray title "${tray}"`)
+  if (!['none', 'working', 'attention'].includes(tray.mark)) {
+    throw new Error(`unexpected tray view ${JSON.stringify(tray)}`)
+  }
 
   // 4. The shipped CLI launcher.
   const version = que('--version')
@@ -219,7 +230,12 @@ try {
   await poll('the daemon to exit', () => !pidAlive(daemonPid), 10_000)
   daemonPid = null
   const finderPath = '/usr/bin:/bin:/usr/sbin:/sbin'
-  const finderEnv = { ...env, PATH: finderPath }
+  // This launch reads a shell's startup files, so it gets a zsh with ours, never the real ones.
+  const zdotdir = join(queHome, 'zdotdir')
+  const zshrcOnly = '/opt/que-smoke/zshrc-only'
+  mkdirSync(zdotdir)
+  writeFileSync(join(zdotdir, '.zshrc'), `PATH="${zshrcOnly}:$PATH"\n`)
+  const finderEnv = { ...env, PATH: finderPath, SHELL: '/bin/zsh', ZDOTDIR: zdotdir }
   delete finderEnv.QUE_E2E
   delete finderEnv.TERM
   app = await electron.launch({ executablePath, args: [], env: finderEnv })
@@ -238,6 +254,9 @@ try {
 
     if (ping.path.length <= finderPath.length)
       throw new Error(`daemon PATH is no longer than the launch PATH: ${ping.path}`)
+
+    if (!ping.path.split(':').includes(zshrcOnly))
+      throw new Error(`daemon PATH lacks the directory added only in .zshrc: ${ping.path}`)
   } finally {
     client.close()
   }

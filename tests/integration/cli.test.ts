@@ -1,11 +1,12 @@
 // The real `que` CLI as a subprocess against the in-process daemon.
 import fs from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TermInfo } from '@shared/protocol'
 import type { Workspace } from '@shared/types'
+import { LAUNCHD_LABEL } from '../../src/cli/launchd'
 import type { StatusJson } from '../../src/cli/workspaces'
-import { runCli, runCliJson } from '../../src/testing/cli'
+import { runCli, runCliJson, runCliWith } from '../../src/testing/cli'
 import {
   startTestDaemon,
   type TestDaemon,
@@ -252,7 +253,7 @@ describe('que status', () => {
       preparing: 0,
       removing: 0
     })
-    expect(status.tray).toBe('● 0 ▸ 1 ✕ 0')
+    expect((await runCli('status')).stdout).toMatch(/^working 0 · needs input 1 · stuck 0 · /m)
     expect(status.workspaces).toEqual([
       {
         id: ws.id,
@@ -321,7 +322,53 @@ describe('que doctor', () => {
     ])
     expect(r.stdout).toContain('2.1.0 (Claude Code)')
     expect(r.stdout).toMatch(new RegExp(`daemon PATH\\s+claude at ${FAKES_BIN}/claude`))
+    expect(r.stdout).not.toContain('keeps the PATH it started with')
   }, 30_000)
+
+  describe('when the daemon misses what this shell finds', () => {
+    const STARTED_WITH = `This shell finds ${FAKES_BIN}/claude and ${FAKES_BIN}/gh, but a daemon keeps the PATH it started with, even through \`que daemon upgrade\`.`
+
+    /** `que doctor`'s daemon PATH line, with the daemon on a bare PATH and this shell on `shellPath`. */
+    async function daemonPathLine(shellPath: string, launchAgents: string): Promise<string> {
+      // The daemon runs in this process, so it reads this process's PATH.
+      vi.stubEnv('PATH', '/usr/bin:/bin')
+
+      const r = await runCliWith(
+        { env: { PATH: shellPath, QUE_LAUNCH_AGENTS_DIR: launchAgents } },
+        'doctor'
+      )
+
+      return r.stdout.split('\n').find((line) => line.includes('daemon PATH')) ?? ''
+    }
+
+    it('says where they are, why, and what to do', async () => {
+      const line = await daemonPathLine(`${FAKES_BIN}:/usr/bin:/bin`, daemon.home)
+
+      expect(line).toBe(
+        `warn  daemon PATH  claude not on the daemon's PATH, gh not on the daemon's PATH. ${STARTED_WITH} \`que daemon restart\` gives it this shell's PATH and ends every terminal. The app reads PATH from your shell's startup files and gives up after 5 seconds, so if a daemon it starts has the same problem, set PATH in your login profile (~/.zprofile for zsh).`
+      )
+    }, 30_000)
+
+    it('gives the steps for the launchd agent when one is installed', async () => {
+      const agents = join(daemon.home, 'agents')
+      fs.mkdirSync(agents)
+      fs.writeFileSync(join(agents, `${LAUNCHD_LABEL}.plist`), '')
+
+      const line = await daemonPathLine(`${FAKES_BIN}:/usr/bin:/bin`, agents)
+
+      expect(line).toBe(
+        `warn  daemon PATH  claude not on the daemon's PATH, gh not on the daemon's PATH. ${STARTED_WITH} The launchd agent's PATH was set when it was installed: \`que daemon stop\`, \`que daemon uninstall\`, then \`que daemon install\` give it this shell's PATH and end every terminal.`
+      )
+    }, 30_000)
+
+    it('explains nothing when this shell does not find them either', async () => {
+      const line = await daemonPathLine('/usr/bin:/bin', daemon.home)
+
+      expect(line).toBe(
+        "warn  daemon PATH  claude not on the daemon's PATH, gh not on the daemon's PATH"
+      )
+    }, 30_000)
+  })
 
   it('fails on an invalid config file and names the key', async () => {
     fs.writeFileSync(daemon.configPath, 'stall_timeout_minutes = "soon"\n')

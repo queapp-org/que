@@ -18,6 +18,7 @@ import type {
   Ticket,
   TicketsListResult,
   TicketsSyncState,
+  TrayView,
   UpdateStatus,
   UserConfig,
   Workspace,
@@ -209,7 +210,7 @@ class FakeBridge {
   private filePaths = new Map<File, string>()
   private attachGate = new Gate()
   private folder: string | null = null
-  private tray = '● 0 ▸ 0 ✕ 0'
+  private tray: TrayView = { mark: 'none', title: '', counts: [] }
   private editorCalls: string[] = []
   private updateBook: UpdateStatus = currentUpdateStatus()
   private updateListeners = new Set<(status: UpdateStatus) => void>()
@@ -423,7 +424,7 @@ class FakeBridge {
 
           return { ok: true }
         },
-        trayTitle: async () => this.tray,
+        trayView: async () => this.tray,
         updateStatus: async () => ({ ...this.updateBook }),
         onUpdateStatus: (cb) => {
           this.updateListeners.add(cb)
@@ -1030,9 +1031,9 @@ class FakeBridge {
     this.folder = dir
   }
 
-  /** What app.trayTitle() resolves to. */
-  setTrayTitle(title: string): void {
-    this.tray = title
+  /** What app.trayView() resolves to. */
+  setTrayView(view: TrayView): void {
+    this.tray = view
   }
 
   /**
@@ -1444,7 +1445,7 @@ class FakeBridge {
     this.folder = null
     this.filePaths.clear()
     this.attachGate.reset()
-    this.tray = '● 0 ▸ 0 ✕ 0'
+    this.tray = { mark: 'none', title: '', counts: [] }
     this.editorCalls = []
     this.updateBook = currentUpdateStatus()
     this.updateListeners.clear()

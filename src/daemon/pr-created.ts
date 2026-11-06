@@ -41,7 +41,12 @@ const sameRepo = (a: Repo, b: Repo): boolean =>
 
 /** True when the call printed a pull request URL on any repository. */
 export function printsPullRequest(call: BashCall): boolean {
-  return call.output.some((text) => PR_URL.test(text))
+  return printedPullRequests(call).length > 0
+}
+
+/** The pull request URLs a call printed on any repository, in the order they appear, each once. */
+export function printedPullRequests(call: BashCall): string[] {
+  return [...new Set(call.output.flatMap((text) => text.match(new RegExp(PR_URL, 'g')) ?? []))]
 }
 
 /**
@@ -50,16 +55,9 @@ export function printsPullRequest(call: BashCall): boolean {
  * or a plain string).
  */
 export function createdPullRequests(call: BashCall, repo: Repo): string[] {
-  const urls: string[] = []
+  return printedPullRequests(call).filter((url) => {
+    const [, owner = '', name = ''] = PR_URL.exec(url) ?? []
 
-  for (const text of call.output) {
-    for (const m of text.matchAll(new RegExp(PR_URL, 'g'))) {
-      const [, owner = '', name = '', number = ''] = m
-      const url = `https://github.com/${owner}/${name}/pull/${number}`
-
-      if (sameRepo({ owner, name }, repo) && !urls.includes(url)) urls.push(url)
-    }
-  }
-
-  return urls
+    return sameRepo({ owner, name }, repo)
+  })
 }
