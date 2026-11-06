@@ -13,7 +13,7 @@ export interface PaneInfo {
 export interface ReviewInfo {
   open: boolean
   /** The shown workspace's view, and the pull request open in it. */
-  view: 'prs' | 'changes' | 'files'
+  view: 'prs' | 'changes' | 'files' | 'artifacts'
   pr: number | null
   width: number
 }

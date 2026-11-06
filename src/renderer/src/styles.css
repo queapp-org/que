@@ -3441,6 +3441,108 @@ button.pr-row.settled .pr-row-number {
   color: var(--fg-faint);
 }
 
+/* ---- the artifact list --------------------------------------------------- */
+
+.artifact-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.artifact-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* One published page on one line: --fg until opened, then --fg-secondary. The whole row opens it:
+ * the link's ::after covers the row, with its tooltip, and Copy sits above that. */
+.artifact {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px;
+  color: var(--fg);
+}
+
+.artifact:hover {
+  background: var(--bg-hover);
+}
+
+.artifact:has(.artifact-name:focus-visible) {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.artifact.opened {
+  color: var(--fg-secondary);
+}
+
+a.artifact-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+a.artifact-name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* Copy sits right after the text and shows on hover or keyboard focus, like the popout's copy
+ * icons: a click leaves the link focused, and Copy must not stay behind. */
+button.artifact-copy {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+button.artifact-copy svg {
+  width: 13px;
+  height: 13px;
+}
+
+.artifact:hover .artifact-copy,
+.artifact:has(:focus-visible) .artifact-copy {
+  opacity: 1;
+}
+
+.artifact-age {
+  flex: none;
+  margin: 0 4px 0 auto;
+  font: 11px var(--mono);
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The open-elsewhere mark is always there: this is the one row in the pane that leaves the app. */
+.artifact-out {
+  flex: none;
+  display: flex;
+  color: var(--fg-faint);
+}
+
+.artifact-out svg {
+  width: 14px;
+  height: 14px;
+}
+
+.artifact:hover .artifact-out {
+  color: var(--fg-secondary);
+}
+
 /* ---- the files filter ----------------------------------------------------- */
 
 .files-filter {

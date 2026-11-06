@@ -101,10 +101,11 @@ describe('ReviewPane', () => {
         within(rail)
           .getAllByRole('button')
           .map((b) => b.getAttribute('aria-label'))
-      ).toEqual(['Show review', 'Pull requests', 'Changes', 'Files'])
-      // The open and draft pull requests; Files has no count.
+      ).toEqual(['Show review', 'Pull requests', 'Changes', 'Files', 'Artifacts'])
+      // The open and draft pull requests, and the published pages; Files has no count.
       expect(screen.getByTestId('review-rail-prs-count')).toHaveTextContent('2')
       expect(screen.queryByTestId('review-rail-files-count')).not.toBeInTheDocument()
+      expect(screen.getByTestId('review-rail-artifacts-count')).toHaveTextContent('0')
     })
 
     it('opens from a view icon on the rail on that view', async () => {
@@ -173,7 +174,7 @@ describe('ReviewPane', () => {
   })
 
   describe('the icon strip', () => {
-    it('holds pull requests, changes and files as named icons with counts, and no close button', async () => {
+    it('holds pull requests, changes, files and artifacts as named icons with counts, and no close button', async () => {
       const user = userEvent.setup()
       seed()
       render(<App />)
@@ -184,17 +185,20 @@ describe('ReviewPane', () => {
       expect(tabs.map((t) => t.getAttribute('aria-label'))).toEqual([
         'Pull requests',
         'Changes',
-        'Files'
+        'Files',
+        'Artifacts'
       ])
       expect(tabs.map((t) => t.getAttribute('title'))).toEqual([
         'Pull requests',
         'Changes',
-        'Files'
+        'Files',
+        'Artifacts'
       ])
-      // The open and draft pull requests, and the changed files; Files has no count.
+      // The open and draft pull requests, the changed files, the pages; Files has no count.
       expect(screen.getByTestId('review-view-prs-count')).toHaveTextContent('2')
       expect(await screen.findByTestId('review-view-changes-count')).toHaveTextContent('2')
       expect(screen.queryByTestId('review-view-files-count')).not.toBeInTheDocument()
+      expect(screen.getByTestId('review-view-artifacts-count')).toHaveTextContent('0')
       expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
       expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
       expect(screen.queryByRole('button', { name: 'Close review' })).not.toBeInTheDocument()
@@ -223,6 +227,25 @@ describe('ReviewPane', () => {
       expect(await screen.findByTestId('pr-list')).toBeInTheDocument()
       expect(within(screen.getByTestId('review-bar')).getByTestId('pr-refresh')).toBeVisible()
       expect(screen.getByTestId('pr-open-editor')).toBeVisible()
+    })
+
+    it('has no Refresh on Artifacts, where nothing polls; the other views keep theirs', async () => {
+      const user = userEvent.setup()
+      seed()
+      render(<App />)
+      await openPane(user)
+      const bar = screen.getByTestId('review-bar')
+
+      await user.click(screen.getByRole('tab', { name: 'Artifacts' }))
+
+      expect(screen.getByTestId('review-pane')).toHaveAttribute('data-view', 'artifacts')
+      expect(within(bar).queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('artifacts-open-editor')).toBeVisible()
+      expect(within(bar).getByRole('button', { name: 'Hide review' })).toBeVisible()
+
+      await user.click(screen.getByRole('tab', { name: 'Changes' }))
+
+      expect(within(bar).getByTestId('changes-refresh')).toBeVisible()
     })
 
     it('⌘F in the pane goes to Files and focuses its filter', async () => {
@@ -275,6 +298,31 @@ describe('ReviewPane', () => {
       expect(screen.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.getByTestId('review-resizer')).toHaveAttribute('aria-valuenow', '368')
       expect(await screen.findByTestId('files-tree')).toBeInTheDocument()
+    })
+
+    it('comes back on Artifacts after the app reloads', async () => {
+      const user = userEvent.setup()
+      seed()
+      const first = render(<App />)
+      await openPane(user)
+      await user.click(screen.getByRole('tab', { name: 'Artifacts' }))
+      first.unmount()
+
+      render(<App />)
+      await openWorkspace(user, retry.id)
+
+      expect(screen.getByTestId('review-pane')).toHaveAttribute('data-view', 'artifacts')
+      expect(await screen.findByTestId('artifact-empty')).toBeInTheDocument()
+    })
+
+    it('brings a width remembered under the minimum up to it', async () => {
+      const user = userEvent.setup()
+      seed()
+      localStorage.setItem('que.review', JSON.stringify({ open: true, width: 240, places: {} }))
+      render(<App />)
+      await openWorkspace(user, retry.id)
+
+      expect(screen.getByTestId('review-resizer')).toHaveAttribute('aria-valuenow', '270')
     })
 
     it('falls back to the defaults for an unreadable or out-of-range memory', async () => {

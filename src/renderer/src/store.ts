@@ -122,9 +122,9 @@ export { keyOf } from './keys'
 const LAYOUT_PREFIX = 'que.layout.'
 
 /** The review pane's views, picked by the icons in its strip. */
-export type ReviewView = 'prs' | 'changes' | 'files'
+export type ReviewView = 'prs' | 'changes' | 'files' | 'artifacts'
 
-const REVIEW_VIEWS: readonly ReviewView[] = ['prs', 'changes', 'files']
+const REVIEW_VIEWS: readonly ReviewView[] = ['prs', 'changes', 'files', 'artifacts']
 
 /** Where the review pane stands for one workspace: its view, and the pull request open in it (null: the list). */
 export interface ReviewPlace {
@@ -151,7 +151,7 @@ export interface ReviewState {
 /** The folding sections inside a pull request. */
 export type PrSection = 'files' | 'checks' | 'comments'
 
-export const REVIEW_MIN = 240
+export const REVIEW_MIN = 270
 export const REVIEW_MAX = 520
 export const REVIEW_DEFAULT = 320
 const REVIEW_KEY = 'que.review'
@@ -1072,6 +1072,16 @@ export class QueStore {
   /** Back from a pull request to the list. */
   closePullRequest(key: string): void {
     this.setReviewView(key, 'prs')
+  }
+
+  /**
+   * Records that the app opened one of a workspace's published pages. The row follows from
+   * workspace.updated; a daemon too old to have the method leaves it unopened.
+   */
+  artifactOpened(id: string, url: string): void {
+    this.api.workspace.artifactOpened({ id, url }).catch((err: Error) => {
+      console.warn('Could not record the opened artifact', err)
+    })
   }
 
   /**
