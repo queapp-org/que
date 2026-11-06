@@ -41,9 +41,11 @@ import {
   createdPullRequests,
   githubRepo,
   prCreateCall,
+  printedPullRequests,
   printsPullRequest,
   type Repo
 } from './pr-created'
+import { type BashCall, decodeRepoView } from './pr-created.decode'
 import { jsonPages, parsePrThread } from './pr-thread'
 import { decodeLineComments, decodePrView } from './pr-thread.decode'
 import type { EventBus } from './bus'
@@ -170,8 +172,10 @@ export class PrService {
   private threadFetches: ByWorkspace<Promise<PrThread>> = new Map()
   /** Each workspace's checkNow while it runs, so callers at the same time share one check. */
   private checking = new Map<string, Promise<string | null>>()
-  /** Each project's origin repository by project path, looked up once (until a lookup fails). */
-  private origins = new Map<string, Promise<Repo | null>>()
+  /** Each project's origin repository by project path, until a call's URLs do not match it. */
+  private origins = new Map<string, Repo>()
+  /** Each project's latest hook to look at a `gh pr create` call, by project path; the next one waits for it. */
+  private capturing = new Map<string, Promise<unknown>>()
   /** Conversations waiting to be fetched in the background, and the same as `<workspace id>:<number>`. */
   private prefetchQueue: Array<{ id: string; number: number }> = []
   private prefetchQueued = new Set<string>()
@@ -625,7 +629,9 @@ export class PrService {
 
   /**
    * Records the pull requests a hook event shows the workspace's session (or one of its
-   * subagents) creating with `gh pr create` on the project's origin, and checks them now.
+   * subagents) creating with `gh pr create` on the project's origin, and checks them now. A
+   * project's hooks take turns, so what they record keeps the order it was made in, even when an
+   * earlier one is still asking who the origin is.
    */
   async hook(id: string, event: HookEvent): Promise<void> {
     const call = prCreateCall(event)
@@ -634,35 +640,86 @@ export class PrService {
     const ws = this.opts.store.getWorkspace(id)
 
     if (!ws || ws.archivedAt) return
-    const repo = await this.origin(this.opts.workspaces.project(ws.projectId).path)
-    const urls = repo ? createdPullRequests(call, repo) : []
+    const path = this.opts.workspaces.project(ws.projectId).path
+    const step = () => this.record(id, call, path)
+    // After the hook before it, even one that failed.
+    const turn = (this.capturing.get(path) ?? Promise.resolve()).then(step, step)
+    this.capturing.set(path, turn)
 
-    if (urls.length === 0 || !this.opts.store.addWorkspacePrUrls(id, urls)) return
+    if (await this.poller.track(turn)) await this.refresh(id)
+  }
+
+  /** Stores what the call created on the project's origin and logs each URL it left out; true when that added any. */
+  private async record(id: string, call: BashCall, path: string): Promise<boolean> {
+    const { urls, repo } = await this.onOrigin(call, path)
+
+    if (this.stopped) return false
+    const ws = this.opts.store.getWorkspace(id)
+
+    if (!ws || ws.archivedAt) return false
+    const why = repo ? `not on ${repo.owner}/${repo.name}` : 'the project has no GitHub origin'
+
+    for (const url of printedPullRequests(call)) {
+      if (!urls.includes(url)) this.opts.log?.(`workspace ${id}: ignored ${url}, ${why}`)
+    }
+
+    if (urls.length === 0 || !this.opts.store.addWorkspacePrUrls(id, urls)) return false
     this.opts.log?.(`workspace ${id} created ${urls.join(', ')}`)
     this.opts.bus.emit('workspace.updated', this.opts.workspaces.get(id))
-    await this.refresh(id)
+
+    return true
   }
 
   /**
-   * The GitHub repository a project's origin names; null for none. Hooks waiting on the same
-   * lookup resume in the order they asked, so what they record keeps the order it was made in.
+   * The pull requests a call created on the project's origin, and the repository that means. When
+   * the origin last read matches none, the remote is read again, since it may have moved. When that
+   * matches none, GitHub is asked for the repository's current name, since a remote that still names
+   * the old owner keeps working and `gh` prints the new one.
    */
-  private origin(path: string): Promise<Repo | null> {
-    const known = this.origins.get(path)
+  private async onOrigin(
+    call: BashCall,
+    path: string
+  ): Promise<{ urls: string[]; repo: Repo | null }> {
+    const cached = this.origins.get(path)
+    const onCached = cached ? createdPullRequests(call, cached) : []
 
-    if (known) return known
+    if (cached && onCached.length > 0) return { urls: onCached, repo: cached }
+    const origin = await this.readOrigin(path)
+    const urls = origin ? createdPullRequests(call, origin) : []
+
+    if (!origin || urls.length > 0) return { urls, repo: origin }
+    const current = await this.currentName(origin, path)
+
+    if (!current) return { urls, repo: origin }
+    this.origins.set(path, current)
+
+    return { urls: createdPullRequests(call, current), repo: current }
+  }
+
+  /** The GitHub repository a project's origin names now, kept for the next call; null for none. */
+  private async readOrigin(path: string): Promise<Repo | null> {
+    const r = await git(path, ['remote', 'get-url', 'origin'], 10_000)
+    const repo = r.ok ? githubRepo(r.stdout) : null
 
     // A project may gain an origin later: only a repository found is kept.
-    const found = git(path, ['remote', 'get-url', 'origin'], 10_000).then((r) => {
-      const repo = r.ok ? githubRepo(r.stdout) : null
+    if (repo) this.origins.set(path, repo)
+    else this.origins.delete(path)
 
-      if (repo === null) this.origins.delete(path)
+    return repo
+  }
 
-      return repo
-    })
+  /** What GitHub calls `repo` now, following renames and transfers; null when `gh` cannot say (logged). */
+  private async currentName(repo: Repo, cwd: string): Promise<Repo | null> {
+    const name = `${repo.owner}/${repo.name}`
 
-    this.origins.set(path, found)
+    try {
+      return decodeRepoView(
+        await ghJson(['repo', 'view', name, '--json', 'nameWithOwner'], cwd, this.poller.signal)
+      )
+    } catch (err) {
+      if (!this.stopped) this.opts.log?.(`gh repo view ${name} failed: ${errorMessage(err)}`)
 
-    return found
+      return null
+    }
   }
 }
