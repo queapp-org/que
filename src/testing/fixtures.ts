@@ -8,6 +8,7 @@ export {
   makeBackgroundTask,
   makePrCheck,
   makePrThreadEntry,
+  makeQuietState,
   makeTicket,
   makeWorkspace
 } from './entities'

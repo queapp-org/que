@@ -505,10 +505,10 @@ function registerIpc(): void {
   ipcMain.handle('daemon:state', () => reply(daemonState))
   ipcMain.handle('daemon:upgrade', () => reply(upgradeDaemon))
 
-  ipcMain.handle('app:trayTitle', () => {
-    if (!e2e) throw new Error('app.trayTitle is only available under QUE_E2E=1')
+  ipcMain.handle('app:trayView', () => {
+    if (!e2e) throw new Error('app.trayView is only available under QUE_E2E=1')
 
-    return tray?.title() ?? ''
+    return tray?.view()
   })
 
   // The params pass through untouched; the daemon validates them.

@@ -130,7 +130,7 @@ export class TerminalFacts {
 }
 
 /** The terminal's tty (`ttys016`) by its shell's pid; null when it has none (`??`). */
-async function ttyOf(pid: number): Promise<string | null> {
+export async function ttyOf(pid: number): Promise<string | null> {
   const r = await run(PS, ['-o', 'tty=', '-p', String(pid)], { timeoutMs: PS_TIMEOUT_MS })
   const name = r.ok ? r.stdout.trim() : ''
 

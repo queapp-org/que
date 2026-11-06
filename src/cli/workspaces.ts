@@ -2,7 +2,7 @@
 import { execFile } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
-import { summarize, trayTitle } from '../daemon/status-engine'
+import { summarize } from '../daemon/status-engine'
 import type { DaemonClient } from '../shared/client'
 import {
   formatAge,
@@ -127,7 +127,6 @@ export function formatPr(pr: PullRequest | null): string {
 /** The JSON shape of `que status --json`. */
 export interface StatusJson {
   summary: ReturnType<typeof summarize>
-  tray: string
   quiet: QuietState
   workspaces: Array<{
     id: string
@@ -483,7 +482,6 @@ export function registerWorkspaceCommands(program: Command): void {
         if (opts.json) {
           const out: StatusJson = {
             summary,
-            tray: trayTitle(summary),
             quiet,
             workspaces: list.map((w) => ({
               id: w.id,
@@ -505,7 +503,7 @@ export function registerWorkspaceCommands(program: Command): void {
 
         if (quiet.inQuietHours) console.log(describeQuietState(quiet))
         console.log(
-          `${trayTitle(summary)}   working ${summary.working} · needs input ${summary.needs_input} · stuck ${summary.stuck} · idle ${summary.idle} · exited ${summary.exited} · preparing ${summary.preparing} · removing ${summary.removing}`
+          `working ${summary.working} · needs input ${summary.needs_input} · stuck ${summary.stuck} · idle ${summary.idle} · exited ${summary.exited} · preparing ${summary.preparing} · removing ${summary.removing}`
         )
 
         if (list.length === 0) return console.log('no workspaces')

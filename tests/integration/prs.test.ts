@@ -4,6 +4,7 @@
 // seen in a hook). Which one is current, the order and the cap
 // are pr-state.test.ts's; what a hook counts as a creation is pr-created.test.ts's.
 import fs from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DaemonClient } from '@shared/client'
 import type { HookEvent } from '@shared/protocol'
@@ -54,7 +55,7 @@ const prNumbersOf = async (id: string) =>
 // Lookups by number, not the background fetches of a conversation (`--json comments,reviews`).
 const prViews = () =>
   readFakeLog(daemon.ghLog).filter(
-    (c) => c.argv[1] === 'view' && !c.argv.includes('comments,reviews')
+    (c) => c.argv[0] === 'pr' && c.argv[1] === 'view' && !c.argv.includes('comments,reviews')
   )
 
 /** The listings of a whole project: `gh pr list` without `--head`. */
@@ -257,15 +258,34 @@ describe('pull request tracking', () => {
         ...extra
       })
 
-    /** A workspace whose project's origin is the repository the fake gh's URLs name. */
-    async function githubWorkspace() {
-      const ws = await workspace()
+    /** Points the project's origin at `repo` on GitHub. Only the hook reads the URL: nothing in these tests fetches or pushes. */
+    async function setOrigin(repo: string) {
       const [project] = await client.request('project.list')
-      // Only the hook reads the URL: nothing in these tests fetches or pushes.
-      gitIn(project.path, 'remote', 'set-url', 'origin', 'https://github.com/rquellh/que.git')
+      gitIn(project.path, 'remote', 'set-url', 'origin', `https://github.com/${repo}.git`)
+    }
+
+    /** A workspace whose project's origin is the repository the fake gh's URLs name, unless told. */
+    async function githubWorkspace(origin = 'rquellh/que') {
+      const ws = await workspace()
+      await setOrigin(origin)
 
       return ws
     }
+
+    /** The hook of a `gh pr create` call that printed `url`. */
+    const prCreated = (workspaceId: string, url: string) =>
+      client.request('hook.event', {
+        workspaceId,
+        payload: ranBash('gh pr create --fill', { stdout: `${url}\n`, stderr: '' })
+      })
+
+    const prUrlsOf = async (id: string) => (await client.request('workspace.get', { id })).prUrls
+
+    /** What the daemon asked GitHub about a repository's name. */
+    const repoViews = () =>
+      readFakeLog(daemon.ghLog)
+        .filter((c) => c.argv[0] === 'repo' && c.argv[1] === 'view')
+        .map((c) => c.argv)
 
     it('adds the ones a hook shows the session and a subagent creating on other branches', async () => {
       const ws = await githubWorkspace()
@@ -303,9 +323,14 @@ describe('pull request tracking', () => {
       ])
       expect(updates.some((w) => w.id === ws.id && w.prUrls.length === 2)).toBe(true)
       expect(prViews().map((c) => c.argv[2])).not.toContain('5')
+      expect(daemon.logged).toContain(
+        `workspace ${ws.id}: ignored https://github.com/rquellh/uploader/pull/5, not on rquellh/que`
+      )
+      // Each call named the origin, so GitHub was not asked about the repository.
+      expect(repoViews()).toEqual([])
     }, 30_000)
 
-    it('ignores a pull request on another repository and a command that created none', async () => {
+    it('ignores a pull request on another repository, saying so in the log, and a command that created none', async () => {
       const ws = await githubWorkspace()
       setFakePullRequest(daemon.ghPrs, ws.branch, { number: 3, isDraft: true })
       await expect.poll(async () => (await prOf(ws.id))?.state, opts).toBe('draft')
@@ -322,13 +347,123 @@ describe('pull request tracking', () => {
           stdout: 'https://github.com/rquellh/que/pull/9'
         })
       })
+      await expect
+        .poll(() => daemon.logged, opts)
+        .toContain(
+          `workspace ${ws.id}: ignored https://github.com/rquellh/uploader/pull/5, not on rquellh/que`
+        )
       const listed = readFakeLog(daemon.ghLog).length
       // Another tick, so a recorded URL would have been looked up by now.
       await expect.poll(() => readFakeLog(daemon.ghLog).length, opts).toBeGreaterThan(listed + 1)
 
-      expect((await client.request('workspace.get', { id: ws.id })).prUrls).toEqual([])
+      expect(await prUrlsOf(ws.id)).toEqual([])
       expect(prViews()).toEqual([])
     }, 30_000)
+
+    it('says so in the log when the project has no GitHub origin', async () => {
+      const ws = await workspace()
+      const url = 'https://github.com/rquellh/que/pull/86'
+
+      await prCreated(ws.id, url)
+
+      await expect
+        .poll(() => daemon.logged, opts)
+        .toContain(`workspace ${ws.id}: ignored ${url}, the project has no GitHub origin`)
+      expect(await prUrlsOf(ws.id)).toEqual([])
+      expect(repoViews()).toEqual([])
+    }, 30_000)
+
+    describe('after the repository moves', () => {
+      const MOVED = 'que-agents/que=queapp-org/que'
+
+      it('records the one on the new owner once the remote names it, in the same daemon', async () => {
+        const ws = await githubWorkspace('que-agents/que')
+        const before = 'https://github.com/que-agents/que/pull/81'
+        const after = 'https://github.com/queapp-org/que/pull/82'
+        addFakePullRequest(daemon.ghPrs, 'APP-1433-backoff', { number: 81, url: before })
+        addFakePullRequest(daemon.ghPrs, 'APP-1434-jitter', { number: 82, url: after })
+
+        await prCreated(ws.id, before)
+        await expect.poll(() => prNumbersOf(ws.id), opts).toEqual([81])
+
+        await setOrigin('queapp-org/que')
+        await prCreated(ws.id, after)
+
+        await expect.poll(() => prNumbersOf(ws.id), opts).toEqual([82, 81])
+        expect(await prUrlsOf(ws.id)).toEqual([before, after])
+        // Reading the remote again settled it, and the normal call before it asked nothing.
+        expect(repoViews()).toEqual([])
+      }, 30_000)
+
+      it('records the one on the new owner while the remote still names the old one', async () => {
+        const ws = await githubWorkspace('que-agents/que')
+        vi.stubEnv('QUE_FAKE_GH_MOVED', MOVED)
+        const first = 'https://github.com/queapp-org/que/pull/83'
+        const second = 'https://github.com/queapp-org/que/pull/84'
+
+        await prCreated(ws.id, first)
+        await expect.poll(() => prUrlsOf(ws.id), opts).toEqual([first])
+        await prCreated(ws.id, second)
+        await expect.poll(() => prUrlsOf(ws.id), opts).toEqual([first, second])
+
+        // GitHub's answer is kept: the second call matched it without asking again.
+        expect(repoViews()).toEqual([['repo', 'view', 'que-agents/que', '--json', 'nameWithOwner']])
+      }, 30_000)
+
+      it('drops the URL and goes on to the next call when gh cannot answer', async () => {
+        const ws = await githubWorkspace('que-agents/que')
+        vi.stubEnv('QUE_FAKE_GH_FAIL', '1')
+        const missed = 'https://github.com/queapp-org/que/pull/85'
+        const next = 'https://github.com/queapp-org/que/pull/86'
+
+        await prCreated(ws.id, missed)
+        await expect
+          .poll(() => daemon.logged, opts)
+          .toContain(`workspace ${ws.id}: ignored ${missed}, not on que-agents/que`)
+        expect(await prUrlsOf(ws.id)).toEqual([])
+        expect(daemon.logged).toContain('gh repo view que-agents/que failed: gh: failed (fake)')
+        expect(daemon.logged.filter((l) => l.startsWith('pull request capture failed'))).toEqual([])
+
+        vi.stubEnv('QUE_FAKE_GH_FAIL', '')
+        vi.stubEnv('QUE_FAKE_GH_MOVED', MOVED)
+        await prCreated(ws.id, next)
+        await expect.poll(() => prUrlsOf(ws.id), opts).toEqual([next])
+      }, 30_000)
+
+      it('keeps the order two calls were made in while the first is still asking GitHub', async () => {
+        const ws = await githubWorkspace('que-agents/que')
+        const hold = join(daemon.home, 'repo-view-hold')
+        vi.stubEnv('QUE_FAKE_GH_MOVED', MOVED)
+        vi.stubEnv('QUE_FAKE_GH_REPO_VIEW_HOLD', hold)
+        const first = 'https://github.com/queapp-org/que/pull/87'
+        const second = 'https://github.com/queapp-org/que/pull/88'
+
+        await prCreated(ws.id, first)
+        await expect.poll(() => repoViews().length, opts).toBe(1)
+        await prCreated(ws.id, second)
+        // Two more ticks, so the second call would have overtaken the first by now if it could.
+        const listed = projectListings().length
+        await expect.poll(() => projectListings().length, opts).toBeGreaterThan(listed + 1)
+        expect(await prUrlsOf(ws.id)).toEqual([])
+
+        fs.writeFileSync(hold, '')
+
+        await expect.poll(() => prUrlsOf(ws.id), opts).toEqual([first, second])
+      }, 30_000)
+
+      it('stops asking GitHub when the daemon shuts down, and logs nothing about the URL', async () => {
+        const ws = await githubWorkspace('que-agents/que')
+        vi.stubEnv('QUE_FAKE_GH_REPO_VIEW_HOLD', join(daemon.home, 'repo-view-hold'))
+        const url = 'https://github.com/queapp-org/que/pull/89'
+
+        await prCreated(ws.id, url)
+        await expect.poll(() => repoViews().length, opts).toBe(1)
+        await daemon.close()
+
+        expect(daemon.logged.filter((l) => l.includes(url))).toEqual([])
+        expect(daemon.logged.filter((l) => l.startsWith('pull request capture failed'))).toEqual([])
+      }, 30_000)
+    })
 
     it('adds the one it created on its branch once it leaves the branch, never twice', async () => {
       const ws = await githubWorkspace()

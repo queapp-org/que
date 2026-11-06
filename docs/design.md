@@ -471,6 +471,40 @@ only under the pointer.
   `--fg-muted` when it is known. It closes on Escape, a press elsewhere, or a second click.
   Usage is not in the tray and not on the quiet board.
 
+## Menu bar
+
+The menu-bar item is the logo and one mark, with the counts one click away. The icon is
+the q plus a status mark in a slot right of its stem, in one colour: a template image,
+since macOS only matches the bar for those. It is 23×18pt in every state, so neighbouring
+items never shift.
+
+- **Nothing to report:** the q alone.
+- **Working:** the q and the working mark, the sidebar's four dots on its timing (1.2s, 12
+  frames, 100ms each). Under reduced motion it stands still with all four dots at full size.
+- **Needs you:** the q and one solid dot, echoing the logo's.
+
+Working wins: while any workspace has status `working` the icon says only that, and the
+menu's counts carry the rest. `preparing`, `removing` and an idle row with background
+tasks do not count as working. Needs you means `needs_input`, `stuck`, or finished unseen,
+the rule that gives a sidebar row its green dot (`src/shared/finished.ts`), and it clears
+the same way. While quiet hours are locked only `stuck` needs you, as on the quiet board.
+
+No text sits beside the icon, except while an unlock runs: the countdown alone (`14:32`),
+in monospaced digits so they do not jitter. While an unlock runs everything else behaves
+as work hours.
+
+A click, left or right, opens the menu. It lists no sessions or workspace names, since the
+sidebar and the quiet board already do. From the top:
+
+- The non-zero counts, disabled, one to a row: `2 working`, `1 needs input`, `1 stuck`,
+  `1 finished` in work hours, `2 running`, `1 stuck` while locked. With no counts this block
+  and its separator go.
+- `Open que`.
+- Outside a quiet window, `Go quiet` with `30 min`, `1 hour` and `2 hours`. Inside one,
+  `End quiet` (a manual quiet only), then `Lock now` while unlocked or `Unlock 20 min`, at
+  the configured length.
+- `Quit que`, after a separator.
+
 ## Quiet board
 
 The quiet board is the only window during quiet hours, and its one question is
@@ -495,8 +529,8 @@ open-lock icon in the same mono `--fg-faint`, no border and no fill, with a
 `--border` hairline and `--fg-muted` only under the pointer. The window end
 appears once, as `until HH:MM` in the strip.
 Needs input is not a night state: it reads `waiting`, faint, with a neutral
-dot, and the locked tray title leaves its count out (`● 3 ✕ 0`).
-A manual quiet (`que quiet start`, or the tray's `Quiet for …`) shows the same
+dot, and the locked menu-bar menu leaves its count out (`2 running`, `1 stuck`).
+A manual quiet (`que quiet start`, or the tray's `Go quiet`) shows the same
 board with plainer words, since it need not be night: the label reads `[ QUIET ]`
 and the list `Running` instead of `Running tonight`, and an `End quiet` button
 sits beside Unlock, drawn the same way. Those two buttons stay the board's only

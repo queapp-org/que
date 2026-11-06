@@ -122,7 +122,7 @@ const api: QueApi = {
     openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
     openInEditor: (p) => ipcRenderer.invoke('app:openInEditor', p.path),
     openSetupLog: (p) => unwrap(ipcRenderer.invoke('app:openSetupLog', p.id)),
-    trayTitle: () => ipcRenderer.invoke('app:trayTitle'),
+    trayView: () => ipcRenderer.invoke('app:trayView'),
     updateStatus: () => ipcRenderer.invoke('app:updateStatus'),
     onUpdateStatus: (cb) => {
       const listener = (_e: IpcRendererEvent, status: UpdateStatus): void => cb(status)
