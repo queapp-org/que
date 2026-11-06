@@ -6,6 +6,7 @@ import type {
   PrCheck,
   PrThreadEntry,
   PullRequest,
+  QuietState,
   Ticket,
   Workspace
 } from '../shared/types'
@@ -156,5 +157,27 @@ export function makePullRequest(overrides: Partial<PullRequest> = {}): PullReque
     comments: null,
     commentedAt: null,
     ...overrides
+  }
+}
+
+/** Work hours: quiet hours on, the next window starting at 19:00 local. */
+export function makeQuietState(overrides: Partial<QuietState> = {}): QuietState {
+  const state = {
+    enabled: true,
+    inQuietHours: false,
+    windowStart: null,
+    windowEnd: null,
+    nextBoundary: new Date(2026, 9, 13, 19, 0).toISOString(),
+    unlockedUntil: null,
+    unlockMinutes: 20,
+    ...overrides
+  }
+
+  // Locked unless said otherwise: quiet hours on and no unlock running; a
+  // window is a scheduled one unless said otherwise.
+  return {
+    locked: state.inQuietHours && !state.unlockedUntil,
+    kind: state.inQuietHours ? 'scheduled' : null,
+    ...state
   }
 }

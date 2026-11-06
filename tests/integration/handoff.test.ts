@@ -346,7 +346,7 @@ describe('daemon handoff', () => {
       expect(restored.id).not.toBe(term.id)
       expect(restoredLoose.id).not.toBe(loose.id)
       expect(restoredLoose.cwd).toBe(notes)
-      // The loose one is typed into at once, the workspace's once setup has ended: either may run first.
+      // The loose one is typed into when its shell is ready, the workspace's after setup too: either may run first.
       await expect
         .poll(
           () =>

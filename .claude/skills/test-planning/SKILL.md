@@ -114,7 +114,7 @@ The status-engine reducers, the quiet-hours and unlock clock math, config parsin
 - Unlock countdown: remaining time, expiry, an unlock requested outside quiet hours
 - Protocol framing with split chunks, byte-at-a-time multi-byte UTF-8, malformed lines
 - Decoding hook payloads and `gh` JSON: the fields que reads, missing fields, unknown values
-- Worktree naming and slugs, config defaults, report formatting, the tray title (`● 3 ▸ 1 ✕ 0`)
+- Worktree naming and slugs, config defaults, report formatting, what the tray shows (`trayView`: its mark, title and counts)
 - Immutability: pure reducers never mutate their input
 
 **Do NOT test here:**
@@ -164,7 +164,7 @@ This is the core value of this skill. For any given behavior, **test it at the l
 5. **Status rules**:
    - The rule itself (which event yields which status, when stuck fires) → Logic tests
    - That real hook payloads reach the engine and the event goes out → Daemon integration tests
-   - How the status is surfaced (sidebar badge, quiet board row) → Renderer component tests; the tray title string → a logic test of its formatter
+   - How the status is surfaced (sidebar badge, quiet board row) → Renderer component tests; what the tray shows → a logic test of `trayView`
    - Don't test the same transition in logic, integration, AND E2E
 
 ### Overlap Smells (Red Flags)
