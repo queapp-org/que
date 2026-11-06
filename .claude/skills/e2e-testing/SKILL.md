@@ -524,7 +524,7 @@ const quietBoard = new QuietBoardPage(popover)
 await quietBoard.waitForLoad()
 ```
 
-Each window gets its own page objects. To find an already-open window, filter `launched.app.windows()` by something stable (its URL hash or a root testid), not by index. Don't try to click the tray — Playwright can't reach the macOS menu bar; every window the tray opens must also be reachable from inside the app, and the tray title's formatting is a logic test.
+Each window gets its own page objects. To find an already-open window, filter `launched.app.windows()` by something stable (its URL hash or a root testid), not by index. Don't try to click the tray — Playwright can't reach the macOS menu bar; every window the tray opens must also be reachable from inside the app, and what the tray shows (`trayView`) is a logic test.
 
 ### Shared State Inside One Launch
 

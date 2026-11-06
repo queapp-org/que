@@ -4,7 +4,6 @@
 // A Stop that reports agent-like background tasks (subagents, workflows,
 // teammates) still running keeps the workspace working, since they wake the
 // session when they finish; shells and monitors are listed but do not count.
-import { formatMinSec } from '../shared/format'
 import type { HookBackgroundTask } from '../shared/protocol'
 import type { BackgroundTask, StatusSummary, WorkspaceStatus } from '../shared/types'
 
@@ -282,27 +281,4 @@ export function summarize(workspaces: ReadonlyArray<{ status: WorkspaceStatus }>
   for (const w of workspaces) s[w.status] += 1
 
   return s
-}
-
-/** The menu-bar title: working, needing input, stuck. */
-export function trayTitle(s: StatusSummary): string {
-  return `● ${s.working} ▸ ${s.needs_input} ✕ ${s.stuck}`
-}
-
-/**
- * The menu-bar title with quiet hours folded in: while an unlock runs it
- * leads with the countdown (`🔓 14:32 · ● 3 ▸ 1 ✕ 0`); while quiet hours are
- * locked it drops the needs-input count (`● 3 ✕ 0`), since needs input is not
- * a night state; otherwise it is the plain counts.
- */
-export function quietTrayTitle(
-  s: StatusSummary,
-  quiet: { inQuietHours: boolean; unlockedUntil: string | null } | null,
-  now: number
-): string {
-  if (!quiet?.inQuietHours) return trayTitle(s)
-
-  if (!quiet.unlockedUntil) return `● ${s.working} ✕ ${s.stuck}`
-
-  return `🔓 ${formatMinSec(Date.parse(quiet.unlockedUntil) - now)} · ${trayTitle(s)}`
 }

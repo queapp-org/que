@@ -60,6 +60,7 @@ import type {
   Usage,
   UsageWindow,
   UserConfig,
+  TrayView,
   Weekday,
   Workspace,
   WorkspaceStatus
@@ -81,6 +82,7 @@ export type {
   Usage,
   UsageWindow,
   UserConfig,
+  TrayView,
   Weekday,
   Report,
   TicketsListResult,
@@ -149,8 +151,8 @@ export interface AppApi {
   openInEditor(params: { path: string }): Promise<{ ok: true }>
   /** Opens a workspace's setup log in the system's viewer for it. */
   openSetupLog(params: { id: string }): Promise<{ ok: true }>
-  /** The menu-bar title. Answers only when the app was launched with QUE_E2E=1. */
-  trayTitle(): Promise<string>
+  /** What the menu-bar item shows. Answers only when the app was launched with QUE_E2E=1. */
+  trayView(): Promise<TrayView | undefined>
   /** What the update check last said, where an install has got to, and what this build is. */
   updateStatus(): Promise<UpdateStatus>
   /** Fires whenever a check finishes (in the background or asked for), and as an install moves. */
@@ -337,8 +339,8 @@ export interface QueTestHook {
   review(): { open: boolean; view: 'prs' | 'changes' | 'files'; pr: number | null; width: number }
   /** The screen of any attached terminal by id ('' when it is not on screen). */
   screenTextOf(termId: string): string
-  /** The tray's current title, from the main process. */
-  trayTitle(): Promise<string>
+  /** What the menu-bar item shows, from the main process. */
+  trayView(): Promise<TrayView | undefined>
   /**
    * Where text last appears on an attached terminal's screen, in window coordinates (the
    * middle of its first character), or null when it is not on screen.

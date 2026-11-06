@@ -8,7 +8,7 @@
 //   - the daemon the app starts runs from inside que.app/Contents/Resources,
 //     under the app's own binary;
 //   - a terminal opens and runs a command (read through window.__que);
-//   - the tray title is readable;
+//   - the tray's view is readable;
 //   - Contents/Resources/cli/que --version prints the package version;
 //   - launched again the way Finder does (PATH=/usr/bin:/bin:/usr/sbin:/sbin, no
 //     TERM, no QUE_E2E), the daemon's PATH is the login shell's, not launchd's;
@@ -200,11 +200,13 @@ try {
   )
   log(`terminal ${termId} printed QUE_PKG_42`)
 
-  // 3. The tray title.
-  const tray = await poll('the tray title', () => window.evaluate(() => window.__que.trayTitle()))
-  log(`tray title "${tray}"`)
+  // 3. The tray's view.
+  const tray = await poll('the tray view', () => window.evaluate(() => window.__que.trayView()))
+  log(`tray view ${JSON.stringify(tray)}`)
 
-  if (!/^● \d+ ▸ \d+ ✕ \d+$/.test(tray)) throw new Error(`unexpected tray title "${tray}"`)
+  if (!['none', 'working', 'attention'].includes(tray.mark)) {
+    throw new Error(`unexpected tray view ${JSON.stringify(tray)}`)
+  }
 
   // 4. The shipped CLI launcher.
   const version = que('--version')

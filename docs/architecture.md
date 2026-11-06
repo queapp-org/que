@@ -521,9 +521,9 @@ quiet hours end leaves the night to the morning summary.
 ## The app
 
 The main process proxies an allow-list of methods and forwards events to the
-renderer, keeps the menu-bar title (`● 3 ▸ 1 ✕ 0`), shows the quiet board window
-while locked, and looks for a newer release: it asks at launch, hourly looks
-whether the last attempt is six hours old (a failed one asks again on the next
+renderer, keeps the menu-bar item (the q, one status mark, the counts in its
+menu), shows the quiet board window while locked, and looks for a newer release:
+it asks at launch, hourly looks whether the last attempt is six hours old (a failed one asks again on the next
 look), and Settings can ask at any time. The sidebar's Quiet row offers what it
 finds as Update while the daemon runs this build. A click downloads it through
 `electron-updater`, loaded only then, and Restart installs it and relaunches; nothing

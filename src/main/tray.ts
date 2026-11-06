@@ -1,12 +1,21 @@
-// The menu-bar item: a template icon titled with the workspace counts
-// (`● working ▸ needs input ✕ stuck`; `● working ✕ stuck` while quiet hours are
-// locked), recomputed from rows the daemon's events keep current, led by the
-// unlock countdown while one runs. Clicking it
-// brings the window forward (the quiet board during quiet hours).
-import { Menu, nativeImage, Tray } from 'electron'
-import { quietTrayTitle, summarize } from '../daemon/status-engine'
+// The menu-bar item: the q and one status mark as a template image, the unlock countdown beside
+// it while one runs, and either click pops a menu of the counts and the quiet controls. trayView
+// says what to show, from rows the daemon's events keep current; tray-icon draws the pixels.
+// docs/design.md "Menu bar".
+import { Menu, nativeImage, systemPreferences, Tray } from 'electron'
 import type { DaemonClient } from '../shared/client'
-import type { QuietState, StatusSummary, Workspace } from '../shared/types'
+import type { QuietState, TrayView, Workspace } from '../shared/types'
+import {
+  FRAME_INTERVAL_MS,
+  ICON_HEIGHT,
+  ICON_SCALE,
+  ICON_WIDTH,
+  qBitmap,
+  qWithDotBitmap,
+  stillWorkingBitmap,
+  workingBitmaps
+} from './tray-icon'
+import { type TrayActions, trayMenu, trayView } from './tray-view'
 
 /** The tray tooltip and board window title in a quiet window, else null. */
 export function quietTitle(q: QuietState | null): string | null {
@@ -15,28 +24,20 @@ export function quietTitle(q: QuietState | null): string | null {
   return q.kind === 'manual' ? 'que · quiet' : 'que · quiet hours'
 }
 
-/** A 32×32 (16pt @2x) monochrome "q": a ring with a descender, as raw BGRA. */
-function iconBitmap(): Buffer {
-  const size = 32
-  const buf = Buffer.alloc(size * size * 4)
-  const cx = 14.5
-  const cy = 13.5
+function templateImage(bitmap: Buffer): Electron.NativeImage {
+  const image = nativeImage.createFromBitmap(bitmap, {
+    width: ICON_WIDTH,
+    height: ICON_HEIGHT,
+    scaleFactor: ICON_SCALE
+  })
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const d = Math.hypot(x - cx, y - cy)
-      const ring = d <= 10 && d >= 6.5
-      const stem = x >= 21 && x <= 24 && y >= 13 && y <= 29
+  image.setTemplateImage(true)
 
-      if (ring || stem) buf.writeUInt32LE(0xff000000, (y * size + x) * 4)
-    }
-  }
-
-  return buf
+  return image
 }
 
 export interface QueTray {
-  title(): string
+  view(): TrayView
   /** Lists the daemon's rows afresh (on connect and reconnect); events that arrive meanwhile apply on top. */
   seed(client: DaemonClient): void
   /** A workspace was created or updated. */
@@ -48,84 +49,70 @@ export interface QueTray {
   destroy(): void
 }
 
-export interface TrayOptions {
-  show: () => void
-  quit: () => void
-  unlock: () => void
-  lock: () => void
-  /** Starts a manual quiet window of `minutes`. */
-  start: (minutes: number) => void
-  /** Ends a manual quiet window. */
-  end: () => void
-}
-
-export function createTray(opts: TrayOptions): QueTray {
-  const image = nativeImage.createFromBitmap(iconBitmap(), {
-    width: 32,
-    height: 32,
-    scaleFactor: 2
-  })
-
-  image.setTemplateImage(true)
-  const tray = new Tray(image)
-  let summary: StatusSummary = summarize([])
+export function createTray(opts: TrayActions): QueTray {
+  const qImage = templateImage(qBitmap())
+  const dotImage = templateImage(qWithDotBitmap())
+  const frameImages = workingBitmaps().map((bitmap) => templateImage(bitmap))
+  const stillImage = templateImage(stillWorkingBitmap())
+  const tray = new Tray(qImage)
   let quiet: QuietState | null = null
   let countdown: NodeJS.Timeout | null = null
-  let title = quietTrayTitle(summary, quiet, Date.now())
+  let frameTimer: NodeJS.Timeout | null = null
+  let view = trayView([], quiet, Date.now())
   const workspaces = new Map<string, Workspace>()
   // Changes that arrive while the list is in flight, replayed on top of them.
   let held: Array<() => void> | null = null
 
-  // In a window: End quiet (a manual one only) over Unlock or Lock now.
-  // Outside one: the three ways to go quiet now.
-  const quietItems = (): Electron.MenuItemConstructorOptions[] => {
-    if (!quiet?.inQuietHours) {
-      return [
-        { label: 'Quiet for 30 min', click: () => opts.start(30) },
-        { label: 'Quiet for 1 hour', click: () => opts.start(60) },
-        { label: 'Quiet for 2 hours', click: () => opts.start(120) }
-      ]
+  const stopFrames = (): void => {
+    if (frameTimer) clearInterval(frameTimer)
+    frameTimer = null
+  }
+
+  const startFrames = (): void => {
+    if (systemPreferences.getAnimationSettings().prefersReducedMotion) {
+      tray.setImage(stillImage)
+
+      return
     }
 
-    return [
-      ...(quiet.kind === 'manual' ? [{ label: 'End quiet', click: opts.end }] : []),
-      quiet.unlockedUntil
-        ? { label: 'Lock now', click: opts.lock }
-        : { label: `Unlock ${quiet.unlockMinutes} min`, click: opts.unlock }
-    ]
+    let frame = 0
+
+    tray.setImage(frameImages[frame])
+    frameTimer = setInterval(() => {
+      frame = (frame + 1) % frameImages.length
+      tray.setImage(frameImages[frame])
+    }, FRAME_INTERVAL_MS)
+    frameTimer.unref()
   }
 
-  const menu = (): Menu =>
-    Menu.buildFromTemplate([
-      { label: 'Open que', click: opts.show },
-      { type: 'separator' },
-      { label: `Working: ${summary.working}`, enabled: false },
-      { label: `Needs input: ${summary.needs_input}`, enabled: false },
-      { label: `Stuck: ${summary.stuck}`, enabled: false },
-      { type: 'separator' },
-      ...quietItems(),
-      { type: 'separator' },
-      { label: 'Quit que', click: opts.quit }
-    ])
+  // Frames run only while the mark is `working`.
+  const showMark = (mark: TrayView['mark']): void => {
+    stopFrames()
 
+    if (mark === 'working') startFrames()
+    else tray.setImage(mark === 'attention' ? dotImage : qImage)
+  }
+
+  // Only what changed reaches the bar, since workspace events come in bursts.
   const render = (): void => {
-    title = quietTrayTitle(summary, quiet, Date.now())
+    const shown = view
+
+    view = trayView([...workspaces.values()], quiet, Date.now())
 
     if (tray.isDestroyed()) return
-    tray.setTitle(title)
-    tray.setToolTip(quietTitle(quiet) ?? 'que')
+
+    if (view.title !== shown.title) tray.setTitle(view.title, { fontType: 'monospacedDigit' })
+
+    if (view.mark !== shown.mark) showMark(view.mark)
   }
 
-  // Left click brings the window forward; right click shows the menu (a
-  // context menu set with setContextMenu would swallow the left click).
-  tray.on('click', opts.show)
-  tray.on('right-click', () => tray.popUpContextMenu(menu()))
-  render()
+  // Either click pops the menu, built fresh so it reads what is true now.
+  const popUp = (): void =>
+    tray.popUpContextMenu(Menu.buildFromTemplate(trayMenu(view, quiet, opts)))
 
-  const recount = (): void => {
-    summary = summarize([...workspaces.values()])
-    render()
-  }
+  tray.on('click', popUp)
+  tray.on('right-click', popUp)
+  tray.setToolTip('que')
 
   const seed = (client: DaemonClient): void => {
     const mine: Array<() => void> = []
@@ -141,7 +128,7 @@ export function createTray(opts: TrayOptions): QueTray {
 
         for (const replay of mine) replay()
 
-        recount()
+        render()
       })
       .catch(() => {
         // The daemon went away; the next connect seeds again.
@@ -158,7 +145,7 @@ export function createTray(opts: TrayOptions): QueTray {
     }
 
     fn()
-    recount()
+    render()
   }
 
   const setQuiet = (q: QuietState | null): void => {
@@ -173,17 +160,19 @@ export function createTray(opts: TrayOptions): QueTray {
       countdown = null
     }
 
+    if (!tray.isDestroyed()) tray.setToolTip(quietTitle(q) ?? 'que')
     render()
   }
 
   return {
-    title: () => title,
+    view: () => view,
     seed,
     putWorkspace: (w) => change(() => workspaces.set(w.id, w)),
     dropWorkspace: (id) => change(() => workspaces.delete(id)),
     setQuiet,
     destroy: () => {
       if (countdown) clearInterval(countdown)
+      stopFrames()
       tray.destroy()
     }
   }

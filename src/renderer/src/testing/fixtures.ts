@@ -6,7 +6,6 @@ import type {
   DiffLine,
   DiffToken,
   Project,
-  QuietState,
   TermInfo,
   TokenKind,
   UserConfig,
@@ -24,6 +23,7 @@ export {
   makePrCheck,
   makePrThreadEntry,
   makePullRequest,
+  makeQuietState,
   makeTicket,
   makeWorkspace,
   makeWorkspaceDigest
@@ -58,28 +58,6 @@ export function makeTermInfo(overrides: Partial<TermInfo> = {}): TermInfo {
     alive: true,
     createdAt: `2026-10-13T21:${(10 + termCounter).toString().padStart(2, '0')}:00.000Z`,
     ...overrides
-  }
-}
-
-/** Work hours: quiet hours on, the next window starting at 19:00 local. */
-export function makeQuietState(overrides: Partial<QuietState> = {}): QuietState {
-  const state = {
-    enabled: true,
-    inQuietHours: false,
-    windowStart: null,
-    windowEnd: null,
-    nextBoundary: new Date(2026, 9, 13, 19, 0).toISOString(),
-    unlockedUntil: null,
-    unlockMinutes: 20,
-    ...overrides
-  }
-
-  // Locked unless said otherwise: quiet hours on and no unlock running; a
-  // window is a scheduled one unless said otherwise.
-  return {
-    locked: state.inQuietHours && !state.unlockedUntil,
-    kind: state.inQuietHours ? 'scheduled' : null,
-    ...state
   }
 }
 
