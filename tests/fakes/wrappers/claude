@@ -11,11 +11,13 @@ self=$(cd "$(dirname "$0")" && pwd -P)
 if [ -n "$QUE_FAKE_WRAPPER_LOG" ]; then
   printf '%s\t%s\n' "$$" "$*" >>"$QUE_FAKE_WRAPPER_LOG"
 fi
-set -f
-IFS=:
-for d in $PATH; do
-  [ -n "$d" ] || continue
-  case "$d" in "$self" | "$self/") continue ;; esac
+# PATH is split by hand: setting IFS=: for the whole script fails Semgrep's
+# ifs-tampering rule (#336).
+rest="$PATH:"
+while [ -n "$rest" ]; do
+  d=${rest%%:*}
+  rest=${rest#*:}
+  case "$d" in "" | "$self" | "$self/") continue ;; esac
   next="$d/claude"
   [ -f "$next" ] && [ -x "$next" ] || continue
   if [ "$QUE_FAKE_WRAPPER_STYLE" = "spawn" ]; then

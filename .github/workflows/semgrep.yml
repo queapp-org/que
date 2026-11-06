@@ -18,8 +18,10 @@ jobs:
     name: Semgrep
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Pinned, so a new Semgrep release shows up in the pull request that bumps it rather than as a
+    # red main (#336). The registry rule sets below still download fresh on every run.
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.183.0
     steps:
       - uses: actions/checkout@v7
         with:

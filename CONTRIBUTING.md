@@ -36,8 +36,10 @@ changelog and generated docs, and on a push to `main` whose merged tree is exact
 the branch the pull request tested. `scripts/mac-jobs.mjs` decides, and when it can't, they
 run. A skipped job still passes its required check.
 
-A Semgrep check also runs on every pull request (registry rules plus `.semgrep/que.yml`). To run the
-custom rules locally, install `semgrep` and run `semgrep scan --config .semgrep/que.yml --error .`.
+A Semgrep check also runs on every pull request (registry rules plus `.semgrep/que.yml`), on the
+Semgrep version pinned in `.github/workflows/semgrep.yml`. To run the custom rules locally, install
+`semgrep` and run `semgrep scan --config .semgrep/que.yml --error .`; an older version can miss what
+CI finds.
 
 ## Lint and format
 
