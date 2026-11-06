@@ -10,6 +10,7 @@ All notable changes to que are recorded here. The format follows
 
 - A new workspace no longer opens with `claude` shown twice. que waits for your shell's prompt before typing the command, and so does a session resumed after a restart or started from a ticket. A shell that never gets that far has the command typed after 10 seconds, as it was before.
 - Pull requests a session creates with `gh pr create` keep showing on its workspace after the repository moves to another owner or name, with no restart, including from a clone whose remote still names the old owner. One on a different repository is still left out, and the daemon log now says why. Pull requests missed before this fix stay missing.
+- A directory added to your PATH only in `~/.zshrc`, which is often where `claude` lives, now reaches a background service the app starts. The app waits at most 5 seconds for your shell's startup files, then uses what a login shell reports. A service that's already running keeps the PATH it started with, even after an update, so `que doctor` now says when it can't find `claude` or `gh` but your shell can, why, and what to do.
 
 ## [0.5.0] - 2026-11-04
 
