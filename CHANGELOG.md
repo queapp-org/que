@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A new workspace no longer opens with `claude` shown twice. que waits for your shell's prompt before typing the command, and so does a session resumed after a restart or started from a ticket. A shell that never gets that far has the command typed after 10 seconds, as it was before.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

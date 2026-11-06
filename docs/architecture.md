@@ -480,6 +480,14 @@ first prompt, whatever `start_prompt` says. `workspace.rename`
 changes the title and, for a branch with no `origin/<branch>`, can rename the
 branch to a name the user gives; the folder keeps its name.
 
+Every command that starts Claude (`workspace.start`, a ticket, a resumed session)
+is typed once the shell can take it (`shell-ready.ts`). Until a line editor starts,
+the tty echoes what is typed and the editor then draws it again, so the daemon polls
+the tty's ECHO flag, which line editors turn off as they take over. A shell with no
+line editor gets the command after 10 seconds, with a line in the daemon log. A daemon that closes or hands off during the
+wait types nothing and its successor does not know of the command, so that terminal
+stays at its prompt.
+
 Once a session is running, the title is the session's own. Claude Code names a
 session from its first prompt (or `/rename`) and writes the name to the terminal
 title, `✳ <name>` when idle and `◐ <name>` while busy; `session-label.ts` drops
