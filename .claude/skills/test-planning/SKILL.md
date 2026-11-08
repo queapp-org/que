@@ -39,7 +39,7 @@ que is a macOS Electron app whose real work happens in a long-running daemon (`s
 
 1. **The more your tests resemble how software is used, the more confidence they give you**
 2. **Integration tests are the sweet spot** - the real daemon pieces in-process with real node-pty, real `node:sqlite`, real `git`, and the real `DaemonClient` over a temp socket; for UI, real components against the fake `window.que` bridge
-3. **Fake at the subprocess and bridge boundaries, not deeper** - que's true boundaries are the `claude`, `git`, `gh`, and `code` subprocesses (fake `claude`/`gh`/`code` binaries on `PATH` from `tests/fakes/bin/`; `git` stays real on temp repos), the filesystem under `QUE_HOME` (a fresh temp dir per test), the clock (injected `now()`), and the Electron bridge (the fake `window.que` in renderer tests). Never mock `protocol.ts`, `client.ts`, the status engine, the store, components, `node:child_process`, or `node:fs`.
+3. **Fake at the subprocess and bridge boundaries, not deeper** - que's true boundaries are the `claude`, `git`, `gh`, and `open` subprocesses (fake `claude`/`gh`/`open` binaries on `PATH` from `tests/fakes/bin/`; `git` stays real on temp repos), the filesystem under `QUE_HOME` (a fresh temp dir per test), the clock (injected `now()`), and the Electron bridge (the fake `window.que` in renderer tests). Never mock `protocol.ts`, `client.ts`, the status engine, the store, components, `node:child_process`, or `node:fs`.
 4. **Don't test implementation details** - test behavior a user or client can observe (a socket response, an event, a row in the store, a screen line, a rendered badge) or, for the logic layer, the returned value
 5. **You should rarely change tests when you refactor code** - if your tests break on refactor, they tested the wrong thing
 6. **Code coverage is a tool, not a target** - 100% coverage is counterproductive
@@ -53,7 +53,7 @@ que is a macOS Electron app whose real work happens in a long-running daemon (`s
 
 **Purpose:** Validate critical user journeys in the real built app against the real daemon.
 
-E2E launches the built app (`npm run e2e` builds first) with `QUE_HOME` set to a fresh temp dir, `QUE_E2E=1`, and `PATH` prepended with `tests/fakes/bin`, so the real daemon starts in that home, real `git` runs against a temp repo built by `tests/e2e/utils/repo.ts`, and `claude`/`gh`/`code` are the fakes. Its unique value is the **whole system end to end**: Electron main spawning or finding the daemon, the preload bridge, the real renderer with xterm.js, multiple windows, and — the one thing nothing lower can prove — that the daemon and its terminals **outlive the app** and the app reattaches on relaunch.
+E2E launches the built app (`npm run e2e` builds first) with `QUE_HOME` set to a fresh temp dir, `QUE_E2E=1`, and `PATH` prepended with `tests/fakes/bin`, so the real daemon starts in that home, real `git` runs against a temp repo built by `tests/e2e/utils/repo.ts`, and `claude`/`gh`/`open` are the fakes. Its unique value is the **whole system end to end**: Electron main spawning or finding the daemon, the preload bridge, the real renderer with xterm.js, multiple windows, and — the one thing nothing lower can prove — that the daemon and its terminals **outlive the app** and the app reattaches on relaunch.
 
 **Test here:**
 
@@ -237,7 +237,7 @@ Daemon:
 - [ ] **Test name** - What behavior this validates
   - Seed: [client.request(...) calls, temp repo, fake claude commands]
   - Act: [method / CLI command / hook delivery]
-  - Observe: [result, event, store row, fake gh/code log, screen text]
+  - Observe: [result, event, store row, fake gh/open log, screen text]
 
 Renderer:
 - [ ] **Test name** - What behavior this validates

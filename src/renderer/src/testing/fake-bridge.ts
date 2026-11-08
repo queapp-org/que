@@ -212,6 +212,9 @@ class FakeBridge {
   private folder: string | null = null
   private tray: TrayView = { mark: 'none', title: '', counts: [] }
   private editorCalls: string[] = []
+  /** What the editor app picker picks next; null is a cancel. */
+  private editorPick: string | null | Error = null
+  private chooseEditorCount = 0
   private updateBook: UpdateStatus = currentUpdateStatus()
   private updateListeners = new Set<(status: UpdateStatus) => void>()
   private updateOpens = 0
@@ -329,20 +332,7 @@ class FakeBridge {
 
           if (refusal !== null) throw rpcError('bad_request', refusal)
 
-          this.configSets.push(structuredClone(p))
-          this.configRaw = mergeConfigPatch(this.configRaw, patchToToml(p.patch))
-
-          if ('instructionsFile' in p.patch) {
-            const file = p.patch.instructionsFile
-            this.configBook.config = {
-              ...this.configBook.config,
-              instructionsFile: typeof file === 'string' && file !== '' ? file : undefined
-            }
-          }
-
-          this.emit('config.changed', structuredClone(this.configBook))
-
-          return structuredClone(this.configBook)
+          return this.applyConfigSet(p)
         },
         on: (event, cb) => this.subscribe(event, cb as Listener)
       },
@@ -422,7 +412,19 @@ class FakeBridge {
         openInEditor: async ({ path }) => {
           this.editorCalls.push(path)
 
-          return { ok: true }
+          return { opened: true }
+        },
+        // As the main process: the picked app is saved with config.set, which emits config.changed.
+        chooseEditor: async () => {
+          this.chooseEditorCount++
+          const picked = this.editorPick
+
+          if (picked instanceof Error) throw picked
+
+          if (picked === null) return null
+          this.applyConfigSet({ patch: { editorApp: picked } })
+
+          return picked
         },
         trayView: async () => this.tray,
         updateStatus: async () => ({ ...this.updateBook }),
@@ -841,6 +843,30 @@ class FakeBridge {
     this.configRaw = raw
   }
 
+  /** What the daemon does with a config.set it accepts: records it, saves it, emits config.changed. */
+  private applyConfigSet(p: ConfigSetParams): ConfigGetResult {
+    this.configSets.push(structuredClone(p))
+    this.configRaw = mergeConfigPatch(this.configRaw, patchToToml(p.patch))
+
+    const text = (v: string | null | undefined): string | undefined =>
+      typeof v === 'string' && v !== '' ? v : undefined
+
+    if ('instructionsFile' in p.patch) {
+      this.configBook.config = {
+        ...this.configBook.config,
+        instructionsFile: text(p.patch.instructionsFile)
+      }
+    }
+
+    if ('editorApp' in p.patch) {
+      this.configBook.config = { ...this.configBook.config, editorApp: text(p.patch.editorApp) }
+    }
+
+    this.emit('config.changed', structuredClone(this.configBook))
+
+    return structuredClone(this.configBook)
+  }
+
   /** The config file's table after the config.set calls so far (the file's own key names). */
   configFile(): Record<string, unknown> {
     return structuredClone(this.configRaw)
@@ -1096,6 +1122,19 @@ class FakeBridge {
   /** How many times app.restartToInstall() was called. */
   restartToInstallCalls(): number {
     return this.restartToInstallCount
+  }
+
+  /**
+   * What the next app.chooseEditor() picks: an app's path, null for a cancelled picker, or an
+   * Error it rejects with (the save failed).
+   */
+  setEditorPick(app: string | null | Error): void {
+    this.editorPick = app
+  }
+
+  /** How many times app.chooseEditor() showed the picker. */
+  chooseEditorCalls(): number {
+    return this.chooseEditorCount
   }
 
   /** Every path app.openInEditor was asked to open, in order. */
@@ -1463,6 +1502,8 @@ class FakeBridge {
     this.attachGate.reset()
     this.tray = { mark: 'none', title: '', counts: [] }
     this.editorCalls = []
+    this.editorPick = null
+    this.chooseEditorCount = 0
     this.updateBook = currentUpdateStatus()
     this.updateListeners.clear()
     this.updateOpens = 0

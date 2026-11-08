@@ -7,6 +7,7 @@ import type {
 } from '../../../preload/index.d'
 import { currentWindow } from '../../../daemon/quiet-hours'
 import { SUGGESTED_START_PROMPT } from '../../../shared/brief'
+import { editorName } from '../../../shared/editor-name'
 import { type ConfigPatch, HHMM, WEEKDAYS } from '../../../shared/types'
 import { errorMessage } from '../../../shared/errors.decode'
 import { useQue, useStore } from '../store'
@@ -328,7 +329,10 @@ function takeWritten(field: Field, from: Form, into: Form): Form {
 /** The instructions file's text, written through instructions.set rather than config.set. */
 const CONTENT = 'instructions-content'
 
-type Mark = Field | typeof CONTENT
+/** The editor app, chosen with the system's picker (in the main process) rather than typed. */
+const EDITOR = 'editor-app'
+
+type Mark = Field | typeof CONTENT | typeof EDITOR
 
 /** A brief "Saved" after a write: a polite live region, the mark fading as it goes. */
 function SavedMark({ field, shown }: { field: Mark; shown: boolean }): React.JSX.Element {
@@ -569,6 +573,18 @@ export default function SettingsView(): React.JSX.Element {
     })
   }
 
+  /** Runs one of the editor row's actions in turn; a failure shows under the row. */
+  const editorJob = (job: () => Promise<void>): void =>
+    enqueue(EDITOR, async () => {
+      try {
+        await job()
+
+        if (live.current) setError(EDITOR, null)
+      } catch (err) {
+        if (live.current) setError(EDITOR, errorMessage(err))
+      }
+    })
+
   /** A text field: written on blur, or on Enter in a one-line input; Escape reverts it. */
   const text = (field: Field) => ({
     onBlur: () => commit(field, formRef.current),
@@ -624,6 +640,9 @@ export default function SettingsView(): React.JSX.Element {
   )
 
   const off = !connected
+  // Read from the config, not the form: the choice is saved by the main process and arrives as
+  // config.changed.
+  const editorApp = config.config.editorApp
 
   return (
     <section className="settings" data-testid="settings-view" aria-labelledby="settings-title">
@@ -986,6 +1005,50 @@ export default function SettingsView(): React.JSX.Element {
               {loadError}
             </p>
           )}
+        </fieldset>
+        <fieldset data-testid="settings-editor" disabled={off}>
+          <legend>Editor</legend>
+          <div className="editor-row">
+            <span
+              className={editorApp ? 'editor-name' : 'muted'}
+              data-testid="settings-editor-app"
+              title={editorApp}
+            >
+              {editorApp ? editorName(editorApp) : 'None'}
+            </span>
+            <span className="editor-actions">
+              <button
+                type="button"
+                data-testid="settings-editor-app-choose"
+                onClick={() =>
+                  editorJob(async () => {
+                    await store.chooseEditor()
+                  })
+                }
+              >
+                {editorApp ? 'Change…' : 'Choose…'}
+              </button>
+              {editorApp && (
+                <button
+                  type="button"
+                  data-testid="settings-editor-app-clear"
+                  onClick={() =>
+                    editorJob(async () => {
+                      await store.saveConfig({ patch: { editorApp: null } })
+                    })
+                  }
+                >
+                  Clear
+                </button>
+              )}
+            </span>
+          </div>
+          {error(EDITOR)}
+          <p className="hint">
+            {editorApp
+              ? 'Open in editor opens workspaces in this app.'
+              : 'Open in editor asks for one the first time.'}
+          </p>
         </fieldset>
         <fieldset disabled={off}>
           <legend>Pull requests</legend>

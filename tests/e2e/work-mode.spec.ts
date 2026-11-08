@@ -3,13 +3,16 @@
 // in it finishing a turn with one chime (recorded, never played, under e2e) and
 // reaching needs input on the sidebar's dot (and in `que status` and the tray's view), a turn finishing
 // while another row is selected reading as unseen until the workspace is selected, Open
-// in editor (in the review pane's Changes) launching the editor on the worktree, the project removed from
-// its context menu with the workspace and its worktree, and Settings naming the running build.
+// in editor (in the review pane's Changes) opening the worktree in the editor app from the config,
+// asking for one when none is set and saying so when the app is gone, the project removed from
+// its context menu with the workspace and its worktree, and Settings naming the running build and
+// the editor app.
 import fs from 'node:fs'
+import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { version } from '../../package.json'
 import type { StatusJson } from '../../src/cli/workspaces'
-import type { TermInfo } from '../../src/shared/protocol'
+import type { ConfigGetResult, TermInfo } from '../../src/shared/protocol'
 import type { Project, Workspace } from '../../src/shared/types'
 import { makeTempRepo } from '../../src/testing/temp-repo'
 import { AppShellPage } from './pages/AppShellPage'
@@ -19,7 +22,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { SidebarPage } from './pages/SidebarPage'
 import { TerminalPage } from './pages/TerminalPage'
 import { type LaunchedApp, launchApp, newQueHome, retryPointer, tempDir } from './utils/app'
-import { queJson } from './utils/que'
+import { que, queJson } from './utils/que'
 
 let launched: LaunchedApp
 
@@ -30,6 +33,11 @@ test.afterEach(async () => {
 test('a workspace made in the sidebar runs claude, shows needs input, opens in the editor, and goes with its project', async () => {
   const repo = makeTempRepo(tempDir('que-e2e-repo-'))
   const queHome = newQueHome()
+  // Two application bundles as far as que can tell: the one in the config, and the one picked.
+  const editorApp = join(tempDir('que-e2e-editor-'), 'Editor.app')
+  const pickedApp = join(tempDir('que-e2e-editor-'), 'Editor.app')
+  fs.mkdirSync(editorApp)
+  fs.mkdirSync(pickedApp)
   let project: Project
   let workspace: Workspace
   let termId = ''
@@ -42,9 +50,10 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
   const statusOf = () =>
     queJson<StatusJson>(queHome, 'status', '--json').workspaces.find((w) => w.id === workspace.id)
 
-  await test.step('Register the project with the CLI', async () => {
+  await test.step('Register the project and the editor app with the CLI', async () => {
     project = queJson<Project>(queHome, 'project', 'add', repo, '--json')
     expect(project.defaultBranch).toBe('main')
+    que(queHome, 'config', 'set', `editor_app=${editorApp}`)
   })
 
   await test.step('Launch the app; the project is in the sidebar', async () => {
@@ -191,11 +200,28 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     })
   })
 
-  await test.step("Open in editor, in the review pane's Changes, launches the editor on the worktree", async () => {
+  await test.step("Open in editor, in the review pane's Changes, opens the worktree in the editor app", async () => {
     await review.show.click()
     await changes.openEditor.click()
-    await expect.poll(() => launched.codeCalls()).toContainEqual(['-n', workspace.path])
+    await expect.poll(() => launched.openCalls()).toContainEqual(['-a', editorApp, workspace.path])
     await launched.window.screenshot({ path: 'test-results/wp4-work-mode.png' })
+  })
+
+  await test.step('With no editor app set, Open in editor asks for one, saves it, and opens the worktree in it', async () => {
+    que(queHome, 'config', 'set', 'editor_app=null')
+    await launched.pickInOpenDialog(pickedApp)
+    await changes.openEditor.click()
+    await expect.poll(() => launched.openCalls()).toContainEqual(['-a', pickedApp, workspace.path])
+    const { config } = queJson<ConfigGetResult>(queHome, 'config', 'get', '--json')
+    expect(config.editorApp).toBe(pickedApp)
+  })
+
+  await test.step('An editor app that is gone is named on the error line', async () => {
+    fs.rmSync(pickedApp, { recursive: true })
+    await changes.openEditor.click()
+    await expect(shell.error).toContainText(
+      `Editor is no longer at ${pickedApp}. Choose another editor in que's Settings.`
+    )
   })
 
   await test.step('Remove the project from its context menu; the workspace and its worktree go too', async () => {
@@ -209,10 +235,12 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     await expect.poll(() => fs.existsSync(workspace.path)).toBe(false)
   })
 
-  await test.step('Settings names the running version, and that a test build never checks for releases', async () => {
+  await test.step('Settings names the running version, that a test build never checks for releases, and the editor app', async () => {
     const settings = new SettingsPage(launched.window)
     await sidebar.settingsButton.click()
     await expect(settings.updatesVersion).toHaveText(`que ${version}`)
     await expect(settings.updatesAnswer).toHaveText("Local build: que doesn't check for releases.")
+    await expect(settings.editorApp).toHaveText('Editor')
+    await expect(settings.editorApp).toHaveAttribute('title', pickedApp)
   })
 })

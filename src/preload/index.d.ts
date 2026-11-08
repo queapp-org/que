@@ -149,8 +149,16 @@ export interface AppApi {
   pathForFile(file: File): string
   /** Shows a native folder picker; resolves to the chosen path or null. */
   openFolder(): Promise<string | null>
-  /** Opens a folder in a new editor window (`code -n <path>`); fire-and-forget. */
-  openInEditor(params: { path: string }): Promise<{ ok: true }>
+  /**
+   * Opens a folder in the editor app (editor_app), asking for one first when none is set; `opened`
+   * is false when that was cancelled. Rejects saying what went wrong.
+   */
+  openInEditor(params: { path: string }): Promise<{ opened: boolean }>
+  /**
+   * Shows the system's picker for the editor app, starting in /Applications, and saves the choice
+   * as editor_app (config.changed follows). Resolves to the app's path, or null when cancelled.
+   */
+  chooseEditor(): Promise<string | null>
   /** Opens a workspace's setup log in the system's viewer for it. */
   openSetupLog(params: { id: string }): Promise<{ ok: true }>
   /** What the menu-bar item shows. Answers only when the app was launched with QUE_E2E=1. */

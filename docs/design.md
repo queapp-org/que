@@ -322,6 +322,10 @@ Each token is a span with a class per kind (`tok-decl`, `tok-str`, …), a brack
   A region of the window that cannot be drawn (the sidebar's lists, the main area, the review
   pane) shows the error line in its place, saying which part and why, and the rest of the
   window stays up.
+- Settings' `[ EDITOR ]` fieldset is one wrapping row: the editor app's name in `--fg`
+  (its path as the tooltip), or `None` in `--fg-muted`, and plain buttons at the right
+  end: Choose…, which reads Change… once an app is set, then Clear only when one is. A
+  hint under the row says what the app is for, or that the first Open in editor asks.
 - Settings' last fieldset, `[ UPDATES ]`, is one wrapping row: `que 0.3.0` in mono `--fg`,
   the last answer (a hint, a new release in `--fg`, or a form error), and plain buttons at
   the right end: Check for updates; the same action as the Quiet row's chip, in the same

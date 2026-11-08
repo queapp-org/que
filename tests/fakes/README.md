@@ -61,12 +61,15 @@ file whose contents `agents --json` prints instead of `[]`),
 except `agents`, which the daemon's status poll runs on its own clock, first
 appends one JSON line `{ "argv": [...], "cwd": "...", "pid": <n>, "ts": "...",
 "env": [...] }` to it (`env` is the sorted CLAUDE*, TERM* and QUE_* variable names it
-saw), as `gh` and `code` do.
+saw), as `gh` and `open` do.
 
-## `gh` and `code`
+## `gh` and `open`
 
 Each invocation appends one JSON line `{ "argv": [...], "cwd": "...", "ts": "..." }`
-to `$QUE_FAKE_GH_LOG` / `$QUE_FAKE_CODE_LOG` when set. `gh auth status` reports
+to `$QUE_FAKE_GH_LOG` / `$QUE_FAKE_OPEN_LOG` when set. `open` stands in for macOS's:
+que runs `open -a <app> <folder>` for Open in editor, and the CLI opens a ticket's link
+with it. It opens nothing and exits 0, or, with `$QUE_FAKE_OPEN_FAIL` set, prints that
+value on stderr and exits 1. `gh auth status` reports
 a logged-in account; `gh pr create ...` prints
 `https://github.com/rquellh/que/pull/<n>`, where `n` counts the `pr create` calls
 already in the log. Everything else exits 0 silently.

@@ -2024,10 +2024,16 @@ export class QueStore {
     this.setWith((s) => ({ view: viewWithout(s.view, [id]) }))
   }
 
+  /** Opens a folder in the editor app, asking for one first when none is set. */
   openInEditor(path: string): Promise<void> {
     return this.guard(async () => {
       await this.api.app.openInEditor({ path })
     })
+  }
+
+  /** Asks for the editor app with the system's picker; the choice arrives as config.changed. */
+  chooseEditor(): Promise<string | null> {
+    return this.api.app.chooseEditor()
   }
 
   /** Opens a workspace's setup log in the system's viewer for it. */

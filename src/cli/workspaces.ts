@@ -1,9 +1,10 @@
 // Projects, workspaces, and status commands.
-import { execFile } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import type { Command } from 'commander'
 import { summarize } from '../daemon/status-engine'
 import type { DaemonClient } from '../shared/client'
+import { openWithEditor } from '../shared/editor'
+import { errorMessage } from '../shared/errors.decode'
 import {
   formatAge,
   formatDuration,
@@ -143,12 +144,21 @@ export interface StatusJson {
   }>
 }
 
-function openInEditor(path: string): Promise<void> {
-  return new Promise((res, rej) => {
-    execFile('code', ['-n', path], (err) =>
-      err ? rej(new CliError(`code -n failed: ${err.message}`)) : res()
+/** Opens a folder in the editor app the config names (editor_app), as the app does. */
+async function openInEditor(c: DaemonClient, path: string): Promise<void> {
+  const app = (await c.request('config.get')).config.editorApp
+
+  if (!app) {
+    throw new CliError(
+      "no editor app is set: choose one in que's Settings, or run: que config set editor_app=/Applications/<Editor>.app"
     )
-  })
+  }
+
+  try {
+    await openWithEditor(app, path)
+  } catch (err) {
+    throw new CliError(errorMessage(err))
+  }
 }
 
 /** Waits until a workspace leaves `preparing` (its setup command finished). */
@@ -307,7 +317,7 @@ export function registerWorkspaceCommands(program: Command): void {
       'name the workspace, branch and folder yourself (default: random words)'
     )
     .option('--base <ref>', 'base ref (default: origin/<default branch>)')
-    .option('--open', 'open the workspace with `code -n`')
+    .option('--open', 'open the workspace in your editor app (Settings → Editor, or editor_app)')
     .option('--json', 'print the workspace as JSON')
     .action(
       (
@@ -344,7 +354,7 @@ export function registerWorkspaceCommands(program: Command): void {
             process.exitCode = 1
           }
 
-          if (opts.open) await openInEditor(ws.path)
+          if (opts.open) await openInEditor(c, ws.path)
         })
       }
     )
@@ -534,11 +544,11 @@ export function registerWorkspaceCommands(program: Command): void {
 
   program
     .command('open <workspace>')
-    .description('open the workspace with `code -n`')
+    .description('open the workspace in your editor app (Settings → Editor, or editor_app)')
     .action((ref: string) =>
       withClient(async (c) => {
         await assertNotQuiet(c)
-        await openInEditor((await findWorkspace(c, ref)).path)
+        await openInEditor(c, (await findWorkspace(c, ref)).path)
       }, false)
     )
 }
