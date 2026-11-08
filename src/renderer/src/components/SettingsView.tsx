@@ -573,10 +573,11 @@ export default function SettingsView(): React.JSX.Element {
     })
   }
 
-  const clearEditor = (): void =>
+  /** Runs one of the editor row's actions in turn; a failure shows under the row. */
+  const editorJob = (job: () => Promise<void>): void =>
     enqueue(EDITOR, async () => {
       try {
-        await store.saveConfig({ patch: { editorApp: null } })
+        await job()
 
         if (live.current) setError(EDITOR, null)
       } catch (err) {
@@ -1019,12 +1020,24 @@ export default function SettingsView(): React.JSX.Element {
               <button
                 type="button"
                 data-testid="settings-editor-app-choose"
-                onClick={() => void store.chooseEditor()}
+                onClick={() =>
+                  editorJob(async () => {
+                    await store.chooseEditor()
+                  })
+                }
               >
                 {editorApp ? 'Change…' : 'Choose…'}
               </button>
               {editorApp && (
-                <button type="button" data-testid="settings-editor-app-clear" onClick={clearEditor}>
+                <button
+                  type="button"
+                  data-testid="settings-editor-app-clear"
+                  onClick={() =>
+                    editorJob(async () => {
+                      await store.saveConfig({ patch: { editorApp: null } })
+                    })
+                  }
+                >
                   Clear
                 </button>
               )}

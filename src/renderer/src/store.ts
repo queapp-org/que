@@ -2022,10 +2022,8 @@ export class QueStore {
   }
 
   /** Asks for the editor app with the system's picker; the choice arrives as config.changed. */
-  chooseEditor(): Promise<void> {
-    return this.guard(async () => {
-      await this.api.app.chooseEditor()
-    })
+  chooseEditor(): Promise<string | null> {
+    return this.api.app.chooseEditor()
   }
 
   /** Opens a workspace's setup log in the system's viewer for it. */

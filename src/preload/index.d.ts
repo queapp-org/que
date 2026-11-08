@@ -148,9 +148,8 @@ export interface AppApi {
   /** Shows a native folder picker; resolves to the chosen path or null. */
   openFolder(): Promise<string | null>
   /**
-   * Opens a folder in the editor app (editor_app) with `open -a`. With none set, it asks for one
-   * first and saves it; `opened` is false when that was cancelled. Rejects saying what went wrong:
-   * the app is no longer there, or it could not open the folder.
+   * Opens a folder in the editor app (editor_app), asking for one first when none is set; `opened`
+   * is false when that was cancelled. Rejects saying what went wrong.
    */
   openInEditor(params: { path: string }): Promise<{ opened: boolean }>
   /**

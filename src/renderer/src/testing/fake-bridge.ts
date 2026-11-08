@@ -213,7 +213,7 @@ class FakeBridge {
   private tray: TrayView = { mark: 'none', title: '', counts: [] }
   private editorCalls: string[] = []
   /** What the editor app picker picks next; null is a cancel. */
-  private editorPick: string | null = null
+  private editorPick: string | null | Error = null
   private chooseEditorCount = 0
   private updateBook: UpdateStatus = currentUpdateStatus()
   private updateListeners = new Set<(status: UpdateStatus) => void>()
@@ -419,9 +419,12 @@ class FakeBridge {
           this.chooseEditorCount++
           const picked = this.editorPick
 
-          if (picked === null) return null
+          if (picked instanceof Error) throw picked
 
-          return this.applyConfigSet({ patch: { editorApp: picked } }).config.editorApp ?? picked
+          if (picked === null) return null
+          this.applyConfigSet({ patch: { editorApp: picked } })
+
+          return picked
         },
         trayView: async () => this.tray,
         updateStatus: async () => ({ ...this.updateBook }),
@@ -1120,8 +1123,11 @@ class FakeBridge {
     return this.restartToInstallCount
   }
 
-  /** What the next app.chooseEditor() picks (an app's path), or null for a cancelled picker. */
-  setEditorPick(app: string | null): void {
+  /**
+   * What the next app.chooseEditor() picks: an app's path, null for a cancelled picker, or an
+   * Error it rejects with (the save failed).
+   */
+  setEditorPick(app: string | null | Error): void {
     this.editorPick = app
   }
 

@@ -788,6 +788,19 @@ describe('SettingsView editor', () => {
     expect(fakeBridge.configSetCalls()).toEqual([])
   })
 
+  it('says under the row why a choice could not be saved, and keeps None', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setEditorPick(new Error('config file is not writable'))
+    await openSettings(user)
+
+    await user.click(screen.getByRole('button', { name: 'Choose…' }))
+
+    expect(await screen.findByTestId('settings-editor-app-error')).toHaveTextContent(
+      'config file is not writable'
+    )
+    expect(screen.getByTestId('settings-editor-app')).toHaveTextContent('None')
+  })
+
   it('clears the app, back to None and Choose', async () => {
     const user = userEvent.setup()
     fakeBridge.setConfig({ editorApp: EDITOR_APP }, { editor_app: EDITOR_APP })

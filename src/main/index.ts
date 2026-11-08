@@ -244,29 +244,26 @@ async function reply<T>(
   }
 }
 
-/**
- * Asks for the editor app with the system's picker, which starts in /Applications and takes
- * only applications, and saves the choice as editor_app; config.changed tells the windows.
- * Null when the picker was cancelled.
- */
+/** The system's open panel, on the main window when there is one. */
+function showOpen(opts: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> {
+  return mainWindow ? dialog.showOpenDialog(mainWindow, opts) : dialog.showOpenDialog(opts)
+}
+
+/** Asks for the editor app (an application, from /Applications) and saves it as editor_app. */
 async function chooseEditorApp(): Promise<string | null> {
-  const opts: Electron.OpenDialogOptions = {
+  const result = await showOpen({
     message: 'Choose the app that opens your workspaces',
     defaultPath: '/Applications',
     properties: ['openFile'],
     filters: [{ name: 'Applications', extensions: ['app'] }]
-  }
-
-  const result = mainWindow
-    ? await dialog.showOpenDialog(mainWindow, opts)
-    : await dialog.showOpenDialog(opts)
+  })
 
   const picked = result.canceled ? undefined : result.filePaths[0]
 
   if (!picked) return null
-  const saved = await (await getClient()).request('config.set', { patch: { editorApp: picked } })
+  await (await getClient()).request('config.set', { patch: { editorApp: picked } })
 
-  return saved.config.editorApp ?? picked
+  return picked
 }
 
 function showBoard(): void {
@@ -458,11 +455,7 @@ function registerIpc(): void {
   ipcMain.handle('app:homedir', () => os.homedir())
 
   ipcMain.handle('dialog:openFolder', async () => {
-    const opts: Electron.OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] }
-
-    const result = mainWindow
-      ? await dialog.showOpenDialog(mainWindow, opts)
-      : await dialog.showOpenDialog(opts)
+    const result = await showOpen({ properties: ['openDirectory', 'createDirectory'] })
 
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
