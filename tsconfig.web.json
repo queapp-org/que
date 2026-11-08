@@ -25,6 +25,7 @@
     "src/preload/index.d.ts",
     "src/daemon/quiet-hours.ts",
     "src/daemon/report.ts",
+    "src/shared/artifact-url.ts",
     "src/shared/config-defaults.ts",
     "src/shared/count-line.ts",
     "src/shared/diff-parse.ts",

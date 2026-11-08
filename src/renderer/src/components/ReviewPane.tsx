@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { prCounts } from '../pr-list'
 import { isPreparing, isWorkspace, type ReviewView, useQueSelector, useStore } from '../store'
+import ArtifactList from './ArtifactList'
 import ChangesList from './ChangesList'
 import FilesTree from './FilesTree'
 import {
+  ArtifactsIcon,
   ChangesIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
@@ -18,10 +20,14 @@ import RefreshButton from './RefreshButton'
 const VIEWS: ReadonlyArray<{ view: ReviewView; name: string; Icon: () => React.JSX.Element }> = [
   { view: 'prs', name: 'Pull requests', Icon: PullRequestIcon },
   { view: 'changes', name: 'Changes', Icon: ChangesIcon },
-  { view: 'files', name: 'Files', Icon: FolderIcon }
+  { view: 'files', name: 'Files', Icon: FolderIcon },
+  { view: 'artifacts', name: 'Artifacts', Icon: ArtifactsIcon }
 ]
 
-/** Each view's count beside (or, on the rail, under) its icon: the open pull requests, the changed files. */
+/**
+ * Each view's count beside (or, on the rail, under) its icon: the open pull requests, the changed
+ * files, the published pages.
+ */
 function useViewCounts(termKey: string): Record<ReviewView, number | undefined> {
   const prs = useQueSelector((s) => {
     const ws = s.workspaces[termKey]
@@ -31,7 +37,9 @@ function useViewCounts(termKey: string): Record<ReviewView, number | undefined> 
 
   const changes = useQueSelector((s) => s.diffs[termKey]?.data?.files.length)
 
-  return { prs, changes, files: undefined }
+  const artifacts = useQueSelector((s) => s.workspaces[termKey]?.artifacts.length)
+
+  return { prs, changes, files: undefined, artifacts }
 }
 
 /** A view's icon with its count, in the pane's strip or on the rail; each lays it out. */
@@ -108,10 +116,11 @@ export function ReviewRail({ termKey }: { termKey: string }): React.JSX.Element 
 }
 
 /**
- * The review pane at the right of the main area. Three icons in its strip pick the view: the
- * session's pull requests, the worktree's changes, or the project's files; a pull request opens
- * in place, and the strip's left end becomes its back link. The view's own buttons sit at the
- * strip's right end, then the hide chevron. The pane remembers its view per workspace.
+ * The review pane at the right of the main area. Four icons in its strip pick the view: the
+ * session's pull requests, the worktree's changes, the project's files, or the pages the session
+ * published; a pull request opens in place, and the strip's left end becomes its back link. The
+ * view's own buttons sit at the strip's right end, then the hide chevron. The pane remembers its
+ * view per workspace.
  */
 export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.Element {
   const store = useStore()
@@ -138,12 +147,15 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
     store.ensureReview(termKey)
   }, [store, termKey, place.view, place.pr, numbers])
 
-  const refresh = (): Promise<void> =>
-    place.view === 'changes'
-      ? store.fetchDiff(termKey)
-      : place.view === 'files'
-        ? store.refreshFiles(termKey)
-        : store.refreshPrs(termKey)
+  const refreshes: Record<ReviewView, (() => Promise<void>) | null> = {
+    prs: () => store.refreshPrs(termKey),
+    changes: () => store.fetchDiff(termKey),
+    files: () => store.refreshFiles(termKey),
+    // Hook events keep the list current: nothing polls, so there is nothing to refresh.
+    artifacts: null
+  }
+
+  const refresh = refreshes[place.view]
 
   // ⌘F while the pane has focus: the Files view's filter.
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -200,12 +212,14 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
           {ws && (
             <>
               {/* Each view and each pull request turns its own Refresh. */}
-              <RefreshButton
-                key={`${termKey}:${place.view}:${pr?.number ?? ''}`}
-                testId={`${testId}-refresh`}
-                disabled={!connected || preparing}
-                onRefresh={refresh}
-              />
+              {refresh && (
+                <RefreshButton
+                  key={`${termKey}:${place.view}:${pr?.number ?? ''}`}
+                  testId={`${testId}-refresh`}
+                  disabled={!connected || preparing}
+                  onRefresh={refresh}
+                />
+              )}
               <button
                 type="button"
                 className="ghost icon"
@@ -243,6 +257,8 @@ export default function ReviewPane({ termKey }: { termKey: string }): React.JSX.
         <ChangesList termKey={termKey} />
       ) : place.view === 'files' ? (
         <FilesTree termKey={termKey} focusFilter={filterFocus} />
+      ) : place.view === 'artifacts' ? (
+        <ArtifactList termKey={termKey} />
       ) : pr ? (
         <PullRequestDetail key={pr.number} termKey={termKey} number={pr.number} />
       ) : (
