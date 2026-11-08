@@ -28,6 +28,7 @@
     "src/shared/config-defaults.ts",
     "src/shared/count-line.ts",
     "src/shared/diff-parse.ts",
+    "src/shared/editor-name.ts",
     "src/shared/config-keys.decode.ts",
     "src/shared/config-patch.decode.ts",
     "src/shared/errors.decode.ts",

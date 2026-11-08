@@ -484,6 +484,8 @@ function registerIpc(): void {
     })
   )
 
+  ipcMain.handle('app:chooseEditor', () => reply(chooseEditorApp))
+
   // Opens only a workspace's own setup log: the renderer names the workspace, not a path.
   ipcMain.handle('app:openSetupLog', (_e, arg) =>
     reply(async () => {

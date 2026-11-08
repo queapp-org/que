@@ -747,6 +747,65 @@ describe('SettingsView instructions', () => {
   })
 })
 
+describe('SettingsView editor', () => {
+  const EDITOR_APP = '/Applications/Editor.app'
+
+  it('shows None with Choose, and that the first Open in editor asks', async () => {
+    const user = userEvent.setup()
+    const settings = await openSettings(user)
+
+    const editor = within(within(settings).getByTestId('settings-editor'))
+    expect(editor.getByTestId('settings-editor-app')).toHaveTextContent('None')
+    expect(editor.getByText('Open in editor asks for one the first time.')).toBeVisible()
+    expect(editor.getByRole('button', { name: 'Choose…' })).toBeEnabled()
+    expect(editor.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+  })
+
+  it('shows the picked app by name, with Change and Clear, as soon as it is saved', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setEditorPick(EDITOR_APP)
+    await openSettings(user)
+
+    await user.click(screen.getByRole('button', { name: 'Choose…' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-editor-app')).toHaveTextContent('Editor')
+    })
+    expect(screen.getByTestId('settings-editor-app')).toHaveAttribute('title', EDITOR_APP)
+    expect(screen.getByRole('button', { name: 'Change…' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeVisible()
+    expect(fakeBridge.configSetCalls()).toEqual([{ patch: { editorApp: EDITOR_APP } }])
+  })
+
+  it('leaves None when the picker is cancelled', async () => {
+    const user = userEvent.setup()
+    await openSettings(user)
+
+    await user.click(screen.getByRole('button', { name: 'Choose…' }))
+
+    await waitFor(() => expect(fakeBridge.chooseEditorCalls()).toBe(1))
+    expect(screen.getByTestId('settings-editor-app')).toHaveTextContent('None')
+    expect(fakeBridge.configSetCalls()).toEqual([])
+  })
+
+  it('clears the app, back to None and Choose', async () => {
+    const user = userEvent.setup()
+    fakeBridge.setConfig({ editorApp: EDITOR_APP }, { editor_app: EDITOR_APP })
+    await openSettings(user)
+    expect(screen.getByTestId('settings-editor-app')).toHaveTextContent('Editor')
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-editor-app')).toHaveTextContent('None')
+    })
+    expect(fakeBridge.configSetCalls()).toEqual([{ patch: { editorApp: null } }])
+    expect(fakeBridge.configFile()).toEqual({})
+    expect(screen.getByRole('button', { name: 'Choose…' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+  })
+})
+
 describe('SettingsView updates', () => {
   /** When the last attempt ran, as the check records it. */
   const CHECKED_AT = new Date(2026, 10, 2, 14, 20).getTime()

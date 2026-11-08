@@ -122,6 +122,7 @@ const api: QueApi = {
     pathForFile: (file) => webUtils.getPathForFile(file),
     openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
     openInEditor: (p) => unwrap(ipcRenderer.invoke('app:openInEditor', p.path)),
+    chooseEditor: () => unwrap(ipcRenderer.invoke('app:chooseEditor')),
     openSetupLog: (p) => unwrap(ipcRenderer.invoke('app:openSetupLog', p.id)),
     trayView: () => ipcRenderer.invoke('app:trayView'),
     updateStatus: () => ipcRenderer.invoke('app:updateStatus'),

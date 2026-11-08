@@ -2012,12 +2012,18 @@ body.resizing {
   gap: 10px;
 }
 
-/* The Updates section: the version and the last answer, the buttons at the row's right end. */
-.settings .updates-row {
+/* The Updates section (the version and the last answer) and the Editor section (the app's
+ * name), each with its buttons at the row's right end. */
+.settings .updates-row,
+.settings .editor-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
+}
+
+.settings .editor-name {
+  color: var(--fg);
 }
 
 .settings .updates-version {
@@ -2030,7 +2036,8 @@ body.resizing {
   color: var(--fg);
 }
 
-.settings .updates-actions {
+.settings .updates-actions,
+.settings .editor-actions {
   display: flex;
   gap: 6px;
   margin-left: auto;

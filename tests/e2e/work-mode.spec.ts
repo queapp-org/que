@@ -5,7 +5,8 @@
 // while another row is selected reading as unseen until the workspace is selected, Open
 // in editor (in the review pane's Changes) opening the worktree in the editor app from the config,
 // asking for one when none is set and saying so when the app is gone, the project removed from
-// its context menu with the workspace and its worktree, and Settings naming the running build.
+// its context menu with the workspace and its worktree, and Settings naming the running build and
+// the editor app.
 import fs from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -234,10 +235,12 @@ test('a workspace made in the sidebar runs claude, shows needs input, opens in t
     await expect.poll(() => fs.existsSync(workspace.path)).toBe(false)
   })
 
-  await test.step('Settings names the running version, and that a test build never checks for releases', async () => {
+  await test.step('Settings names the running version, that a test build never checks for releases, and the editor app', async () => {
     const settings = new SettingsPage(launched.window)
     await sidebar.settingsButton.click()
     await expect(settings.updatesVersion).toHaveText(`que ${version}`)
     await expect(settings.updatesAnswer).toHaveText("Local build: que doesn't check for releases.")
+    await expect(settings.editorApp).toHaveText('Editor')
+    await expect(settings.editorApp).toHaveAttribute('title', pickedApp)
   })
 })

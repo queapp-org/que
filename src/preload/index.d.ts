@@ -153,6 +153,11 @@ export interface AppApi {
    * the app is no longer there, or it could not open the folder.
    */
   openInEditor(params: { path: string }): Promise<{ opened: boolean }>
+  /**
+   * Shows the system's picker for the editor app, starting in /Applications, and saves the choice
+   * as editor_app (config.changed follows). Resolves to the app's path, or null when cancelled.
+   */
+  chooseEditor(): Promise<string | null>
   /** Opens a workspace's setup log in the system's viewer for it. */
   openSetupLog(params: { id: string }): Promise<{ ok: true }>
   /** What the menu-bar item shows. Answers only when the app was launched with QUE_E2E=1. */

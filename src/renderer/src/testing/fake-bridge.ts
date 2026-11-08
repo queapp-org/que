@@ -212,6 +212,9 @@ class FakeBridge {
   private folder: string | null = null
   private tray: TrayView = { mark: 'none', title: '', counts: [] }
   private editorCalls: string[] = []
+  /** What the editor app picker picks next; null is a cancel. */
+  private editorPick: string | null = null
+  private chooseEditorCount = 0
   private updateBook: UpdateStatus = currentUpdateStatus()
   private updateListeners = new Set<(status: UpdateStatus) => void>()
   private updateOpens = 0
@@ -410,6 +413,15 @@ class FakeBridge {
           this.editorCalls.push(path)
 
           return { opened: true }
+        },
+        // As the main process: the picked app is saved with config.set, which emits config.changed.
+        chooseEditor: async () => {
+          this.chooseEditorCount++
+          const picked = this.editorPick
+
+          if (picked === null) return null
+
+          return this.applyConfigSet({ patch: { editorApp: picked } }).config.editorApp ?? picked
         },
         trayView: async () => this.tray,
         updateStatus: async () => ({ ...this.updateBook }),
@@ -1108,6 +1120,16 @@ class FakeBridge {
     return this.restartToInstallCount
   }
 
+  /** What the next app.chooseEditor() picks (an app's path), or null for a cancelled picker. */
+  setEditorPick(app: string | null): void {
+    this.editorPick = app
+  }
+
+  /** How many times app.chooseEditor() showed the picker. */
+  chooseEditorCalls(): number {
+    return this.chooseEditorCount
+  }
+
   /** Every path app.openInEditor was asked to open, in order. */
   openInEditorCalls(): string[] {
     return [...this.editorCalls]
@@ -1473,6 +1495,8 @@ class FakeBridge {
     this.attachGate.reset()
     this.tray = { mark: 'none', title: '', counts: [] }
     this.editorCalls = []
+    this.editorPick = null
+    this.chooseEditorCount = 0
     this.updateBook = currentUpdateStatus()
     this.updateListeners.clear()
     this.updateOpens = 0

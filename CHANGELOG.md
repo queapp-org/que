@@ -6,6 +6,10 @@ All notable changes to que are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Open in editor opens the workspace in an editor app you choose, instead of one editor's command found on your PATH, so it works the same from Finder, the Dock or a terminal. The first click asks you to pick the app (the picker starts in Applications), saves it, and opens the folder; cancelling does nothing. Settings > Editor shows the app by name, with Change and Clear, and `que config set editor_app=/Applications/<Editor>.app` sets it too. When the app has moved or can't open the folder, the error line says so instead of nothing happening. `que open` and `que work --open` use the same app, and say how to set one when none is set. (#339)
+
 ### Fixed
 
 - A new workspace no longer opens with `claude` shown twice. que waits for your shell's prompt before typing the command, and so does a session resumed after a restart or started from a ticket. A shell that never gets that far has the command typed after 10 seconds, as it was before.
