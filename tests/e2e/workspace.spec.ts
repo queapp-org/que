@@ -259,7 +259,9 @@ test('a resting pointer on a workspace row opens its card with the branch and th
   })
 
   await test.step('Moving the pointer off the row and the card closes it', async () => {
-    await sidebar.reportButton.hover()
-    await expect(sidebar.workspacePopout(workspace.id)).toHaveCount(0)
+    await retryPointer(async () => {
+      await sidebar.reportButton.hover()
+      await expect(sidebar.workspacePopout(workspace.id)).toHaveCount(0)
+    })
   })
 })

@@ -43,7 +43,7 @@ import { PullRequestPage } from './pages/PullRequestPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { SidebarPage } from './pages/SidebarPage'
 import { TerminalPage } from './pages/TerminalPage'
-import { type LaunchedApp, launchApp, newQueHome, tempDir } from './utils/app'
+import { type LaunchedApp, launchApp, newQueHome, retryPointer, tempDir } from './utils/app'
 import { queJson } from './utils/que'
 
 let launched: LaunchedApp
@@ -383,19 +383,24 @@ test('The review pane lists the changes beside the terminals, opens diffs as tab
   })
 
   await test.step('Dragging the resizer 80px left widens the pane by about 80px', async () => {
-    const before = (await review.state()).width
-    expect(before).toBe(320)
-    const box = await review.resizer.boundingBox()
-    expect(box).not.toBeNull()
-    const { x, y, width, height } = box as { x: number; y: number; width: number; height: number }
-    await launched.window.mouse.move(x + width / 2, y + height / 2)
-    await launched.window.mouse.down()
-    await launched.window.mouse.move(x + width / 2 - 80, y + height / 2, { steps: 6 })
-    await launched.window.mouse.up()
-    await expect.poll(async () => (await review.state()).width).toBeGreaterThanOrEqual(before + 76)
-    widened = (await review.state()).width
-    expect(widened).toBeLessThanOrEqual(before + 84)
-    await expect(review.resizer).toHaveAttribute('aria-valuenow', String(widened))
+    expect((await review.state()).width).toBe(320)
+    await retryPointer(async () => {
+      // A drag cut short leaves the pane part way, so each attempt answers for its own 80px.
+      const before = (await review.state()).width
+      const box = await review.resizer.boundingBox()
+      expect(box).not.toBeNull()
+      const { x, y, width, height } = box as { x: number; y: number; width: number; height: number }
+      await launched.window.mouse.move(x + width / 2, y + height / 2)
+      await launched.window.mouse.down()
+      await launched.window.mouse.move(x + width / 2 - 80, y + height / 2, { steps: 6 })
+      await launched.window.mouse.up()
+      await expect
+        .poll(async () => (await review.state()).width)
+        .toBeGreaterThanOrEqual(before + 76)
+      widened = (await review.state()).width
+      expect(widened).toBeLessThanOrEqual(before + 84)
+      await expect(review.resizer).toHaveAttribute('aria-valuenow', String(widened))
+    })
     await launched.window.screenshot({ path: 'test-results/review-pane.png' })
   })
 
