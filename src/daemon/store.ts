@@ -8,8 +8,10 @@ import {
   type StatementResultingChanges,
   type StatementSync
 } from 'node:sqlite'
+import { isArtifactUrl } from '../shared/artifact-url'
 import { isObj, num, objects, str, strings } from '../shared/json.decode'
 import type {
+  Artifact,
   BackgroundTask,
   JsonValue,
   Preparation,
@@ -32,6 +34,8 @@ import { appendNew } from './branch-history'
 import { currentPullRequest } from './pr-state'
 
 const HOOK_EVENTS_PER_WORKSPACE = 500
+
+const ARTIFACTS_PER_WORKSPACE = 50
 
 /** Applied in order by index and recorded in `migrations`: append only, never edit or reorder. */
 export const MIGRATIONS: readonly string[] = [
@@ -158,7 +162,8 @@ export const MIGRATIONS: readonly string[] = [
   `ALTER TABLE workspaces ADD COLUMN pr_urls_json TEXT;
    UPDATE workspaces SET pr_urls_json = json_array(pr_url) WHERE pr_url IS NOT NULL;
    ALTER TABLE workspaces ADD COLUMN branches_json TEXT;`,
-  `ALTER TABLE workspaces ADD COLUMN preparation_json TEXT;`
+  `ALTER TABLE workspaces ADD COLUMN preparation_json TEXT;`,
+  `ALTER TABLE workspaces ADD COLUMN artifacts_json TEXT;`
 ]
 
 const STATUS_LOG_RETENTION_MS = 30 * 24 * 3_600_000
@@ -274,6 +279,7 @@ interface WorkspaceRow {
   preparation_json: string | null
   pr_urls_json: string | null
   branches_json: string | null
+  artifacts_json: string | null
 }
 
 export interface HookEventRow {
@@ -352,6 +358,20 @@ function readBackgroundTasks(json: string | null): BackgroundTask[] {
   })
 }
 
+/** The stored artifacts (artifacts_json): each well-formed entry whose URL still passes the rule. */
+function readArtifacts(json: string | null): Artifact[] {
+  return objects(parseStored(json)).flatMap((v) => {
+    const url = str(v.url)
+    const title = str(v.title)
+    const updatedAt = str(v.updatedAt)
+    const openedAt = v.openedAt === null ? null : str(v.openedAt)
+
+    return url && isArtifactUrl(url) && title && updatedAt && openedAt !== undefined
+      ? [{ url, title, updatedAt, openedAt }]
+      : []
+  })
+}
+
 const isRemovalStep = (v: unknown): v is RemovalStep =>
   (REMOVAL_STEPS as readonly unknown[]).includes(v)
 
@@ -405,6 +425,7 @@ function toWorkspace(r: WorkspaceRow): Workspace {
     prs,
     finishedAt: r.finished_at ?? null,
     seenAt: r.seen_at ?? null,
+    artifacts: readArtifacts(r.artifacts_json ?? null),
     backgroundTasks: readBackgroundTasks(r.background_json ?? null)
   }
 
@@ -566,8 +587,8 @@ export class Store {
       `INSERT INTO workspaces (id, project_id, name, branch, path, base_ref, status, status_reason,
            status_at, last_activity_at, session_id, created_at, archived_at, pr_urls_json, pr_json,
            prs_json, title, brief, title_source, finished_at, seen_at, removal_json, branches_json,
-           preparation_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           preparation_json, artifacts_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       w.id,
       w.projectId,
       w.name,
@@ -592,7 +613,8 @@ export class Store {
       w.seenAt,
       w.removal ? JSON.stringify(w.removal) : null,
       JSON.stringify(w.branches),
-      w.preparation ? JSON.stringify(w.preparation) : null
+      w.preparation ? JSON.stringify(w.preparation) : null,
+      JSON.stringify(w.artifacts)
     )
   }
 
@@ -681,6 +703,50 @@ export class Store {
 
       return true
     })
+  }
+
+  /** Rewrites the workspace's artifacts with what `change` returns; null leaves them. True when rewritten. */
+  private changeArtifacts(id: string, change: (known: Artifact[]) => Artifact[] | null): boolean {
+    return this.tx(() => {
+      const r = this.row<{ artifacts_json: string | null }>(
+        'SELECT artifacts_json FROM workspaces WHERE id = ?',
+        id
+      )
+
+      if (!r) return false
+      const next = change(readArtifacts(r.artifacts_json))
+
+      if (!next) return false
+      this.run('UPDATE workspaces SET artifacts_json = ? WHERE id = ?', JSON.stringify(next), id)
+
+      return true
+    })
+  }
+
+  /** A session published the page: first in the list, under its new title, unopened; the newest 50 stay. */
+  publishWorkspaceArtifact(id: string, url: string, title: string, at: string): boolean {
+    return this.changeArtifacts(id, (known) =>
+      [{ url, title, updatedAt: at, openedAt: null }, ...known.filter((a) => a.url !== url)].slice(
+        0,
+        ARTIFACTS_PER_WORKSPACE
+      )
+    )
+  }
+
+  /** A session deleted the page; true when it was listed. */
+  removeWorkspaceArtifact(id: string, url: string): boolean {
+    return this.changeArtifacts(id, (known) =>
+      known.some((a) => a.url === url) ? known.filter((a) => a.url !== url) : null
+    )
+  }
+
+  /** The app opened the page; true when it was listed. */
+  markWorkspaceArtifactOpened(id: string, url: string, at: string): boolean {
+    return this.changeArtifacts(id, (known) =>
+      known.some((a) => a.url === url)
+        ? known.map((a) => (a.url === url ? { ...a, openedAt: at } : a))
+        : null
+    )
   }
 
   /** Stores the workspace's pull requests; the current one (Workspace.pr) is derived from them. */

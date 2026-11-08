@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { decodeHookEvent } from '../../src/shared/hook.decode'
 import { FAKES_BIN } from '../../src/testing/fakes'
+import { jsonLines } from './interactive'
 
 const CONTRACT = process.env.QUE_CONTRACT === '1'
 const LIFECYCLE_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'] as const
@@ -37,14 +38,6 @@ function claude(args: string[], opts: { cwd: string; env?: Record<string, string
       }
     ).stdin?.end()
   })
-}
-
-/** Parses newline-delimited JSON, skipping blank lines. */
-function jsonLines(text: string): Record<string, unknown>[] {
-  return text
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as Record<string, unknown>)
 }
 
 describe.skipIf(!CONTRACT)('claude contract', () => {
@@ -127,7 +120,7 @@ describe.skipIf(!CONTRACT)('claude contract', () => {
     expect(r.code, r.stderr).toBe(0)
 
     // Hooks: the four lifecycle events (no subagent ran), in order, with the common fields and our env.
-    const entries = jsonLines(fs.readFileSync(hookLog, 'utf8')) as {
+    const entries = jsonLines(hookLog) as {
       marker: string | null
       payload: Record<string, unknown>
     }[]
@@ -171,7 +164,7 @@ describe.skipIf(!CONTRACT)('claude contract', () => {
 
     expect(r.code, r.stderr).toBe(0)
 
-    const stop = jsonLines(fs.readFileSync(log, 'utf8'))
+    const stop = jsonLines(log)
       .map((e) => e.payload as Record<string, unknown>)
       .find((p) => p.hook_event_name === 'Stop')
 

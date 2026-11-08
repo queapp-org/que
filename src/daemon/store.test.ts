@@ -163,6 +163,151 @@ describe('created pull requests', () => {
   })
 })
 
+describe('migration to published pages', () => {
+  it('reads a workspace stored before the list as having none', () => {
+    const dir = fs.mkdtempSync(join(os.tmpdir(), 'que-store-'))
+    const path = join(dir, 'que.db')
+    const previous = new DatabaseSync(path)
+    previous.exec('CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)')
+
+    const artifacts = MIGRATIONS.findIndex((sql) => sql.includes('artifacts_json'))
+
+    MIGRATIONS.slice(0, artifacts).forEach((sql, i) => {
+      previous.exec(sql)
+      previous
+        .prepare('INSERT INTO migrations (version, applied_at) VALUES (?, ?)')
+        .run(i + 1, '2026-11-03T21:00:00.000Z')
+    })
+
+    previous.exec(`
+      INSERT INTO projects (id, name, path, default_branch, created_at)
+        VALUES ('prj_01hzw7q2m4nb', 'uploader', '/Users/dev/src/uploader', 'main', '2026-10-13T21:00:00.000Z');
+      INSERT INTO workspaces (id, project_id, name, branch, path, base_ref, status, status_at, created_at)
+        VALUES ('ws_01hzx3k9c2qf', 'prj_01hzw7q2m4nb', 'APP-1432-retry-logic', 'APP-1432-retry-logic',
+          '/Users/dev/.que/worktrees/uploader/APP-1432-retry-logic', 'main', 'idle',
+          '2026-10-13T21:05:00.000Z', '2026-10-13T21:05:00.000Z');
+    `)
+
+    previous.close()
+
+    const reopened = new Store(path)
+    const kept = reopened.getWorkspace('ws_01hzx3k9c2qf')?.artifacts
+    reopened.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+
+    expect(kept).toEqual([])
+  })
+})
+
+describe('published pages', () => {
+  const ID = 'ws_01hzx3k9c2qf'
+  const PAGE = 'https://claude.ai/artifact/Bo2pUji8XumREbCYMXcoMe'
+  const OTHER = 'https://claude.ai/code/artifact/5TzMcQgtfF2RmJrrpX3D7m'
+  const T1 = '2026-10-13T21:05:00.000Z'
+  const T2 = '2026-10-13T21:06:00.000Z'
+  const T3 = '2026-10-13T21:07:00.000Z'
+
+  const artifacts = () => store.getWorkspace(ID)?.artifacts
+
+  beforeEach(() => {
+    store.insertWorkspace(makeWorkspace({ id: ID }))
+  })
+
+  it('adds a new page at the front, unopened', () => {
+    expect(store.publishWorkspaceArtifact(ID, PAGE, 'Upload retries', T1)).toBe(true)
+    expect(store.publishWorkspaceArtifact(ID, OTHER, 'Backoff notes', T2)).toBe(true)
+
+    expect(artifacts()).toEqual([
+      { url: OTHER, title: 'Backoff notes', updatedAt: T2, openedAt: null },
+      { url: PAGE, title: 'Upload retries', updatedAt: T1, openedAt: null }
+    ])
+  })
+
+  it('updates a known page in place: new title and time, at the front, unopened again', () => {
+    store.publishWorkspaceArtifact(ID, PAGE, 'Upload retries', T1)
+    store.publishWorkspaceArtifact(ID, OTHER, 'Backoff notes', T1)
+    store.markWorkspaceArtifactOpened(ID, PAGE, T2)
+
+    expect(store.publishWorkspaceArtifact(ID, PAGE, 'Upload retries, second draft', T3)).toBe(true)
+
+    expect(artifacts()).toEqual([
+      { url: PAGE, title: 'Upload retries, second draft', updatedAt: T3, openedAt: null },
+      { url: OTHER, title: 'Backoff notes', updatedAt: T1, openedAt: null }
+    ])
+  })
+
+  it('removes a page by URL, true only when it was listed', () => {
+    store.publishWorkspaceArtifact(ID, PAGE, 'Upload retries', T1)
+    store.publishWorkspaceArtifact(ID, OTHER, 'Backoff notes', T2)
+
+    expect(store.removeWorkspaceArtifact(ID, PAGE)).toBe(true)
+    expect(store.removeWorkspaceArtifact(ID, PAGE)).toBe(false)
+
+    expect(artifacts()).toEqual([
+      { url: OTHER, title: 'Backoff notes', updatedAt: T2, openedAt: null }
+    ])
+  })
+
+  it('marks a page opened by URL, and an unknown URL changes nothing', () => {
+    store.publishWorkspaceArtifact(ID, PAGE, 'Upload retries', T1)
+    store.publishWorkspaceArtifact(ID, OTHER, 'Backoff notes', T1)
+
+    expect(store.markWorkspaceArtifactOpened(ID, PAGE, T2)).toBe(true)
+    expect(store.markWorkspaceArtifactOpened(ID, 'https://claude.ai/artifact/gone', T3)).toBe(false)
+
+    expect(artifacts()).toEqual([
+      { url: OTHER, title: 'Backoff notes', updatedAt: T1, openedAt: null },
+      { url: PAGE, title: 'Upload retries', updatedAt: T1, openedAt: T2 }
+    ])
+  })
+
+  it('keeps the newest 50', () => {
+    for (let i = 0; i < 52; i++) {
+      store.publishWorkspaceArtifact(ID, `https://claude.ai/artifact/page${i}`, `Page ${i}`, T1)
+    }
+
+    const urls = artifacts()?.map((a) => a.url)
+    expect(urls).toHaveLength(50)
+    expect(urls?.[0]).toBe('https://claude.ai/artifact/page51')
+    expect(urls?.at(-1)).toBe('https://claude.ai/artifact/page2')
+  })
+
+  it('drops a malformed or bad-URL stored entry when reading', () => {
+    const good = { url: PAGE, title: 'Upload retries', updatedAt: T1, openedAt: null }
+    const opened = { url: OTHER, title: 'Backoff notes', updatedAt: T1, openedAt: T2 }
+
+    store.db
+      .prepare('UPDATE workspaces SET artifacts_json = ? WHERE id = ?')
+      .run(
+        JSON.stringify([
+          good,
+          'https://claude.ai/artifact/just-a-string',
+          { ...good, url: 'javascript:alert(1)' },
+          { ...good, url: 7 },
+          { ...good, title: '' },
+          { ...good, updatedAt: undefined },
+          { ...good, openedAt: 1793839146 },
+          opened
+        ]),
+        ID
+      )
+
+    expect(artifacts()).toEqual([good, opened])
+  })
+
+  it('reads a stored value that is not a list as none', () => {
+    store.db.prepare('UPDATE workspaces SET artifacts_json = ? WHERE id = ?').run('{not json', ID)
+
+    expect(artifacts()).toEqual([])
+  })
+
+  it('changes nothing for a workspace it does not have', () => {
+    expect(store.publishWorkspaceArtifact('ws_01hzxnope000', PAGE, 'Upload retries', T1)).toBe(
+      false
+    )
+  })
+})
+
 describe('hook events', () => {
   it('keeps the newest 500 per workspace and leaves other workspaces alone', () => {
     for (let i = 0; i < 503; i++) {

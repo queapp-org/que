@@ -523,6 +523,8 @@ export interface Methods {
   'workspace.canRenameBranch': { params: { id: string }; result: { allowed: boolean } }
   /** The app had it selected in a focused window: sets seenAt; emits workspace.updated. */
   'workspace.seen': { params: { id: string }; result: Workspace }
+  /** The app opened one of its artifacts: sets that one's openedAt; emits workspace.updated when it is listed. */
+  'workspace.artifactOpened': { params: { id: string; url: string }; result: Workspace }
   /**
    * What the workspace changed against its base: committed and uncommitted, file by file. With
    * `head`, what that branch changed against its base instead (committed only).
@@ -645,6 +647,7 @@ export const METHODS: {
   },
   'workspace.canRenameBranch': { renderer: true, quiet: false, needsWorktree: true },
   'workspace.seen': { renderer: true, quiet: false },
+  'workspace.artifactOpened': { renderer: true, quiet: false },
   'workspace.diff': { renderer: true, quiet: true, needsWorktree: true },
   'workspace.diffFile': { renderer: true, quiet: true, needsWorktree: true },
   'workspace.prThread': { renderer: true, quiet: true, needsWorktree: true },

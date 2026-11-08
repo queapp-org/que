@@ -230,6 +230,8 @@ export interface WorkspaceApi {
   canRenameBranch(params: { id: string }): Promise<{ allowed: boolean }>
   /** The workspace is selected in a focused window: records it as seen (seenAt). */
   seen(params: { id: string }): Promise<Workspace>
+  /** The app opened one of the workspace's artifacts: records it (openedAt). */
+  artifactOpened(params: { id: string; url: string }): Promise<Workspace>
   /** What the workspace changed against its base, file by file; with `head`, that branch's committed files against `base` instead. Refused in quiet hours. */
   diff(params: {
     id: string
