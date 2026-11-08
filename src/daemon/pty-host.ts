@@ -7,7 +7,7 @@ import * as pty from 'node-pty'
 import type { TermCreateParams, TermInfo, TermSnapshotResult } from '../shared/protocol'
 import { AdoptedTerminal, type AdoptSpec } from './adopted-terminal'
 import { TerminalFacts } from './foreground'
-import { TerminalMirror } from './mirror'
+import { type SerializedMirror, TerminalMirror } from './mirror'
 import { holdReading, resumeReading } from './pty-fd'
 import { termInfo, type ExitInfo, type Term } from './term'
 
@@ -46,7 +46,7 @@ export class HostedTerminal implements Term {
 
   constructor(
     opts: TermCreateParams,
-    onData: (data: string) => void,
+    onData: (data: string, seq: number) => void,
     onExit: (e: ExitInfo) => void,
     onUpdate: (info: TermInfo) => void,
     extra: TermExtra = {}
@@ -74,8 +74,7 @@ export class HostedTerminal implements Term {
       env: { ...spawnEnv(), ...extra.env, QUE_TERMINAL_ID: this.id }
     })
     this.proc.onData((data) => {
-      this.mirror.write(data)
-      onData(data)
+      onData(data, this.mirror.write(data))
     })
     this.proc.onExit(({ exitCode, signal }) => {
       this.alive = false
@@ -141,7 +140,7 @@ export class HostedTerminal implements Term {
     return this.mirror.snapshot()
   }
 
-  serializeNow(): Promise<string> {
+  serializeNow(): Promise<SerializedMirror> {
     return this.mirror.serializeNow()
   }
 
@@ -185,7 +184,7 @@ export function spawnEnv(): Record<string, string> {
   return env
 }
 
-type DataListener = (id: string, data: string) => void
+type DataListener = (id: string, data: string, seq: number) => void
 
 type ExitListener = (id: string, info: ExitInfo) => void
 
@@ -203,7 +202,7 @@ export class PtyHost {
 
     const t = new HostedTerminal(
       opts,
-      (data) => this.emitData(id, data),
+      (data, seq) => this.emitData(id, data, seq),
       (info) => this.emitExit(id, info),
       (info) => this.emitUpdate(info),
       extra
@@ -223,7 +222,7 @@ export class PtyHost {
   adopt(spec: AdoptSpec): AdoptedTerminal {
     const t = new AdoptedTerminal(
       spec,
-      (data) => this.emitData(spec.id, data),
+      (data, seq) => this.emitData(spec.id, data, seq),
       (info) => this.emitExit(spec.id, info),
       (info) => this.emitUpdate(info)
     )
@@ -275,8 +274,8 @@ export class PtyHost {
     return () => this.updateListeners.delete(l)
   }
 
-  private emitData(id: string, data: string): void {
-    for (const l of this.dataListeners) l(id, data)
+  private emitData(id: string, data: string, seq: number): void {
+    for (const l of this.dataListeners) l(id, data, seq)
   }
 
   private emitExit(id: string, info: ExitInfo): void {

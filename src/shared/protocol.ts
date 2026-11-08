@@ -94,6 +94,11 @@ export interface TermAttachResult {
   snapshot: string
   cols: number
   rows: number
+  /**
+   * The number of the last chunk of output the snapshot holds: a term.data numbered up to this is
+   * already in it. Absent from an older daemon still running after the app updates.
+   */
+  seq?: number
 }
 
 export interface TermWriteParams {
@@ -702,8 +707,21 @@ export const RENDERER_METHODS: ReadonlySet<MethodName> = new Set(
 
 // ---- event types ----------------------------------------------------------
 
+/**
+ * Whether a term.data belongs after the snapshot of a term.attach: it is numbered past it. An older
+ * daemon does not number either, so everything counts.
+ */
+export function pastSnapshot(seq: number | undefined, snapshotSeq: number | undefined): boolean {
+  return seq === undefined || snapshotSeq === undefined || seq > snapshotSeq
+}
+
 export interface Events {
-  'term.data': { id: string; data: string }
+  /**
+   * `seq` numbers the terminal's output, one per chunk; several chunks sent together carry the
+   * highest. Compare it with term.attach's. Absent from an older daemon still running after the
+   * app updates.
+   */
+  'term.data': { id: string; data: string; seq?: number }
   'term.exit': { id: string; exitCode: number; signal?: number }
   'term.created': TermInfo
   'term.killed': { id: string }

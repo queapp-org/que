@@ -106,7 +106,7 @@ export interface ServerOptions {
 
 interface Subscription {
   /** Live data buffered while an attach snapshot is being taken. */
-  pending: string[] | null
+  pending: Array<{ data: string; seq: number }> | null
 }
 
 /** Work to run after a response is written (e.g. flushing buffered data). */
@@ -306,14 +306,14 @@ export class DaemonServer {
       if (!q.locked) this.liveSessions.unlocked()
     })
     this.unsubs.push(
-      host.onData((id, data) => {
+      host.onData((id, data, seq) => {
         for (const c of this.conns) {
           const sub = c.subs.get(id)
 
           if (!sub) continue
 
-          if (sub.pending) sub.pending.push(data)
-          else c.sendEvent('term.data', { id, data })
+          if (sub.pending) sub.pending.push({ data, seq })
+          else c.sendEvent('term.data', { id, data, seq })
         }
       }),
       host.onUpdate((info) => {
@@ -892,17 +892,18 @@ export class DaemonServer {
         .map((t) => t.info()),
     'term.attach': async (p, { conn, afterSend }) => {
       const t = this.requireTerm(p.id)
-      // Buffer live output from this instant; the snapshot below covers
-      // everything before it, so nothing is lost or duplicated.
+      // Buffer live output from this instant; the snapshot below covers everything
+      // before it. Output already sent reaches the client too: the seq in the answer
+      // tells it which, so nothing is lost or duplicated.
       const sub: Subscription = { pending: [] }
       conn.subs.set(t.id, sub)
 
       try {
         t.resize(p.cols, p.rows)
-        const snapshot = await t.serializeNow()
+        const { serialized, seq } = await t.serializeNow()
         afterSend(() => flushPending(conn, t.id, sub))
 
-        return { snapshot, cols: t.cols, rows: t.rows }
+        return { snapshot: serialized, seq, cols: t.cols, rows: t.rows }
       } catch (e) {
         if (conn.subs.get(t.id) === sub) conn.subs.delete(t.id)
         throw e
@@ -1042,8 +1043,16 @@ function flushPending(conn: Connection, id: string, sub: Subscription): void {
   if (conn.subs.get(id) !== sub || !sub.pending) return
   const pending = sub.pending
   sub.pending = null
+  const last = pending.at(-1)
 
-  if (pending.length > 0) conn.sendEvent('term.data', { id, data: pending.join('') })
+  // All of it is past the snapshot, so the highest number speaks for the whole.
+  if (last) {
+    conn.sendEvent('term.data', {
+      id,
+      data: pending.map((p) => p.data).join(''),
+      seq: last.seq
+    })
+  }
 }
 
 function err(code: string, message: string): ResponseError {

@@ -5,6 +5,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
+import type { Events } from '../../../preload/index.d'
+import { pastSnapshot } from '../../../shared/protocol'
 import { applyUnicodeWidths } from '../../../shared/unicode-width'
 import { decodeOsc52 } from '../osc52'
 import { droppedText, isFileDrag } from '../terminal-drop'
@@ -186,15 +188,23 @@ export default function Terminal({
     // Only what a program prints from now on may set the clipboard, never what is replayed.
     let live = false
     // Live output that arrives before the snapshot has been written.
-    let queued: string[] = []
+    let queued: Array<Events['term.data']> = []
+    // The last chunk of output the snapshot holds. An older daemon does not say.
+    let snapshotSeq: number | undefined
     const cleanups: Array<() => void> = []
+
+    // A connection already streaming this terminal (a moved pane, a reloaded or reopened window)
+    // sends output ahead of the snapshot that also holds it: only what is past it gets written.
+    const writeOutput = ({ data, seq }: Events['term.data']): void => {
+      if (pastSnapshot(seq, snapshotSeq)) term.write(data)
+    }
 
     cleanups.push(
       window.que.term.on('term.data', (e) => {
         if (e.id !== id) return
 
-        if (attached) term.write(e.data)
-        else queued.push(e.data)
+        if (attached) writeOutput(e)
+        else queued.push(e)
       }),
       window.que.term.on('term.exit', (e) => {
         if (e.id === id) term.write(`\r\n[process exited with code ${e.exitCode}]\r\n`)
@@ -234,8 +244,9 @@ export default function Terminal({
         if (disposed) return
         // Replay the daemon's mirror before streaming live data.
         term.write(res.snapshot)
+        snapshotSeq = res.seq
 
-        for (const d of queued) term.write(d)
+        for (const chunk of queued) writeOutput(chunk)
         queued = []
         attached = true
         // xterm parses what it is given later, in order: this runs once all of the above is parsed.
