@@ -282,6 +282,51 @@ start_prompt = 3
     })
   })
 
+  describe('editor_app', () => {
+    it('reads an application by its absolute path, dropping a trailing slash', () => {
+      expect(parseConfig('editor_app = "/Applications/Editor.app"', env)).toMatchObject({
+        ok: true,
+        config: { editorApp: '/Applications/Editor.app' }
+      })
+      expect(
+        parseConfig('editor_app = " /Users/dev/Applications/Editor.app/ "', env)
+      ).toMatchObject({ ok: true, config: { editorApp: '/Users/dev/Applications/Editor.app' } })
+    })
+
+    it('treats an empty string as unset', () => {
+      const r = parseConfig('editor_app = ""', env)
+
+      expect(r.ok).toBe(true)
+      expect(r.ok && r.config.editorApp).toBeUndefined()
+    })
+
+    it('reports a relative path, a path that is not an application, or a non-string by key', () => {
+      for (const value of ['"Applications/Editor.app"', '"/usr/local/bin/editor"', '3']) {
+        expect(parseConfig(`editor_app = ${value}`, env)).toEqual({
+          ok: false,
+          errors: [
+            { key: 'editor_app', message: 'must be an absolute path to an application (.app)' }
+          ]
+        })
+      }
+    })
+
+    it('round-trips through `que config set`, and null removes it', () => {
+      const patch = parseConfigAssignment('editor_app=/Applications/Editor.app')
+      expect(patch).toEqual({ editorApp: '/Applications/Editor.app' })
+
+      const merged = mergeConfigPatch({}, patchToToml(patch))
+      expect(merged).toEqual({ editor_app: '/Applications/Editor.app' })
+      expect(parseConfig(stringifyConfig(merged), env)).toMatchObject({
+        ok: true,
+        config: { editorApp: '/Applications/Editor.app' }
+      })
+      expect(
+        mergeConfigPatch(merged, patchToToml(parseConfigAssignment('editor_app=null')))
+      ).toEqual({})
+    })
+  })
+
   it('reads an empty or blank start_prompt as off, and round-trips it', () => {
     for (const text of ['start_prompt = ""\n', 'start_prompt = "  "\n']) {
       const r = parseConfig(text, env)

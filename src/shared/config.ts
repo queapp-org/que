@@ -344,6 +344,23 @@ function parseTerminal(v: unknown, errors: ConfigError[]): TerminalConfig {
   return c
 }
 
+/**
+ * `editor_app`: an application bundle by its absolute path, a trailing `/` dropped. Empty means
+ * unset, so `que config set editor_app=` clears it.
+ */
+function editorApp(t: Table, errors: ConfigError[]): string | undefined {
+  const message = 'must be an absolute path to an application (.app)'
+  const text = field(t, 'editor_app', errors, isString, message)?.trim()
+
+  if (!text) return undefined
+  const app = text.replace(/\/+$/, '')
+
+  if (app.startsWith('/') && /\.app$/i.test(app)) return app
+  errors.push({ key: 'editor_app', message })
+
+  return undefined
+}
+
 function expandHome(p: string): string {
   return p === '~' || p.startsWith('~/') ? join(os.homedir(), p.slice(1)) : p
 }
@@ -375,6 +392,10 @@ export function parseConfig(text: string, env: ConfigEnv): ConfigResult<UserConf
   const instructions = field(t, 'instructions_file', errors, isString, 'must be a path')?.trim()
 
   if (instructions) config.instructionsFile = expandHome(instructions)
+
+  const editor = editorApp(t, errors)
+
+  if (editor) config.editorApp = editor
 
   config.quietHours = parseQuietHours(t.quiet_hours, errors)
   config.notifications = parseNotifications(t.notifications, errors)

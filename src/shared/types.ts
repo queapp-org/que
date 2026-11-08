@@ -376,6 +376,11 @@ export interface UserConfig {
    * workspace (absolute; a leading ~ is expanded). Unset when absent.
    */
   instructionsFile?: string
+  /**
+   * The app Open in editor opens a workspace's folder in (`open -a`): an absolute path to an
+   * application bundle. Unset when absent; the app asks for one the first time.
+   */
+  editorApp?: string
   quietHours: QuietHoursConfig
   notifications: NotificationsConfig
   terminal: TerminalConfig

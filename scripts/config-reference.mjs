@@ -49,6 +49,7 @@ allow_bypass_permissions = ${d.allowBypassPermissions}
 protected_branches = ${toml(d.protectedBranches)}
 start_prompt = ${JSON.stringify(d.startPrompt)} # only with a brief; empty: Claude starts on the brief itself
 # instructions_file = "~/.config/que/instructions.md"   # unset: no instructions
+# editor_app = "/Applications/<Editor>.app"   # unset: Open in editor asks for one
 
 [quiet_hours]
 enabled = ${d.quietHours.enabled}

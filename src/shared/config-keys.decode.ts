@@ -42,6 +42,7 @@ const SCHEMA: Node = section<ConfigPatch>('', {
   allowBypassPermissions: value('allow_bypass_permissions'),
   protectedBranches: value('protected_branches'),
   instructionsFile: value('instructions_file'),
+  editorApp: value('editor_app'),
   startPrompt: value('start_prompt'),
   repos: {
     file: 'repos',

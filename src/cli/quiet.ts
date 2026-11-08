@@ -3,6 +3,7 @@
 import type { Command } from 'commander'
 import { formatCountdown, hhmm } from '../shared/format'
 import { combineConfigPatches, describeQuietHours, parseConfigAssignment } from '../shared/config'
+import { editorName } from '../shared/editor-name'
 import type { ConfigPatch, QuietState } from '../shared/types'
 import { CliError, printJson, withClient } from './common'
 import { errorMessage } from '../shared/errors.decode'
@@ -131,6 +132,7 @@ export function registerQuietCommands(program: Command): void {
         )
         console.log(`protected       ${cfg.protectedBranches.join(', ')}`)
         console.log(`instructions    ${cfg.instructionsFile ?? 'none'}`)
+        console.log(`editor          ${cfg.editorApp ? editorName(cfg.editorApp) : 'none'}`)
       })
     )
   config
