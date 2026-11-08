@@ -286,8 +286,8 @@ configuration (an alternate config directory, provider selectors, limits) is
 kept.
 
 The app resolves the shell's PATH once at start (`src/shared/login-path.ts`) and
-merges it in front of its own, and a daemon it starts and its editor launches
-inherit it, so a Finder launch finds the same tools a terminal does. It asks an
+merges it in front of its own, and a daemon it starts inherits it, so a Finder
+launch finds the same tools a terminal does. It asks an
 interactive login shell, which also reads `~/.zshrc`, and a plain login shell at
 the same time, whose answer it uses when startup files hang or fail; both get 5
 seconds. Only a daemon the app starts gets this PATH. A running daemon keeps the
@@ -296,6 +296,13 @@ its successor. A daemon the CLI starts has the CLI's PATH, and the launchd agent
 has the one `que daemon install` ran with. `que doctor` reports what is on the
 daemon's PATH, and says why and what to do when this shell finds `claude` or `gh`
 and the daemon does not.
+
+Open in editor needs no PATH. The app and `que open` run `open -a` with the
+editor app's path from the config (`editor_app`, `src/shared/editor.ts`), so a
+launch from Finder, the Dock or a terminal opens the same app. With none set,
+the app asks for one with the system's picker and saves it through `config.set`;
+the CLI says how to set one. A failure (the app is gone, `open` exits non-zero)
+reaches the error line, or the CLI's stderr.
 
 ## The status engine
 

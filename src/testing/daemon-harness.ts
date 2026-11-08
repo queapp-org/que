@@ -36,7 +36,7 @@ export interface TestDaemon {
   /** The fake acli's call log and issue file (QUE_FAKE_ACLI_LOG / QUE_FAKE_ACLI_TICKETS). */
   acliLog: string
   acliTickets: string
-  codeLog: string
+  openLog: string
   wrapperLog: string
   /** QUE_CONFIG for this daemon (always written; see withQuietOff). */
   configPath: string
@@ -125,7 +125,7 @@ export async function startTestDaemon(opts: TestDaemonOptions = {}): Promise<Tes
     ghPrs: env.QUE_FAKE_GH_PRS,
     acliLog: env.QUE_FAKE_ACLI_LOG,
     acliTickets: env.QUE_FAKE_ACLI_TICKETS,
-    codeLog: env.QUE_FAKE_CODE_LOG,
+    openLog: env.QUE_FAKE_OPEN_LOG,
     wrapperLog: env.QUE_FAKE_WRAPPER_LOG,
     configPath,
     async close(closeOpts = {}) {

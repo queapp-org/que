@@ -9,7 +9,7 @@ export interface FakeEnv {
   QUE_FAKE_GH_PRS: string
   QUE_FAKE_ACLI_LOG: string
   QUE_FAKE_ACLI_TICKETS: string
-  QUE_FAKE_CODE_LOG: string
+  QUE_FAKE_OPEN_LOG: string
   QUE_FAKE_WRAPPER_LOG: string
   GIT_CONFIG_GLOBAL: string
   GIT_CONFIG_NOSYSTEM: string

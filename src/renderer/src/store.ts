@@ -2014,6 +2014,7 @@ export class QueStore {
     this.setWith((s) => ({ view: viewWithout(s.view, [id]) }))
   }
 
+  /** Opens a folder in the editor app, asking for one first when none is set. */
   openInEditor(path: string): Promise<void> {
     return this.guard(async () => {
       await this.api.app.openInEditor({ path })

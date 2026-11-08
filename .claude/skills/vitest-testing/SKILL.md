@@ -10,7 +10,7 @@ You are an expert test engineer for que, a macOS Electron app (TypeScript strict
 
 **Scope:** This skill covers **how** to write the three kinds of Vitest tests que needs:
 
-- **Daemon integration tests** — the real daemon pieces in-process (a real `DaemonServer` on a temp socket, the real `DaemonClient`, real node-pty, real `node:sqlite` in a temp `QUE_HOME`, real `git` on temp repos), with the fake `claude`/`gh`/`code` binaries from `tests/fakes/bin/` on `PATH` — never a `vi.mock` of `node:child_process`.
+- **Daemon integration tests** — the real daemon pieces in-process (a real `DaemonServer` on a temp socket, the real `DaemonClient`, real node-pty, real `node:sqlite` in a temp `QUE_HOME`, real `git` on temp repos), with the fake `claude`/`gh`/`open` binaries from `tests/fakes/bin/` on `PATH` — never a `vi.mock` of `node:child_process`.
 - **Renderer component tests** — rendered with React Testing Library in jsdom against the fake `window.que` bridge (`src/renderer/src/testing/fake-bridge.ts`), an in-memory fixture book that emits the same events the real daemon would — never a `vi.mock` of a component or module.
 - **Logic tests** — calling pure exports directly: status-engine reducers, the workspace digest, quiet-hours and unlock math (with an injected `now()`), protocol framing, hook and `gh` JSON decoding, config parsing and defaults, worktree naming and slugs, report formatting.
 
@@ -24,7 +24,7 @@ For deciding **what** to test at which layer, use the `test-planning` skill. For
 
 1. **"Write tests. Not too many. Mostly integration."** Integration tests (real daemon pieces over a real socket; real components against the fake bridge) provide the best confidence-to-cost ratio. The bulk of testing effort belongs here, with a solid layer of fast logic tests underneath for the branchy rules (status transitions, task states, clock math, framing).
 
-2. **Fake at the subprocess and bridge boundaries, never internal modules.** que's real boundaries are the `claude`, `git`, `gh`, and `code` subprocesses, the filesystem under `QUE_HOME`, the clock, and the Electron bridge. Put the fake binaries from `tests/fakes/bin/` on `PATH` (and keep `git` real on temp repos); give every test a fresh temp `QUE_HOME`; inject `now()` into time-dependent modules; in the renderer, let `fake-bridge.ts` stand in for `window.que`. **Never mock `node:child_process`, `node:fs`, `protocol.ts`, `client.ts`, the status engine, the store, or any component.**
+2. **Fake at the subprocess and bridge boundaries, never internal modules.** que's real boundaries are the `claude`, `git`, `gh`, and `open` subprocesses, the filesystem under `QUE_HOME`, the clock, and the Electron bridge. Put the fake binaries from `tests/fakes/bin/` on `PATH` (and keep `git` real on temp repos); give every test a fresh temp `QUE_HOME`; inject `now()` into time-dependent modules; in the renderer, let `fake-bridge.ts` stand in for `window.que`. **Never mock `node:child_process`, `node:fs`, `protocol.ts`, `client.ts`, the status engine, the store, or any component.**
 
 3. **Accessibility-first queries.** The more your tests resemble how software is used, the more confidence they give you. Prefer `getByRole` > `getByLabelText` > `getByText` > `getByTestId`.
 
@@ -54,7 +54,7 @@ For deciding **what** to test at which layer, use the `test-planning` skill. For
 | `node` setup file     | `src/testing/setup.ts`: drops the variables of the que terminal a run was started from                                         |
 | `renderer` project    | Environment `jsdom`: `src/renderer/src/**/*.test.tsx`, setup file `src/renderer/src/testing/setup.ts`                          |
 | Component testing     | React Testing Library (`@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`)                   |
-| Subprocess fakes      | `tests/fakes/bin/claude`, `tests/fakes/bin/gh`, `tests/fakes/bin/code` (Node scripts, executable, put first on `PATH`)         |
+| Subprocess fakes      | `tests/fakes/bin/claude`, `tests/fakes/bin/gh`, `tests/fakes/bin/open` (Node scripts, executable, put first on `PATH`)         |
 | Bridge fake           | `src/renderer/src/testing/fake-bridge.ts` — in-memory `window.que` with a fixture book                                         |
 | Custom render wrapper | **None.** The renderer has no providers to inject — import `render` straight from `@testing-library/react`                     |
 | Fixture factories     | `src/testing/fixtures.ts` (node tests), `src/renderer/src/testing/fixtures.ts` (renderer tests)                                |
@@ -92,7 +92,7 @@ The `node` project has **no** global setup: each daemon integration test builds 
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `claude` | An interactive session only: honours `--settings` (runs the configured hook commands with realistic hook JSON on stdin), `--session-id`, `--resume`, `--permission-mode`; also `claude agents --json`. Driven by what is typed into its terminal: a prompt runs a turn, `/needs-input` asks for permission, `/background` and `/exit` (see `tests/fakes/README.md`). |
 | `gh`     | Appends each invocation's argv to `QUE_FAKE_GH_LOG` (one JSON array per line) and prints a fake PR URL for `gh pr create`.                                                                                                                                                                                                                                           |
-| `code`   | Records its invocation the same way, so "open in VS Code" is assertable without launching an editor.                                                                                                                                                                                                                                                                 |
+| `open`   | Records its invocation the same way (`QUE_FAKE_OPEN_LOG`), so Open in editor (`open -a <app> <folder>`) is assertable without launching an app; `QUE_FAKE_OPEN_FAIL` makes it fail with that message.                                                                                                                                                                |
 
 ### Fixture Factories
 
@@ -1179,7 +1179,7 @@ await expect
 - Sleep (`setTimeout` in a test body, hand-rolled polling loops) to wait for the daemon
 - Use `vi.useFakeTimers()` in a test that touches a PTY, socket, or subprocess
 - Write rows into SQLite or files into `QUE_HOME` behind the daemon's back to set up state
-- Run against the real `~/.que` or with the real `claude`/`gh`/`code` reachable on `PATH`
+- Run against the real `~/.que` or with the real `claude`/`gh`/`open` reachable on `PATH`
 - Assert terminal content in a jsdom renderer test
 - Use `fireEvent` instead of `userEvent`
 - Use `getBy*` in negative assertions

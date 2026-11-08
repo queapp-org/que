@@ -8,7 +8,7 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash(npm run e2e*), Bash(npx playw
 
 You are an expert Playwright test engineer for que. You write, debug, run, and fix E2E tests following strict best practices.
 
-**What makes this app different from a typical E2E target:** que is a macOS Electron app (TypeScript strict, React 19, electron-vite), not a website — there is no URL and no `page.goto()`. Specs drive it through Playwright's Electron support (`_electron.launch`). The app is only a client: a long-running daemon (`src/daemon/`) owns the terminals, workspaces (git worktrees), the status engine, Create draft PR, the sessions report, and the quiet-hours clock, and it **outlives the app** — quitting que leaves the daemon and its terminals running, and the next launch reattaches. `npm run e2e` builds the app (`npm run build`) and then runs `playwright test`; every spec launches the built app with `QUE_HOME` pointed at a fresh temp dir (so the real daemon starts there, with its own SQLite, socket, and worktrees), `QUE_E2E=1` (so the renderer exposes `window.__que` with `activeTermId()` and `screenText()`), and `PATH` prepended with `tests/fakes/bin` (so the daemon's `claude`, `gh`, and `code` are fakes, while `git` stays real against a temp repo). Test data setup is either (a) the deterministic repo fixture from `tests/e2e/utils/repo.ts` or (b) the real `que` CLI against the test's `QUE_HOME` via `tests/e2e/utils/que.ts`. One app launch per test; everything else is in-app state, except the deliberate **relaunch** in persistence specs. Screenshots go under `test-results/`.
+**What makes this app different from a typical E2E target:** que is a macOS Electron app (TypeScript strict, React 19, electron-vite), not a website — there is no URL and no `page.goto()`. Specs drive it through Playwright's Electron support (`_electron.launch`). The app is only a client: a long-running daemon (`src/daemon/`) owns the terminals, workspaces (git worktrees), the status engine, Create draft PR, the sessions report, and the quiet-hours clock, and it **outlives the app** — quitting que leaves the daemon and its terminals running, and the next launch reattaches. `npm run e2e` builds the app (`npm run build`) and then runs `playwright test`; every spec launches the built app with `QUE_HOME` pointed at a fresh temp dir (so the real daemon starts there, with its own SQLite, socket, and worktrees), `QUE_E2E=1` (so the renderer exposes `window.__que` with `activeTermId()` and `screenText()`), and `PATH` prepended with `tests/fakes/bin` (so the daemon's `claude` and `gh`, and the `open` that launches the editor app, are fakes, while `git` stays real against a temp repo). Test data setup is either (a) the deterministic repo fixture from `tests/e2e/utils/repo.ts` or (b) the real `que` CLI against the test's `QUE_HOME` via `tests/e2e/utils/que.ts`. One app launch per test; everything else is in-app state, except the deliberate **relaunch** in persistence specs. Screenshots go under `test-results/`.
 
 **Scope:** This skill covers **how** to write Playwright E2E tests. For deciding **what** to test at which layer, use the `test-planning` skill. For Vitest daemon integration, renderer component, and logic tests, use the `vitest-testing` skill.
 
@@ -691,7 +691,7 @@ Drive it through the UI if it **is** the flow under test (creating a workspace f
 
 ---
 
-## 6. Driving the Fakes: claude, gh, code
+## 6. Driving the Fakes: claude, gh, open
 
 The subprocess fakes in `tests/fakes/bin/` are what make E2E deterministic. They are the same binaries the Vitest integration suite uses.
 
@@ -699,7 +699,7 @@ The subprocess fakes in `tests/fakes/bin/` are what make E2E deterministic. They
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `claude` | An interactive session only: prints a banner and a prompt into the PTY; `--settings` hooks fire with real hook JSON, so the status engine sees `UserPromptSubmit`, `Notification`, `Stop` as it would from the real thing. Typed commands drive it: a prompt runs a turn, `/needs-input` asks for permission, `/background`, `/exit`. |
 | `gh`     | Logs argv to `QUE_FAKE_GH_LOG` (`launched.ghCalls()` reads it back) and prints a fake PR URL from `gh pr create`.                                                                                                                                                                                                                     |
-| `code`   | Logs its invocation, so "Open in VS Code" is assertable without an editor window appearing.                                                                                                                                                                                                                                           |
+| `open`   | Logs its invocation (`launched.openCalls()`), so Open in editor (`open -a <app> <folder>`) is assertable without an app opening. The system's file picker is out of reach; `launched.pickInOpenDialog(path)` answers it.                                                                                                              |
 
 **Session paths belong in integration tests.** E2E uses the fakes to make a journey run end to end — a prompt and `/needs-input` for the spec that proves a hook reaches the sidebar and the report through the real app. Every other path (a stall, background tasks, a resumed session) is proven once in the Vitest hooks integration tests; an E2E spec per path is the overlap the `test-planning` skill exists to prevent.
 
@@ -824,7 +824,7 @@ tests/
     └── bin/
         ├── claude              # Fake Claude Code: interactive session, hooks
         ├── gh                  # Records calls, prints a fake PR URL
-        └── code                # Records calls
+        └── open                # Records calls (Open in editor)
 test-results/                  # Screenshots and Playwright artifacts (gitignored)
 ```
 
@@ -881,7 +881,7 @@ If a run is interrupted and leaves a daemon behind, stop it through the CLI with
 - ❌ `waitForTimeout()`, `setTimeout` sleeps, or "poll until stable" loops - wait on an element, `expect.poll` over `screenText()`, or a CLI query
 - ❌ `waitForLoadState('networkidle')` or `'domcontentloaded'` - they say nothing about the daemon or the PTY
 - ❌ Sharing a `QUE_HOME` or a repo between tests, or running against the real `~/.que`
-- ❌ Letting any process in a spec find the real `claude`, `gh`, or `code`
+- ❌ Letting any process in a spec find the real `claude`, `gh`, or `open`
 - ❌ Writing files into `QUE_HOME` behind the daemon's back to seed state - use the CLI, or add the missing CLI command
 - ❌ One E2E spec per fake `claude` session path - those are proven in the Vitest integration suite
 - ❌ Clicking the tray or indexing `app.windows()` by position

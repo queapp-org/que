@@ -28,7 +28,7 @@ hand; run `npm run docs` after changing a command.
 | `que ws terminal [options] <workspace>`     | print the id of the workspace's latest live terminal, opening one if needed                                                                                                                |
 | `que status [options]`                      | summary and per-workspace status                                                                                                                                                           |
 | `que attach [options] <workspace>`          | attach to the workspace's latest terminal, opening one if needed (Ctrl-] detaches)                                                                                                         |
-| `que open [options] <workspace>`            | open the workspace with `code -n`                                                                                                                                                          |
+| `que open [options] <workspace>`            | open the workspace in your editor app (Settings → Editor, or editor_app)                                                                                                                   |
 | `que tickets list [options]`                | list the cached tickets (the default)                                                                                                                                                      |
 | `que tickets sync [options]`                | fetch the queue from the tracker now                                                                                                                                                       |
 | `que tickets start [options] <key>`         | make a workspace for a ticket, write it as a brief, and start claude on it                                                                                                                 |
@@ -228,7 +228,8 @@ Options:
   --name <name>      name the workspace, branch and folder yourself (default:
                      random words)
   --base <ref>       base ref (default: origin/<default branch>)
-  --open             open the workspace with `code -n`
+  --open             open the workspace in your editor app (Settings → Editor,
+                     or editor_app)
   --json             print the workspace as JSON
   -h, --help         display help for command
 ```
@@ -341,7 +342,7 @@ Options:
 ```text
 Usage: que open [options] <workspace>
 
-open the workspace with `code -n`
+open the workspace in your editor app (Settings → Editor, or editor_app)
 
 Options:
   -h, --help  display help for command

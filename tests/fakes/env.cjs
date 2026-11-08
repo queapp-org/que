@@ -27,7 +27,7 @@ exports.fakeEnv = function fakeEnv(home, pathPrefix = []) {
     QUE_FAKE_GH_PRS: join(home, 'fake-gh-prs.json'),
     QUE_FAKE_ACLI_LOG: join(home, 'fake-acli.log'),
     QUE_FAKE_ACLI_TICKETS: join(home, 'fake-acli-tickets.json'),
-    QUE_FAKE_CODE_LOG: join(home, 'fake-code.log'),
+    QUE_FAKE_OPEN_LOG: join(home, 'fake-open.log'),
     QUE_FAKE_WRAPPER_LOG: join(home, 'fake-wrapper.log'),
     GIT_CONFIG_GLOBAL: join(home, 'gitconfig'),
     GIT_CONFIG_NOSYSTEM: '1'

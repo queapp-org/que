@@ -8,7 +8,7 @@ export const FAKES_BIN = resolve(REPO_ROOT, 'tests/fakes/bin')
 /** Another tool's claude wrapper (tests/fakes/wrappers/claude), for PATH ahead of the fakes. */
 export const FAKE_WRAPPERS = resolve(REPO_ROOT, 'tests/fakes/wrappers')
 
-/** One recorded invocation of a fake `claude`, `gh`, or `code`. */
+/** One recorded invocation of a fake `claude`, `gh`, or `open`. */
 export interface FakeCall {
   argv: string[]
   cwd: string
@@ -19,7 +19,7 @@ export interface FakeCall {
   ts: string
 }
 
-/** Reads QUE_FAKE_CLAUDE_LOG / QUE_FAKE_GH_LOG / QUE_FAKE_CODE_LOG back; [] if nothing ran. */
+/** Reads QUE_FAKE_CLAUDE_LOG / QUE_FAKE_GH_LOG / QUE_FAKE_OPEN_LOG back; [] if nothing ran. */
 export function readFakeLog(path: string): FakeCall[] {
   if (!fs.existsSync(path)) return []
 

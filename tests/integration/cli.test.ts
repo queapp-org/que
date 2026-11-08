@@ -211,14 +211,30 @@ describe('que work and que ws', () => {
     expect(await daemon.client.request('workspace.list')).toEqual([])
   }, 30_000)
 
-  it('opens a workspace with code -n', async () => {
+  it('opens a workspace in the editor app from the config', async () => {
+    const app = join(daemon.home, 'Editor.app')
+    fs.mkdirSync(app)
+    await daemon.client.request('config.set', { patch: { editorApp: app } })
     const repo = makeTempRepo(daemon.home)
     const path = (await runCli('work', '--name', 'app-1480-editor', '-r', repo)).stdout.trim()
 
     const r = await runCli('open', 'app-1480-editor')
 
     expect(r.code).toBe(0)
-    expect(readFakeLog(daemon.codeLog).map((c) => c.argv)).toEqual([['-n', path]])
+    expect(readFakeLog(daemon.openLog).map((c) => c.argv)).toEqual([['-a', app, path]])
+  }, 30_000)
+
+  it('says how to set an editor app when none is set, opening nothing', async () => {
+    const repo = makeTempRepo(daemon.home)
+    await runCli('work', '--name', 'app-1481-no-editor', '-r', repo)
+
+    const r = await runCli('open', 'app-1481-no-editor')
+
+    expect(r.code).toBe(1)
+    expect(r.stderr.trim()).toBe(
+      "que: no editor app is set: choose one in que's Settings, or run: que config set editor_app=/Applications/<Editor>.app"
+    )
+    expect(readFakeLog(daemon.openLog)).toEqual([])
   }, 30_000)
 })
 

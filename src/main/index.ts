@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process'
 import os from 'node:os'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { summaryNotification } from '../daemon/report'
 import { buildIdOf, daemonIsStale } from '../shared/build-id'
 import { DaemonClient, resolveDaemonScript } from '../shared/client'
+import { openWithEditor } from '../shared/editor'
 import { loginShellPath, mergePath } from '../shared/login-path'
 import { queHome, quePaths } from '../shared/paths'
 import { delay, waitForExit } from '../shared/process'
@@ -244,6 +244,31 @@ async function reply<T>(
   }
 }
 
+/**
+ * Asks for the editor app with the system's picker, which starts in /Applications and takes
+ * only applications, and saves the choice as editor_app; config.changed tells the windows.
+ * Null when the picker was cancelled.
+ */
+async function chooseEditorApp(): Promise<string | null> {
+  const opts: Electron.OpenDialogOptions = {
+    message: 'Choose the app that opens your workspaces',
+    defaultPath: '/Applications',
+    properties: ['openFile'],
+    filters: [{ name: 'Applications', extensions: ['app'] }]
+  }
+
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, opts)
+    : await dialog.showOpenDialog(opts)
+
+  const picked = result.canceled ? undefined : result.filePaths[0]
+
+  if (!picked) return null
+  const saved = await (await getClient()).request('config.set', { patch: { editorApp: picked } })
+
+  return saved.config.editorApp ?? picked
+}
+
 function showBoard(): void {
   // Set on every show: a manual quiet and quiet hours title the board differently.
   const title = quietTitle(quiet) ?? 'que · quiet hours'
@@ -442,17 +467,22 @@ function registerIpc(): void {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
 
-  // Fire-and-forget: the editor is found on PATH and outlives nothing here.
-  ipcMain.handle('app:openInEditor', (_e, arg) => {
-    const path = decodeAbsolutePath(arg)
+  // The folder opens in the editor app from the config; with none set, the user picks one
+  // first. A failure comes back as the reply's error, for the error line.
+  ipcMain.handle('app:openInEditor', (_e, arg) =>
+    reply(async () => {
+      const path = decodeAbsolutePath(arg)
 
-    if (path === null) throw new Error('path must be absolute')
-    const child = spawn('code', ['-n', path], { detached: true, stdio: 'ignore' })
-    child.on('error', (err) => console.error(`code -n ${path} failed: ${err.message}`))
-    child.unref()
+      if (path === null) throw new Error('path must be absolute')
+      const c = await getClient()
+      const app = (await c.request('config.get')).config.editorApp ?? (await chooseEditorApp())
 
-    return { ok: true }
-  })
+      if (app === null) return { opened: false }
+      await openWithEditor(app, path)
+
+      return { opened: true }
+    })
+  )
 
   // Opens only a workspace's own setup log: the renderer names the workspace, not a path.
   ipcMain.handle('app:openSetupLog', (_e, arg) =>
@@ -539,7 +569,7 @@ app.whenReady().then(async () => {
   // Gone from here on, whatever the rest of this launch does.
   const restartMarkedAt = takeRestartMarker(restartMarkerPath(queHome()))
 
-  // A Finder launch has launchd's PATH; the daemon and editors inherit ours,
+  // A Finder launch has launchd's PATH; the daemon inherits ours,
   // so resolve the login shell's once, before the first daemon start.
   if (!e2e) {
     const login = await loginShellPath()

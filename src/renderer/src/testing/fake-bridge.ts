@@ -329,20 +329,7 @@ class FakeBridge {
 
           if (refusal !== null) throw rpcError('bad_request', refusal)
 
-          this.configSets.push(structuredClone(p))
-          this.configRaw = mergeConfigPatch(this.configRaw, patchToToml(p.patch))
-
-          if ('instructionsFile' in p.patch) {
-            const file = p.patch.instructionsFile
-            this.configBook.config = {
-              ...this.configBook.config,
-              instructionsFile: typeof file === 'string' && file !== '' ? file : undefined
-            }
-          }
-
-          this.emit('config.changed', structuredClone(this.configBook))
-
-          return structuredClone(this.configBook)
+          return this.applyConfigSet(p)
         },
         on: (event, cb) => this.subscribe(event, cb as Listener)
       },
@@ -422,7 +409,7 @@ class FakeBridge {
         openInEditor: async ({ path }) => {
           this.editorCalls.push(path)
 
-          return { ok: true }
+          return { opened: true }
         },
         trayView: async () => this.tray,
         updateStatus: async () => ({ ...this.updateBook }),
@@ -838,6 +825,30 @@ class FakeBridge {
   setConfig(config: Partial<UserConfig>, raw: Record<string, unknown> = {}): void {
     this.configBook = { ...this.configBook, config: makeUserConfig(config) }
     this.configRaw = raw
+  }
+
+  /** What the daemon does with a config.set it accepts: records it, saves it, emits config.changed. */
+  private applyConfigSet(p: ConfigSetParams): ConfigGetResult {
+    this.configSets.push(structuredClone(p))
+    this.configRaw = mergeConfigPatch(this.configRaw, patchToToml(p.patch))
+
+    const text = (v: string | null | undefined): string | undefined =>
+      typeof v === 'string' && v !== '' ? v : undefined
+
+    if ('instructionsFile' in p.patch) {
+      this.configBook.config = {
+        ...this.configBook.config,
+        instructionsFile: text(p.patch.instructionsFile)
+      }
+    }
+
+    if ('editorApp' in p.patch) {
+      this.configBook.config = { ...this.configBook.config, editorApp: text(p.patch.editorApp) }
+    }
+
+    this.emit('config.changed', structuredClone(this.configBook))
+
+    return structuredClone(this.configBook)
   }
 
   /** The config file's table after the config.set calls so far (the file's own key names). */

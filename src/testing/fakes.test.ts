@@ -172,16 +172,16 @@ describe('fake claude', () => {
   })
 })
 
-describe('fake gh and code', () => {
+describe('fake gh and open', () => {
   it('logs every call and numbers the PRs it opens', async () => {
     const ghLog = join(dir, 'gh.log')
-    const codeLog = join(dir, 'code.log')
-    const env = { QUE_FAKE_GH_LOG: ghLog, QUE_FAKE_CODE_LOG: codeLog }
+    const openLog = join(dir, 'open.log')
+    const env = { QUE_FAKE_GH_LOG: ghLog, QUE_FAKE_OPEN_LOG: openLog }
 
     expect((await run(join(FAKES_BIN, 'gh'), ['auth', 'status'], env)).code).toBe(0)
     const first = await run(join(FAKES_BIN, 'gh'), ['pr', 'create', '--draft', '--fill'], env)
     const second = await run(join(FAKES_BIN, 'gh'), ['pr', 'create', '--draft', '--fill'], env)
-    await run(join(FAKES_BIN, 'code'), ['--new-window', dir], env)
+    await run(join(FAKES_BIN, 'open'), ['-a', '/Applications/Editor.app', dir], env)
 
     expect(first.stdout.trim()).toBe('https://github.com/rquellh/que/pull/1')
     expect(second.stdout.trim()).toBe('https://github.com/rquellh/que/pull/2')
@@ -190,8 +190,8 @@ describe('fake gh and code', () => {
       ['pr', 'create', '--draft', '--fill'],
       ['pr', 'create', '--draft', '--fill']
     ])
-    expect(readFakeLog(codeLog)).toEqual([
-      { argv: ['--new-window', dir], cwd: dir, ts: expect.any(String) }
+    expect(readFakeLog(openLog)).toEqual([
+      { argv: ['-a', '/Applications/Editor.app', dir], cwd: dir, ts: expect.any(String) }
     ])
   }, 20_000)
 })

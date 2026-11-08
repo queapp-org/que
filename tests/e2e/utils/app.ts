@@ -23,10 +23,15 @@ export interface LaunchedApp {
   ghCalls(): string[][]
   /** argv of every fake claude invocation, in order. */
   claudeCalls(): string[][]
-  /** argv of every fake `code` call, in order. */
-  codeCalls(): string[][]
+  /** argv of every fake `open` call (an editor app's, a link's), in order. */
+  openCalls(): string[][]
   /** The links the main process would have opened in the browser, in order. */
   externalOpens(): Promise<string[]>
+  /**
+   * Answers the main process's file pickers from now on with `path`, as a person choosing it
+   * would: a spec cannot reach the system's dialog.
+   */
+  pickInOpenDialog(path: string): Promise<void>
   /** Quits the app, stops the test daemon, and checks its process is gone. */
   close(): Promise<void>
 }
@@ -108,8 +113,12 @@ export async function launchApp(
     queHome,
     ghCalls: () => argvOf(join(queHome, 'fake-gh.log')),
     claudeCalls: () => argvOf(join(queHome, 'fake-claude.log')),
-    codeCalls: () => argvOf(join(queHome, 'fake-code.log')),
+    openCalls: () => argvOf(join(queHome, 'fake-open.log')),
     externalOpens: () => app.evaluate(() => globalThis.queExternalOpens ?? []),
+    pickInOpenDialog: (path) =>
+      app.evaluate(({ dialog }, picked) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] })
+      }, path),
     close: async () => {
       // The app first, so it cannot reconnect and respawn a daemon.
       await app.close().catch(() => {})
